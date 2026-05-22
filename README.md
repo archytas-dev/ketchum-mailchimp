@@ -1,4 +1,4 @@
-# ketchum-mailchimp
+# ketchum-mailchimp 
 
 Editor web del clipping diario de Ketchum (Booking y BMS), listo para **copiar y pegar en Mailchimp**.
 
