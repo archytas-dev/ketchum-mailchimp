@@ -367,10 +367,19 @@ function loadData(data){
 }
 function setStatus(t){ const s=document.getElementById("status"); s.textContent=t; if(t) setTimeout(()=>{if(s.textContent===t)s.textContent="";},4000); }
 const WEBHOOKS={ booking:"https://archytasai.app.n8n.cloud/webhook/clipping-booking", bms:"https://archytasai.app.n8n.cloud/webhook/clipping-bms" };
+async function loadClient(c){
+  c=(c||"").toLowerCase();
+  if(!WEBHOOKS[c]) return false;
+  // reflejar el cliente en la URL sin recargar la página
+  try{ const u=new URL(location.href); u.searchParams.set("c",c); history.replaceState(null,"",u); }catch(e){}
+  setStatus("Cargando "+c.toUpperCase()+"…");
+  try{ const r=await fetch(WEBHOOKS[c]); loadData(await r.json()); return true; }
+  catch(e){ setStatus("No pude traer el clipping de "+c.toUpperCase()); state.theme=c; render(); return false; }
+}
 async function bootstrap(){
   const p=new URLSearchParams(location.search); const src=p.get("src"); const dataParam=p.get("data");
   const c=(p.get("c")||"").toLowerCase();
-  if(c && WEBHOOKS[c]){ try{ setStatus("Cargando…"); const r=await fetch(WEBHOOKS[c]); loadData(await r.json()); return; }catch(e){ setStatus("No pude traer el clipping — uso demo"); } }
+  if(c && WEBHOOKS[c]){ await loadClient(c); return; }
   if(src){ try{ setStatus("Cargando…"); const r=await fetch(src); loadData(await r.json()); return; }catch(e){ setStatus("No pude traer ?src — uso demo"); } }
   if(dataParam){ try{ loadData(JSON.parse(decodeURIComponent(escape(atob(dataParam.replace(/-/g,"+").replace(/_/g,"/")))))); return; }catch(e){ try{ loadData(JSON.parse(decodeURIComponent(dataParam))); return; }catch(e2){} } }
   loadData(DEMO);
@@ -379,7 +388,7 @@ async function bootstrap(){
 /* ============ WIRE UP ============ */
 document.addEventListener("click",ev=>{
   const t=ev.target;
-  if(t.closest(".tab")){ const th=t.closest(".tab").dataset.theme; if(th!==state.theme){ syncFromDOM(); state.theme=th; render(); } }
+  if(t.closest(".tab")){ const th=t.closest(".tab").dataset.theme; if(th!==state.theme){ syncFromDOM(); loadClient(th); } }
   else if(t.closest(".btn-delsection")) delSection(t.closest(".section"));
   else if(t.closest(".btn-addnote")||t.closest(".btn-addnote2")) addNote(t.closest(".section"));
   else if(t.closest(".btn-dupnote")) dupNote(t.closest(".note"));
