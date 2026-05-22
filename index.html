@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor de Clipping — Ketchum</title>
+<style>
+  :root{
+    --ui-bg:#eef1f4; --ui-border:#d6dde4; --ui-accent:#0a7fa3;
+    --color-header:#0000FF; --color-link:#0000FF; --color-text:#222222; --page-bg:#F5F8FB;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--ui-bg);color:#1f2a33}
+
+  /* ---- top toolbar ---- */
+  #toolbar{position:sticky;top:0;z-index:50;background:#1f2a33;color:#fff;display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 16px}
+  #toolbar h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.3px;margin-right:4px}
+  .grow{flex:1}
+  .tabs{display:flex;background:#2b3845;border-radius:8px;padding:3px}
+  .tab{border:none;background:transparent;color:#aebcc8;font-size:13px;font-weight:700;padding:7px 16px;border-radius:6px;cursor:pointer}
+  .tab.active{background:#fff;color:#1f2a33}
+  #fechaLabel{font-size:12px;color:#aebcc8;letter-spacing:.3px;padding:0 4px}
+  #toolbar button.act{font-size:13px;padding:8px 14px;border-radius:6px;border:1px solid #3a4753;background:#2b3845;color:#fff;cursor:pointer}
+  #toolbar button.act:hover{background:#374754}
+  #toolbar button.primary{background:var(--ui-accent);border-color:var(--ui-accent);font-weight:700}
+  #exportBtn{background:#FFC107;border-color:#FFC107;color:#1f2a33;font-weight:700}
+  #exportBtn:hover{background:#ffca28;border-color:#ffca28}
+  #status{font-size:12px;color:#9fb0bd}
+
+  /* ---- canvas ---- */
+  #canvas{max-width:780px;margin:24px auto;padding:0 12px}
+  #clip{background:var(--page-bg);padding:20px;border-radius:6px;box-shadow:0 1px 8px rgba(0,0,0,.12)}
+  .banner{width:100%;border-radius:4px 4px 0 0;display:block}
+  .datebar{background:var(--color-header);color:#fff;text-align:right;padding:10px 18px;font-size:11px;letter-spacing:2px;text-transform:uppercase}
+
+  /* ---- sections ---- */
+  .section{margin-top:22px}
+  .section.dragging{opacity:.45}
+  .section-head{display:flex;align-items:center;gap:6px}
+  .grip{cursor:grab;color:#9fb0bd;font-size:16px;user-select:none;padding:0 2px;line-height:1}
+  .grip:active{cursor:grabbing}
+  body[data-theme="booking"] .section-title{background:var(--color-header);color:#fff;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:12px 18px;font-size:15px;flex:1;border:1px solid transparent;border-radius:3px}
+  body[data-theme="bms"] .section-title{color:var(--color-header);font-weight:700;font-size:23px;letter-spacing:-.3px;padding:4px 4px;flex:1;border:1px solid transparent;border-radius:3px;background:transparent}
+  .section-title:hover{border-color:rgba(10,127,163,.4)}
+  .section-title:focus{outline:none;box-shadow:0 0 0 2px var(--ui-accent)}
+  body[data-theme="booking"] .section-title:focus{box-shadow:inset 0 0 0 2px #fff}
+  .sec-btns{display:flex;gap:4px}
+  body[data-theme="booking"] .notes{background:#fff;border:1px solid #e0e6ec;border-top:none;padding:2px 20px;min-height:14px}
+  body[data-theme="bms"] .notes{padding:0 4px;min-height:14px}
+  .add-note-row button{margin-top:6px;background:transparent;border:1px dashed #b9c6d1;border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;color:#5b7080;width:100%}
+  .add-note-row button:hover{border-color:var(--ui-accent);color:var(--ui-accent)}
+  .add-section-row{margin-top:18px}
+  .add-section-row button{width:100%;background:#fff;border:2px dashed #b9c6d1;border-radius:8px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;color:#5b7080}
+  .add-section-row button:hover{border-color:var(--ui-accent);color:var(--ui-accent);background:#f7fbfd}
+
+  /* ---- note ---- */
+  .note{display:flex;gap:6px;align-items:flex-start;padding:14px 0;border-bottom:1px solid #e0e6ec}
+  .note:last-child{border-bottom:none}
+  .note.dragging{opacity:.4;background:#eef7fb}
+  .note-body{flex:1;min-width:0}
+  .note-actions{display:flex;flex-direction:column;gap:4px;visibility:hidden}
+  .note:hover .note-actions{visibility:visible}
+  .icon-btn{background:#fff;border:1px solid var(--ui-border);border-radius:6px;width:28px;height:28px;font-size:13px;cursor:pointer;color:#465b6b;display:inline-flex;align-items:center;justify-content:center;padding:0}
+  .icon-btn:hover{background:#f0f4f7;border-color:var(--ui-accent);color:var(--ui-accent)}
+  .headline{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px;font-size:14px;line-height:1.5}
+  .online{color:var(--color-link);font-weight:700}
+  .sep{color:#7a8a96}
+  .fld{font-family:Arial,Helvetica,sans-serif;border:1px solid transparent;background:transparent;border-radius:4px;padding:2px 5px}
+  .fld:hover{border-color:var(--ui-border)}
+  .fld:focus{outline:none;border-color:var(--ui-accent);background:#f7fbfd}
+  .f-medio,.f-fecha,.f-tier{color:var(--color-link);font-weight:700;font-size:14px}
+  .f-titulo{color:var(--color-link);font-weight:700;text-decoration:underline;font-size:14px;flex:1;min-width:220px}
+  body[data-theme="bms"] .headline{font-size:15px}
+  body[data-theme="bms"] .f-medio,body[data-theme="bms"] .f-fecha{font-size:15px}
+  .f-snippet{display:block;width:100%;margin-top:7px;color:var(--color-text);font-size:12px;line-height:1.6;resize:none;overflow:hidden}
+  body[data-theme="bms"] .f-snippet{font-size:14px}
+  .urlrow{margin-top:6px;font-size:11px;color:#8aa0b0;display:flex;align-items:center;gap:4px}
+  .f-url{flex:1;font-size:11px;border:1px solid var(--ui-border);border-radius:4px;padding:3px 6px;color:#465b6b;background:#fbfdfe}
+
+  .footer-clip{background:var(--color-header);color:#fff;margin-top:22px;padding:16px 20px;font-size:12px;letter-spacing:1px;font-weight:700}
+  body[data-theme="bms"] .footer-clip{background:#fff;color:#5A5A5A;border-top:1px solid #E0E0E0;text-align:center;font-weight:400}
+  body[data-theme="bms"] .footer-clip b{color:var(--color-header)}
+
+  /* ---- modal ---- */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .modal-bg.open{display:flex}
+  .modal{background:#fff;border-radius:8px;max-width:860px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+  .modal h2{margin:0;padding:16px 20px;font-size:16px;border-bottom:1px solid var(--ui-border)}
+  .modal .mbody{padding:16px 20px;overflow:auto}
+  .modal textarea{width:100%;height:320px;font-family:Consolas,monospace;font-size:11px;border:1px solid var(--ui-border);border-radius:6px;padding:10px;white-space:pre-wrap;word-break:break-word;line-height:1.45;overflow:auto}
+  .modal .foot{padding:12px 20px;border-top:1px solid var(--ui-border);display:flex;gap:8px;justify-content:flex-end}
+  .modal .foot button{padding:9px 16px;border-radius:6px;border:1px solid var(--ui-border);background:#fff;cursor:pointer;font-size:13px}
+  .modal .foot button.primary{background:var(--ui-accent);color:#fff;border-color:var(--ui-accent);font-weight:700}
+  .steps{font-size:13px;color:#465b6b;line-height:1.6;background:#f0f7fa;border-left:3px solid var(--ui-accent);padding:10px 14px;border-radius:4px;margin-bottom:12px}
+</style>
+</head>
+<body data-theme="booking">
+
+<div id="toolbar">
+  <h1>📰 Editor de Clipping</h1>
+  <div class="tabs">
+    <button class="tab" data-theme="booking">Booking</button>
+    <button class="tab" data-theme="bms">BMS</button>
+  </div>
+  <span id="fechaLabel" title="Fecha del clipping (fija)"></span>
+  <span class="grow"></span>
+  <span id="status"></span>
+  <button class="act primary" id="exportBtn">Exportar a Mailchimp</button>
+</div>
+
+<div id="canvas">
+  <div id="clip">
+    <img class="banner" id="bannerImg" alt="Ketchum Clipping+">
+    <div class="datebar" id="dateBar"></div>
+    <div id="sections"></div>
+    <div class="add-section-row"><button id="addSectionBottom">＋ Agregar sección</button></div>
+    <div class="footer-clip" id="footerClip"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="exportModal">
+  <div class="modal">
+    <h2 id="exportTitle">Código HTML para Mailchimp</h2>
+    <div class="mbody">
+      <div class="steps">Copiá este código y pegalo en Mailchimp: <b>Campaña → Diseñar email → "Pega tu propio código"</b>. Viene sin badges y con el mismo diseño del clipping.</div>
+      <textarea id="exportArea" readonly></textarea>
+    </div>
+    <div class="foot">
+      <button id="exportClose">Cerrar</button>
+      <button id="exportCopy" class="primary">Copiar código</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ============ THEMES ============ */
+const THEMES = {
+  booking: {
+    banner: "https://mcusercontent.com/36c5c572bba94d0ff7ebdd653/images/e7a879c8-e852-70d1-a5d2-1bf020e2b6ef.jpg",
+    bannerAlt: "Ketchum Clipping+ - Booking.com",
+    colorHeader:"#0000FF", colorLink:"#0000FF", colorText:"#222222", pageBg:"#F5F8FB",
+    sections:["Exclusiva","Competencia","Sector","Gestión","Laborales y Gremiales","Management"],
+    tierSection:"Exclusiva", footerName:"KETCHUM ARGENTINA", footerMail:"contacto@ketchum.com.ar"
+  },
+  bms: {
+    banner:"https://mcusercontent.com/36c5c572bba94d0ff7ebdd653/images/cef6a241-f54a-cc30-f31f-8ea528843471.jpg",
+    bannerAlt:"Ketchum Clipping+ - Bristol Myers Squibb",
+    bmsLogo:"https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Bristol_Myers_Squibb_logo.svg/320px-Bristol_Myers_Squibb_logo.svg.png",
+    colorHeader:"#D81B7C", colorLink:"#1A4FB5", colorText:"#1F1F1F", pageBg:"#FFFFFF",
+    sections:["Notas Exclusivas","Noticias del Sector","Competencia","Propiedad Intelectual","Oncología","Cardiología","Psoriasis","Artritis","Trasplantes"],
+    tierSection:"Notas Exclusivas", footerName:"Ketchum Argentina", footerMail:"contacto@ketchum.com.ar"
+  }
+};
+
+let state = { theme:"booking", fecha:"", sections:[] };
+let uid = 1; const nid = () => "n"+(uid++);
+
+/* ============ DEMO ============ */
+const DEMO = { cliente:"booking", fecha:fechaHoy(), secciones:[
+  { titulo:"Exclusiva", notas:[
+    { medio:"Preferente", fecha:"21/05/2026", tier:"Tier 1", titulo:"El Tribunal Supremo tumba parte del registro estatal de pisos turísticos", url:"https://www.preferente.com/", snippet:"El Tribunal Supremo ha tumbado una parte del registro único de arrendamientos de corta duración. La sentencia anula la obligación de obtener un número estatal de registro para anunciar viviendas en plataformas como Airbnb o Booking." },
+    { medio:"Cqap", fecha:"21/05/2026", tier:"Tier 2", titulo:"Anguilla, la isla que promete bodas y lunas de miel en silencio y turquesa", url:"https://cqap.com/", snippet:"La generación Silver: cómo viajan los mayores de 50 según Booking.com." }
+  ]},
+  { titulo:"Sector", notas:[
+    { medio:"La Nación", fecha:"21/05/2026", tier:"", titulo:"Nuevos vuelos conectan Salta con Río de Janeiro en temporada de invierno", url:"https://www.lanacion.com.ar/", snippet:"La conexión apunta a fortalecer el turismo receptivo en el norte argentino." }
+  ]}
+]};
+
+/* ============ HELPERS ============ */
+function fechaHoy(){
+  const d=new Date(); const dias=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+  const meses=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  return dias[d.getDay()]+", "+String(d.getDate()).padStart(2,"0")+" de "+meses[d.getMonth()]+" "+d.getFullYear();
+}
+function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function escAttr(s){return esc(s).replace(/"/g,"&quot;");}
+
+/* ============ NORMALIZE ============ */
+function normalize(data){
+  const theme = (data.cliente||data.theme||"booking").toLowerCase().includes("bms") ? "bms" : "booking";
+  const T = THEMES[theme]; let sections=[];
+  if (Array.isArray(data.secciones) && data.secciones.length){
+    sections = data.secciones.map(s=>({id:nid(),titulo:s.titulo||"Sección",notas:(s.notas||[]).map(toNota)}));
+  } else if (Array.isArray(data.articles)){
+    const map=new Map();
+    for(const a of data.articles){ const sec=a.seccion||a.grupo||a.group||"Sector"; if(!map.has(sec))map.set(sec,[]); map.get(sec).push(toNota(a)); }
+    const seen=new Set();
+    for(const name of T.sections){ if(map.has(name)){ sections.push({id:nid(),titulo:name,notas:map.get(name)}); seen.add(name);} }
+    for(const [name,notas] of map){ if(!seen.has(name)) sections.push({id:nid(),titulo:name,notas}); }
+  }
+  if(!sections.length) sections=[{id:nid(),titulo:T.sections[0],notas:[]}];
+  return { theme, fecha:data.fecha||fechaHoy(), sections };
+}
+function toNota(a){ return { id:nid(), medio:a.medio||a.fuente||a.nombre_medio_origen||"", fecha:a.fecha||a.pubDate||"", tier:a.tier||"", titulo:a.titulo||a.title||"", url:a.url||a.url_canonica||"", snippet:a.snippet||a.contentSnippet||"" }; }
+
+/* ============ RENDER ============ */
+function applyTheme(){
+  const T=THEMES[state.theme]; document.body.dataset.theme=state.theme;
+  const r=document.documentElement.style;
+  r.setProperty("--color-header",T.colorHeader); r.setProperty("--color-link",T.colorLink);
+  r.setProperty("--color-text",T.colorText); r.setProperty("--page-bg",T.pageBg);
+  const b=document.getElementById("bannerImg"); b.src=T.banner; b.alt=T.bannerAlt;
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.theme===state.theme));
+  document.getElementById("footerClip").innerHTML='<b>'+esc(T.footerName)+'</b> &nbsp;·&nbsp; '+esc(T.footerMail);
+}
+function render(){
+  applyTheme();
+  document.getElementById("fechaLabel").textContent=state.fecha;
+  document.getElementById("dateBar").textContent=state.fecha;
+  const cont=document.getElementById("sections"); cont.innerHTML="";
+  for(const s of state.sections) cont.appendChild(renderSection(s));
+  document.querySelectorAll(".f-snippet").forEach(autoGrow);
+  document.querySelectorAll(".f-medio,.f-fecha,.f-tier").forEach(autoSize);
+}
+function renderSection(s){
+  const T=THEMES[state.theme];
+  const showTier=(s.titulo.trim().toLowerCase()===T.tierSection.toLowerCase());
+  const el=document.createElement("div"); el.className="section"; el.dataset.id=s.id;
+  const head=document.createElement("div"); head.className="section-head";
+  head.innerHTML='<span class="grip sec-handle" title="Arrastrar sección">⠿</span>'
+    +'<input class="section-title" spellcheck="false">'
+    +'<div class="sec-btns"><button class="icon-btn btn-addnote" title="Agregar nota">＋</button>'
+    +'<button class="icon-btn btn-delsection" title="Borrar sección">🗑</button></div>';
+  head.querySelector(".section-title").value=s.titulo;
+  el.appendChild(head);
+  const notes=document.createElement("div"); notes.className="notes";
+  for(const n of s.notas) notes.appendChild(renderNote(n,showTier));
+  el.appendChild(notes);
+  const addRow=document.createElement("div"); addRow.className="add-note-row";
+  addRow.innerHTML='<button class="btn-addnote2">＋ Agregar nota a esta sección</button>';
+  el.appendChild(addRow);
+  return el;
+}
+function renderNote(n,showTier){
+  const el=document.createElement("div"); el.className="note"; el.dataset.id=n.id;
+  const tierField = showTier ? '<input class="fld f-tier" placeholder="Tier">' : '';
+  el.innerHTML=
+    '<span class="grip note-handle" title="Arrastrar">⠿</span>'
+   +'<div class="note-body">'
+   +  '<div class="headline">'
+   +    '<input class="fld f-medio" placeholder="Medio"><span class="online">(Online)</span>'
+   +    '<input class="fld f-fecha" placeholder="Fecha">'
+   +    tierField
+   +    '<span class="sep">-</span>'
+   +    '<input class="fld f-titulo" placeholder="Título de la nota">'
+   +  '</div>'
+   +  '<textarea class="fld f-snippet" placeholder="Snippet / resumen…"></textarea>'
+   +  '<div class="urlrow">🔗 <input class="f-url" placeholder="https://…"></div>'
+   +'</div>'
+   +'<div class="note-actions">'
+   +  '<button class="icon-btn btn-dupnote" title="Duplicar">⧉</button>'
+   +  '<button class="icon-btn btn-delnote" title="Borrar">🗑</button>'
+   +'</div>';
+  el.querySelector(".f-medio").value=n.medio||"";
+  el.querySelector(".f-fecha").value=n.fecha||"";
+  if(showTier) el.querySelector(".f-tier").value=n.tier||"";
+  el.querySelector(".f-titulo").value=n.titulo||"";
+  el.querySelector(".f-snippet").value=n.snippet||"";
+  el.querySelector(".f-url").value=n.url||"";
+  return el;
+}
+function autoGrow(ta){ ta.style.height="auto"; ta.style.height=(ta.scrollHeight+2)+"px"; }
+function autoSize(inp){ inp.style.width=Math.max(4,(inp.value.length||inp.placeholder.length)+1)+"ch"; }
+
+/* ============ SYNC DOM -> STATE ============ */
+function syncFromDOM(){
+  const secs=[];
+  document.querySelectorAll("#sections .section").forEach(secEl=>{
+    const s={id:secEl.dataset.id,titulo:(secEl.querySelector(".section-title").value||"Sección").trim(),notas:[]};
+    secEl.querySelectorAll(".notes .note").forEach(nEl=>{
+      const tierEl=nEl.querySelector(".f-tier");
+      s.notas.push({
+        id:nEl.dataset.id,
+        medio:nEl.querySelector(".f-medio").value.trim(),
+        fecha:nEl.querySelector(".f-fecha").value.trim(),
+        tier:tierEl?tierEl.value.trim():"",
+        titulo:nEl.querySelector(".f-titulo").value.trim(),
+        url:nEl.querySelector(".f-url").value.trim(),
+        snippet:nEl.querySelector(".f-snippet").value.trim()
+      });
+    });
+    secs.push(s);
+  });
+  state.sections=secs;
+}
+
+/* ============ NATIVE DRAG & DROP ============ */
+let dragEl=null;
+document.addEventListener("mousedown",e=>{
+  const nh=e.target.closest(".note-handle"); const sh=e.target.closest(".sec-handle");
+  if(nh) nh.closest(".note").setAttribute("draggable","true");
+  else if(sh) sh.closest(".section").setAttribute("draggable","true");
+});
+document.addEventListener("mouseup",()=>{ if(!dragEl) document.querySelectorAll('[draggable="true"]').forEach(el=>el.removeAttribute("draggable")); });
+document.addEventListener("dragstart",e=>{
+  const el=e.target.closest('[draggable="true"]'); if(!el) return;
+  dragEl=el; el.classList.add("dragging");
+  e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain","drag");}catch(_){}
+});
+document.addEventListener("dragend",()=>{ if(dragEl){dragEl.classList.remove("dragging");dragEl.removeAttribute("draggable");dragEl=null;} });
+document.addEventListener("dragover",e=>{
+  if(!dragEl) return;
+  if(dragEl.classList.contains("note")){
+    const cont=e.target.closest(".notes"); if(!cont) return;
+    e.preventDefault();
+    const over=e.target.closest(".note");
+    if(over && over!==dragEl){
+      const r=over.getBoundingClientRect();
+      cont.insertBefore(dragEl,(e.clientY<r.top+r.height/2)?over:over.nextSibling);
+    } else if(!over){ cont.appendChild(dragEl); }
+  } else if(dragEl.classList.contains("section")){
+    const over=e.target.closest(".section"); const cont=document.getElementById("sections");
+    if(over && over!==dragEl){ e.preventDefault(); const r=over.getBoundingClientRect();
+      cont.insertBefore(dragEl,(e.clientY<r.top+r.height/2)?over:over.nextSibling); }
+  }
+});
+
+/* ============ ACTIONS ============ */
+function addSection(){ syncFromDOM(); state.sections.push({id:nid(),titulo:"Nueva sección",notas:[]}); render(); }
+function delSection(secEl){ const ti=(secEl.querySelector(".section-title").value||"esta sección").trim(); if(!confirm('¿Borrar la sección "'+ti+'" y todas sus notas? No se puede deshacer.')) return; syncFromDOM(); state.sections=state.sections.filter(s=>s.id!==secEl.dataset.id); render(); }
+function addNote(secEl){ syncFromDOM(); const s=state.sections.find(x=>x.id===secEl.dataset.id); if(s) s.notas.push({id:nid(),medio:"",fecha:"",tier:"",titulo:"",url:"",snippet:""}); render(); }
+function dupNote(nEl){ syncFromDOM(); for(const s of state.sections){ const i=s.notas.findIndex(n=>n.id===nEl.dataset.id); if(i>=0){ s.notas.splice(i+1,0,Object.assign({},s.notas[i],{id:nid()})); break; } } render(); }
+function delNote(nEl){ syncFromDOM(); for(const s of state.sections) s.notas=s.notas.filter(n=>n.id!==nEl.dataset.id); render(); }
+
+/* ============ EXPORT ============ */
+function exportHTML(){
+  syncFromDOM();
+  const T=THEMES[state.theme]; const W=720, FONT="Arial, Helvetica, sans-serif";
+  const banner = state.theme==="bms"
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0"><tr><td style="text-align:center"><img src="${T.banner}" alt="${escAttr(T.bannerAlt)}" width="${W}" style="display:block;width:100%;max-width:${W}px;height:auto;border:0"></td></tr></table>`
+    : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse"><tr><td style="padding:0"><img src="${T.banner}" alt="${escAttr(T.bannerAlt)}" width="${W}" style="display:block;width:100%;max-width:${W}px;height:auto;border:0"></td></tr><tr><td style="background:${T.colorHeader};padding:10px 28px" align="right"><span style="font-family:${FONT};font-size:11px;color:#ffffff;letter-spacing:2px;text-transform:uppercase">${esc(state.fecha.toUpperCase())}</span></td></tr></table>`;
+  function noteHTML(n,showTier){
+    const partes=[`<strong style="color:${T.colorLink};font-weight:bold">${esc(n.medio||"Sin medio")} (Online)</strong>`];
+    if(n.fecha) partes.push(`<span style="color:${T.colorLink};font-weight:bold">${esc(n.fecha)}</span>`);
+    if(showTier && n.tier) partes.push(`<span style="color:${T.colorLink};font-weight:bold">${esc(n.tier)}</span>`);
+    const title=`<a href="${escAttr(n.url)}" style="color:${T.colorLink};text-decoration:underline;font-weight:bold">${esc(n.titulo)}</a>`;
+    const snip=n.snippet?`<div style="font-family:${FONT};font-size:${state.theme==="bms"?"14":"12"}px;color:${T.colorText};margin-top:8px;line-height:1.6">${esc(n.snippet)}</div>`:"";
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" mc:repeatable="nota" mc:variant="Nota" style="border-collapse:collapse"><tr><td mc:edit="nota" style="padding:16px 0;border-bottom:1px solid #e0e6ec"><div style="font-family:${FONT};font-size:14px;color:${T.colorLink};font-weight:bold;line-height:1.45">${partes.join(" ")} - ${title}</div>${snip}</td></tr></table>`;
+  }
+  function sectionHTML(s){
+    const showTier=(s.titulo.trim().toLowerCase()===T.tierSection.toLowerCase());
+    const notes=s.notas.filter(n=>(n.titulo||"").trim()).map(n=>noteHTML(n,showTier)).join("\n");
+    if(!notes) return "";
+    if(state.theme==="bms"){
+      const logo=showTier?`<img src="${T.bmsLogo}" alt="Bristol Myers Squibb" height="28" style="float:right;display:inline-block;margin-top:8px">`:"";
+      return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:36px 0 14px 0"><tr><td>${logo}<h2 style="margin:0;font-family:${FONT};font-size:24px;font-weight:bold;color:${T.colorHeader};letter-spacing:-.3px">${esc(s.titulo)}</h2></td></tr></table>${notes}`;
+    }
+    const bar=`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-top:24px"><tr><td style="background:${T.colorHeader};padding:14px 22px"><span style="font-family:${FONT};font-size:15px;font-weight:bold;color:#ffffff;letter-spacing:2px;text-transform:uppercase">${esc(s.titulo.toUpperCase())}</span></td></tr></table>`;
+    return `${bar}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#ffffff;border:1px solid #e0e6ec;border-top:none"><tr><td style="padding:0 22px">${notes}</td></tr></table>`;
+  }
+  const body=state.sections.map(sectionHTML).join("\n");
+  const emptyMsg=`<p style="text-align:center;font-family:${FONT};color:#5A5A5A;padding:40px 0">Sin artículos.</p>`;
+  if(state.theme==="bms"){
+    const footer=`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:40px 0 0 0;border-top:1px solid #E0E0E0;padding-top:20px"><tr><td style="text-align:center"><p style="margin:0;font-family:${FONT};font-size:13px;color:#5A5A5A"><strong style="color:${T.colorHeader}">${esc(T.footerName)}</strong> &nbsp;·&nbsp; ${esc(T.footerMail)}</p><p style="margin:6px 0 0 0;font-family:${FONT};font-size:11px;color:#5A5A5A">${esc(state.fecha)}</p></td></tr></table>`;
+    return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#FFFFFF;font-family:${FONT}"><table role="presentation" align="center" width="${W}" cellpadding="0" cellspacing="0" border="0" style="max-width:${W}px;width:100%;margin:0 auto;background:#FFFFFF"><tr><td style="padding:0 30px 30px 30px">${banner}\n${body||emptyMsg}\n${footer}</td></tr></table></body></html>`;
+  }
+  const footer=`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:${T.colorHeader};margin-top:24px"><tr><td style="padding:18px 22px"><div style="font-family:${FONT};font-size:12px;color:#ffffff;letter-spacing:1px;font-weight:bold">${esc(T.footerName)}</div><div style="font-family:${FONT};font-size:11px;color:#ffffff;margin-top:4px"><a href="mailto:${escAttr(T.footerMail)}" style="color:#ffffff;text-decoration:none">${esc(T.footerMail)}</a></div></td></tr></table>`;
+  return `<html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:${T.pageBg};font-family:${FONT}"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:${T.pageBg}"><tr><td align="center" style="padding:32px 0"><table role="presentation" width="${W}" cellpadding="0" cellspacing="0" border="0" style="width:${W}px;margin:0 auto;border-collapse:collapse"><tr><td>${banner}</td></tr>\n<tr><td>${body||emptyMsg}</td></tr>\n<tr><td>${footer}</td></tr></table></td></tr></table></body></html>`;
+}
+
+/* ============ LOAD ============ */
+function loadData(data){
+  try{ state=normalize(data); render(); setStatus("Clipping cargado ✓"); }
+  catch(e){ setStatus("Error al cargar"); alert("No pude leer el JSON: "+e.message); }
+}
+function setStatus(t){ const s=document.getElementById("status"); s.textContent=t; if(t) setTimeout(()=>{if(s.textContent===t)s.textContent="";},4000); }
+const WEBHOOKS={ booking:"https://archytasai.app.n8n.cloud/webhook/clipping-booking", bms:"https://archytasai.app.n8n.cloud/webhook/clipping-bms" };
+async function bootstrap(){
+  const p=new URLSearchParams(location.search); const src=p.get("src"); const dataParam=p.get("data");
+  const c=(p.get("c")||"").toLowerCase();
+  if(c && WEBHOOKS[c]){ try{ setStatus("Cargando…"); const r=await fetch(WEBHOOKS[c]); loadData(await r.json()); return; }catch(e){ setStatus("No pude traer el clipping — uso demo"); } }
+  if(src){ try{ setStatus("Cargando…"); const r=await fetch(src); loadData(await r.json()); return; }catch(e){ setStatus("No pude traer ?src — uso demo"); } }
+  if(dataParam){ try{ loadData(JSON.parse(decodeURIComponent(escape(atob(dataParam.replace(/-/g,"+").replace(/_/g,"/")))))); return; }catch(e){ try{ loadData(JSON.parse(decodeURIComponent(dataParam))); return; }catch(e2){} } }
+  loadData(DEMO);
+}
+
+/* ============ WIRE UP ============ */
+document.addEventListener("click",ev=>{
+  const t=ev.target;
+  if(t.closest(".tab")){ const th=t.closest(".tab").dataset.theme; if(th!==state.theme){ syncFromDOM(); state.theme=th; render(); } }
+  else if(t.closest(".btn-delsection")) delSection(t.closest(".section"));
+  else if(t.closest(".btn-addnote")||t.closest(".btn-addnote2")) addNote(t.closest(".section"));
+  else if(t.closest(".btn-dupnote")) dupNote(t.closest(".note"));
+  else if(t.closest(".btn-delnote")) delNote(t.closest(".note"));
+});
+document.addEventListener("input",ev=>{
+  if(ev.target.classList.contains("f-snippet")) autoGrow(ev.target);
+  if(ev.target.classList.contains("f-medio")||ev.target.classList.contains("f-fecha")||ev.target.classList.contains("f-tier")) autoSize(ev.target);
+});
+document.getElementById("addSectionBottom").onclick=addSection;
+document.getElementById("exportBtn").onclick=async()=>{
+  const html=exportHTML(); const cli=(state.theme==="bms"?"BMS":"Booking");
+  document.getElementById("exportArea").value=html;
+  document.getElementById("exportTitle").textContent="Código HTML para Mailchimp — "+cli;
+  document.getElementById("exportModal").classList.add("open");
+  try{ await navigator.clipboard.writeText(html); setStatus("HTML de "+cli+" copiado ✓"); }catch(e){}
+};
+document.getElementById("exportClose").onclick=()=>document.getElementById("exportModal").classList.remove("open");
+document.getElementById("exportCopy").onclick=async()=>{ const ta=document.getElementById("exportArea"); ta.select();
+  try{ await navigator.clipboard.writeText(ta.value); }catch(e){ document.execCommand("copy"); }
+  const b=document.getElementById("exportCopy"); b.textContent="¡Copiado!"; setTimeout(()=>b.textContent="Copiar código",1500); };
+bootstrap();
+</script>
+</body>
+</html>
