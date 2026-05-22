@@ -382,6 +382,8 @@ async function bootstrap(){
   if(c && WEBHOOKS[c]){ await loadClient(c); return; }
   if(src){ try{ setStatus("Cargando…"); const r=await fetch(src); loadData(await r.json()); return; }catch(e){ setStatus("No pude traer ?src — uso demo"); } }
   if(dataParam){ try{ loadData(JSON.parse(decodeURIComponent(escape(atob(dataParam.replace(/-/g,"+").replace(/_/g,"/")))))); return; }catch(e){ try{ loadData(JSON.parse(decodeURIComponent(dataParam))); return; }catch(e2){} } }
+  // Por defecto (URL sin ?c=): cargar Booking real. Demo solo si el webhook falla.
+  if(await loadClient("booking")) return;
   loadData(DEMO);
 }
 
