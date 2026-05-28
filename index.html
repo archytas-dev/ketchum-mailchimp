@@ -141,11 +141,10 @@ const THEMES = {
     banner: "https://mcusercontent.com/36c5c572bba94d0ff7ebdd653/images/e7a879c8-e852-70d1-a5d2-1bf020e2b6ef.jpg",
     bannerAlt: "Ketchum Clipping+ - Booking.com",
     colorHeader:"#0000FF", colorLink:"#0000FF", colorText:"#222222", pageBg:"#F5F8FB",
-    sections:["Exclusiva","Competencia","Sector","Turismo","Gestión","Laborales y Gremiales","Management"],
+    sections:["Exclusiva","Competencia","Turismo"],
     sectionImages:{
       "Exclusiva":"https://mcusercontent.com/36c5c572bba94d0ff7ebdd653/images/cd751c34-c6e6-263c-f1ea-2d8183a2063a.jpg",
       "Competencia":"https://mcusercontent.com/36c5c572bba94d0ff7ebdd653/images/467dd0af-9fa8-2ba8-70aa-e59e2dbde4d1.jpg",
-      "Sector":"https://mcusercontent.com/36c5c572bba94d0ff7ebdd653/images/17f0da5d-1e9c-ecbb-fd9c-d3d12d103a0e.jpg",
       "Turismo":"https://drive.google.com/thumbnail?id=1kHcaEmYpp5AmDoT2-IzVUeX_T1pJaH0Z&sz=w1000"
     },
     tierSection:"Exclusiva", footerName:"KETCHUM ARGENTINA", footerMail:"contacto@ketchum.com.ar"
@@ -155,14 +154,14 @@ const THEMES = {
     bannerAlt:"Ketchum Clipping+ - Bristol Myers Squibb",
     bmsLogo:"https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Bristol_Myers_Squibb_logo.svg/320px-Bristol_Myers_Squibb_logo.svg.png",
     colorHeader:"#D81B7C", colorLink:"#1A4FB5", colorText:"#1F1F1F", pageBg:"#FFFFFF",
-    sections:["Notas Exclusivas","Noticias del Sector","Áreas Terapéuticas","Competencia","Propiedad Intelectual","Oncología","Cardiología","Psoriasis","Artritis","CAR-T","Trasplantes"],
+    sections:["Notas Exclusivas","Noticias del Sector","Áreas Terapéuticas","Competencia","Propiedad Intelectual","Onco Hematología","Cardiología","Psoriasis","Artritis","CAR-T","Trasplantes"],
     sectionImages:{
       "Notas Exclusivas":"https://drive.google.com/thumbnail?id=1sY3aqnmXFokem6mZ0FZkZXjAf593oNFm&sz=w1000",
       "Noticias del Sector":"https://drive.google.com/thumbnail?id=1ATdvE8S-cObzUEKiVWPuq7zqfCkVvnCm&sz=w1000",
       "Áreas Terapéuticas":"https://drive.google.com/thumbnail?id=1tYqRvJJTZG9AlMMun1PudyP2Z9jzKV_9&sz=w1000",
       "Competencia":"https://drive.google.com/thumbnail?id=1PWDToJ5aEPzOusJOgmePJCTaJv5dx8Cm&sz=w1000",
       "Propiedad Intelectual":"https://drive.google.com/thumbnail?id=1-b4SpOmB7WmCXGYBVQS8MUo84EmnEPuI&sz=w1000",
-      "Oncología":"https://drive.google.com/thumbnail?id=1cqUhFjTOZXxsT4io9fBsVdMesDS7pGtv&sz=w1000",
+      "Onco Hematología":"https://drive.google.com/thumbnail?id=1cqUhFjTOZXxsT4io9fBsVdMesDS7pGtv&sz=w1000",
       "Cardiología":"https://drive.google.com/thumbnail?id=1ZxoWIzgi0T4ykLIcES6hn6oKjs_xifO9&sz=w1000",
       "Psoriasis":"https://drive.google.com/thumbnail?id=1QjMdLhAcMzjcYOBxv7-Se8gMMShpUck7&sz=w1000",
       "Artritis":"https://drive.google.com/thumbnail?id=1OoGshX5WmWt_5JbpxP4_K67DG9Ri6iUs&sz=w1000",
@@ -182,7 +181,7 @@ const DEMO = { cliente:"booking", fecha:fechaHoy(), secciones:[
     { medio:"Preferente", fecha:"21/05/2026", tier:"Tier 1", titulo:"El Tribunal Supremo tumba parte del registro estatal de pisos turísticos", url:"https://www.preferente.com/", snippet:"El Tribunal Supremo ha tumbado una parte del registro único de arrendamientos de corta duración. La sentencia anula la obligación de obtener un número estatal de registro para anunciar viviendas en plataformas como Airbnb o Booking." },
     { medio:"Cqap", fecha:"21/05/2026", tier:"Tier 2", titulo:"Anguilla, la isla que promete bodas y lunas de miel en silencio y turquesa", url:"https://cqap.com/", snippet:"La generación Silver: cómo viajan los mayores de 50 según Booking.com." }
   ]},
-  { titulo:"Sector", notas:[
+  { titulo:"Turismo", notas:[
     { medio:"La Nación", fecha:"21/05/2026", tier:"", titulo:"Nuevos vuelos conectan Salta con Río de Janeiro en temporada de invierno", url:"https://www.lanacion.com.ar/", snippet:"La conexión apunta a fortalecer el turismo receptivo en el norte argentino." }
   ]}
 ]};
@@ -204,7 +203,7 @@ function normalize(data){
     sections = data.secciones.map(s=>({id:nid(),titulo:s.titulo||"Sección",notas:(s.notas||[]).map(toNota)}));
   } else if (Array.isArray(data.articles)){
     const map=new Map();
-    for(const a of data.articles){ const sec=a.seccion||a.grupo||a.group||"Sector"; if(!map.has(sec))map.set(sec,[]); map.get(sec).push(toNota(a)); }
+    for(const a of data.articles){ const sec=a.seccion||a.grupo||a.group||(theme==="bms"?"Noticias del Sector":"Turismo"); if(!map.has(sec))map.set(sec,[]); map.get(sec).push(toNota(a)); }
     const seen=new Set();
     for(const name of T.sections){ if(map.has(name)){ sections.push({id:nid(),titulo:name,notas:map.get(name)}); seen.add(name);} }
     for(const [name,notas] of map){ if(!seen.has(name)) sections.push({id:nid(),titulo:name,notas}); }
