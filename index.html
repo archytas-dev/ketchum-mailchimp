@@ -105,7 +105,7 @@
   <span id="fechaLabel" title="Fecha del clipping (fija)"></span>
   <span class="grow"></span>
   <span id="status"></span>
-  <button class="act primary" id="exportBtn">Exportar a Mailchimp</button>
+  <button class="act primary" id="exportBtn">Copiar para Mail</button>
 </div>
 
 <div id="canvas">
@@ -141,7 +141,13 @@ const THEMES = {
     banner: "https://mcusercontent.com/36c5c572bba94d0ff7ebdd653/images/e7a879c8-e852-70d1-a5d2-1bf020e2b6ef.jpg",
     bannerAlt: "Ketchum Clipping+ - Booking.com",
     colorHeader:"#0000FF", colorLink:"#0000FF", colorText:"#222222", pageBg:"#F5F8FB",
-    sections:["Exclusiva","Competencia","Sector","Gestión","Laborales y Gremiales","Management"],
+    sections:["Exclusiva","Competencia","Sector","Turismo","Gestión","Laborales y Gremiales","Management"],
+    sectionImages:{
+      "Exclusiva":"https://mcusercontent.com/36c5c572bba94d0ff7ebdd653/images/cd751c34-c6e6-263c-f1ea-2d8183a2063a.jpg",
+      "Competencia":"https://mcusercontent.com/36c5c572bba94d0ff7ebdd653/images/467dd0af-9fa8-2ba8-70aa-e59e2dbde4d1.jpg",
+      "Sector":"https://mcusercontent.com/36c5c572bba94d0ff7ebdd653/images/17f0da5d-1e9c-ecbb-fd9c-d3d12d103a0e.jpg",
+      "Turismo":"https://drive.google.com/thumbnail?id=1kHcaEmYpp5AmDoT2-IzVUeX_T1pJaH0Z&sz=w1000"
+    },
     tierSection:"Exclusiva", footerName:"KETCHUM ARGENTINA", footerMail:"contacto@ketchum.com.ar"
   },
   bms: {
@@ -149,7 +155,20 @@ const THEMES = {
     bannerAlt:"Ketchum Clipping+ - Bristol Myers Squibb",
     bmsLogo:"https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Bristol_Myers_Squibb_logo.svg/320px-Bristol_Myers_Squibb_logo.svg.png",
     colorHeader:"#D81B7C", colorLink:"#1A4FB5", colorText:"#1F1F1F", pageBg:"#FFFFFF",
-    sections:["Notas Exclusivas","Noticias del Sector","Competencia","Propiedad Intelectual","Oncología","Cardiología","Psoriasis","Artritis","Trasplantes"],
+    sections:["Notas Exclusivas","Noticias del Sector","Áreas Terapéuticas","Competencia","Propiedad Intelectual","Oncología","Cardiología","Psoriasis","Artritis","CAR-T","Trasplantes"],
+    sectionImages:{
+      "Notas Exclusivas":"https://drive.google.com/thumbnail?id=1sY3aqnmXFokem6mZ0FZkZXjAf593oNFm&sz=w1000",
+      "Noticias del Sector":"https://drive.google.com/thumbnail?id=1ATdvE8S-cObzUEKiVWPuq7zqfCkVvnCm&sz=w1000",
+      "Áreas Terapéuticas":"https://drive.google.com/thumbnail?id=1tYqRvJJTZG9AlMMun1PudyP2Z9jzKV_9&sz=w1000",
+      "Competencia":"https://drive.google.com/thumbnail?id=1PWDToJ5aEPzOusJOgmePJCTaJv5dx8Cm&sz=w1000",
+      "Propiedad Intelectual":"https://drive.google.com/thumbnail?id=1-b4SpOmB7WmCXGYBVQS8MUo84EmnEPuI&sz=w1000",
+      "Oncología":"https://drive.google.com/thumbnail?id=1cqUhFjTOZXxsT4io9fBsVdMesDS7pGtv&sz=w1000",
+      "Cardiología":"https://drive.google.com/thumbnail?id=1ZxoWIzgi0T4ykLIcES6hn6oKjs_xifO9&sz=w1000",
+      "Psoriasis":"https://drive.google.com/thumbnail?id=1QjMdLhAcMzjcYOBxv7-Se8gMMShpUck7&sz=w1000",
+      "Artritis":"https://drive.google.com/thumbnail?id=1OoGshX5WmWt_5JbpxP4_K67DG9Ri6iUs&sz=w1000",
+      "CAR-T":"https://drive.google.com/thumbnail?id=1_wzqqUUjcjhIfQ0U8C3dANkSrqwkqkQI&sz=w1000",
+      "Trasplantes":"https://drive.google.com/thumbnail?id=1sex69g_TuvS8qaJMeMJW9i9VfrLHh8Fl&sz=w1000"
+    },
     tierSection:"Notas Exclusivas", footerName:"Ketchum Argentina", footerMail:"contacto@ketchum.com.ar"
   }
 };
@@ -219,11 +238,31 @@ function renderSection(s){
   const showTier=(s.titulo.trim().toLowerCase()===T.tierSection.toLowerCase());
   const el=document.createElement("div"); el.className="section"; el.dataset.id=s.id;
   const head=document.createElement("div"); head.className="section-head";
+  const __secOpts=(T.sections||[]).map(c=>'<option value="'+escAttr(c)+'">'+esc(c)+'</option>').join('');
   head.innerHTML='<span class="grip sec-handle" title="Arrastrar sección">⠿</span>'
-    +'<input class="section-title" spellcheck="false">'
+    +'<select class="section-title">'+__secOpts+'</select>'
     +'<div class="sec-btns"><button class="icon-btn btn-addnote" title="Agregar nota">＋</button>'
     +'<button class="icon-btn btn-delsection" title="Borrar sección">🗑</button></div>';
-  head.querySelector(".section-title").value=s.titulo;
+  const __selSec=head.querySelector(".section-title");
+  if(s.titulo && !(T.sections||[]).includes(s.titulo)){ const __o=document.createElement("option"); __o.value=s.titulo; __o.textContent=s.titulo; __selSec.appendChild(__o); }
+  __selSec.value=s.titulo;
+  // Preview de portada en el editor: si la categoría tiene imagen, muestra la FOTO como header
+  // y achica el dropdown (para no ver la barra de texto grande). Si no tiene imagen, vuelve la barra normal.
+  const __applyCover=()=>{
+    const url=(THEMES[state.theme].sectionImages||{})[__selSec.value];
+    let cov=el.querySelector(".sec-cover");
+    if(url){
+      if(!cov){ cov=document.createElement("img"); cov.className="sec-cover"; cov.title="Click para cambiar la categoría"; cov.style.cssText="display:block;width:100%;max-width:720px;height:auto;border-radius:4px;margin-bottom:6px;cursor:pointer"; cov.addEventListener("click",()=>{ __selSec.style.display=""; __selSec.focus(); }); el.insertBefore(cov, el.firstChild); }
+      cov.src=url; cov.alt=__selSec.value;
+      // foto como header: el dropdown queda OCULTO (se revela al clickear la imagen)
+      __selSec.style.cssText="flex:0 0 auto;width:auto;max-width:240px;background:#fff;color:#1f2a33;font-weight:600;letter-spacing:0;text-transform:none;padding:6px 10px;font-size:12px;border:1px solid #cdd5dd;border-radius:4px;display:none";
+    } else {
+      if(cov) cov.remove();
+      __selSec.style.cssText="";
+    }
+  };
+  __applyCover();
+  __selSec.addEventListener("change",__applyCover);
   el.appendChild(head);
   const notes=document.createElement("div"); notes.className="notes";
   for(const n of s.notas) notes.appendChild(renderNote(n,showTier));
@@ -344,10 +383,15 @@ function exportHTML(){
     const notes=s.notas.filter(n=>(n.titulo||"").trim()).map(n=>noteHTML(n,showTier)).join("\n");
     if(!notes) return "";
     if(state.theme==="bms"){
+      const __bmsImg=(T.sectionImages||{})[s.titulo];
+      if(__bmsImg){ return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:28px 0 0 0"><tr><td style="padding:0"><img src="${escAttr(__bmsImg)}" alt="${escAttr(s.titulo)}" width="${W}" style="display:block;width:100%;max-width:${W}px;height:auto;border:0"></td></tr></table>${notes}`; }
       const logo=showTier?`<img src="${T.bmsLogo}" alt="Bristol Myers Squibb" height="28" style="float:right;display:inline-block;margin-top:8px">`:"";
       return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:36px 0 14px 0"><tr><td>${logo}<h2 style="margin:0;font-family:${FONT};font-size:24px;font-weight:bold;color:${T.colorHeader};letter-spacing:-.3px">${esc(s.titulo)}</h2></td></tr></table>${notes}`;
     }
-    const bar=`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-top:24px"><tr><td style="background:${T.colorHeader};padding:14px 22px"><span style="font-family:${FONT};font-size:15px;font-weight:bold;color:#ffffff;letter-spacing:2px;text-transform:uppercase">${esc(s.titulo.toUpperCase())}</span></td></tr></table>`;
+    const __secImg=(T.sectionImages||{})[s.titulo];
+    const bar=__secImg
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-top:24px"><tr><td style="padding:0"><img src="${escAttr(__secImg)}" alt="${escAttr(s.titulo)}" width="${W}" style="display:block;width:100%;max-width:${W}px;height:auto;border:0"></td></tr></table>`
+      : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-top:24px"><tr><td style="background:${T.colorHeader};padding:14px 22px"><span style="font-family:${FONT};font-size:15px;font-weight:bold;color:#ffffff;letter-spacing:2px;text-transform:uppercase">${esc(s.titulo.toUpperCase())}</span></td></tr></table>`;
     return `${bar}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#ffffff;border:1px solid #e0e6ec;border-top:none"><tr><td style="padding:0 22px">${notes}</td></tr></table>`;
   }
   const body=state.sections.map(sectionHTML).join("\n");
@@ -403,10 +447,27 @@ document.addEventListener("input",ev=>{
 document.getElementById("addSectionBottom").onclick=addSection;
 document.getElementById("exportBtn").onclick=async()=>{
   const html=exportHTML(); const cli=(state.theme==="bms"?"BMS":"Booking");
-  document.getElementById("exportArea").value=html;
-  document.getElementById("exportTitle").textContent="Código HTML para Mailchimp — "+cli;
-  document.getElementById("exportModal").classList.add("open");
-  try{ await navigator.clipboard.writeText(html); setStatus("HTML de "+cli+" copiado ✓"); }catch(e){}
+  // Copiar como text/html (rich) para que al pegar en el mail (Gmail/Outlook) quede formateado TAL CUAL,
+  // no como código. Fallback: seleccionar el contenido renderizado y execCommand('copy').
+  let okCopy=false;
+  try{
+    const item=new ClipboardItem({
+      "text/html": new Blob([html],{type:"text/html"}),
+      "text/plain": new Blob([html],{type:"text/plain"})
+    });
+    await navigator.clipboard.write([item]); okCopy=true;
+  }catch(e){
+    try{
+      const tmp=document.createElement("div"); tmp.innerHTML=html;
+      tmp.setAttribute("style","position:fixed;left:-99999px;top:0;white-space:normal");
+      document.body.appendChild(tmp);
+      const range=document.createRange(); range.selectNodeContents(tmp);
+      const sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      okCopy=document.execCommand("copy");
+      sel.removeAllRanges(); document.body.removeChild(tmp);
+    }catch(e2){}
+  }
+  setStatus(okCopy ? ("Clipping de "+cli+" copiado ✓ — pegalo en el mail con Ctrl+V (queda formateado)") : "No pude copiar — probá de nuevo");
 };
 document.getElementById("exportClose").onclick=()=>document.getElementById("exportModal").classList.remove("open");
 document.getElementById("exportCopy").onclick=async()=>{ const ta=document.getElementById("exportArea"); ta.select();
