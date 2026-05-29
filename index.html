@@ -474,7 +474,7 @@ document.getElementById("exportBtn").onclick=async()=>{
 /* ============ REGISTRO DE MÉTRICAS (al exportar) ============ */
 const METRICS_WEBHOOK = {
   booking: "https://archytasai.app.n8n.cloud/webhook/clipping-metricas-export",
-  bms: null  // pendiente: replicar rama en workflow BMS
+  bms: "https://archytasai.app.n8n.cloud/webhook/clipping-metricas-export-bms"
 };
 function buildMetricasPayload(){
   return {
