@@ -490,12 +490,19 @@ function buildMetricasPayload(){
     }))
   };
 }
-async function postMetricas(){
-  const url = METRICS_WEBHOOK[state.theme];
-  if(!url) return; // cliente sin endpoint todavía
+// Registro de métricas: 100% silencioso, fire-and-forget. NUNCA debe afectar la copia
+// ni la experiencia del cliente. Si falla (CORS, red, lo que sea), se ignora en silencio.
+function postMetricas(){
   try{
-    await fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(buildMetricasPayload()), keepalive:true });
-  }catch(e){ setStatus("⚠️ Copiado, pero no pude registrar las métricas — reintentá exportar"); }
+    const url = METRICS_WEBHOOK[state.theme];
+    if(!url) return;
+    const body = JSON.stringify(buildMetricasPayload());
+    if (typeof navigator !== "undefined" && navigator.sendBeacon){
+      navigator.sendBeacon(url, new Blob([body], { type:"application/json" })); // no bloquea, no tira excepción
+    } else {
+      fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" }, body, keepalive:true, mode:"no-cors" }).catch(function(){});
+    }
+  }catch(e){ /* silencioso a propósito: no rompe la copia ni el HTML del cliente */ }
 }
 document.getElementById("exportClose").onclick=()=>document.getElementById("exportModal").classList.remove("open");
 document.getElementById("exportCopy").onclick=async()=>{ const ta=document.getElementById("exportArea"); ta.select();
