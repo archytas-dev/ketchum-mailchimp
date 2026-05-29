@@ -497,10 +497,12 @@ function postMetricas(){
     const url = METRICS_WEBHOOK[state.theme];
     if(!url) return;
     const body = JSON.stringify(buildMetricasPayload());
+    // text/plain = "simple request": NO dispara preflight CORS. El POST llega igual al webhook
+    // (el server lo parsea como JSON). Evita el bloqueo por Access-Control-Allow-Credentials.
     if (typeof navigator !== "undefined" && navigator.sendBeacon){
-      navigator.sendBeacon(url, new Blob([body], { type:"application/json" })); // no bloquea, no tira excepción
+      navigator.sendBeacon(url, new Blob([body], { type:"text/plain;charset=UTF-8" })); // no bloquea, no tira excepción
     } else {
-      fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" }, body, keepalive:true, mode:"no-cors" }).catch(function(){});
+      fetch(url, { method:"POST", headers:{ "Content-Type":"text/plain;charset=UTF-8" }, body, keepalive:true, mode:"no-cors" }).catch(function(){});
     }
   }catch(e){ /* silencioso a propósito: no rompe la copia ni el HTML del cliente */ }
 }
