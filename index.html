@@ -211,7 +211,7 @@ function normalize(data){
   if(!sections.length) sections=[{id:nid(),titulo:T.sections[0],notas:[]}];
   return { theme, fecha:data.fecha||fechaHoy(), sections };
 }
-function toNota(a){ return { id:nid(), medio:a.medio||a.fuente||a.nombre_medio_origen||"", fecha:a.fecha||a.pubDate||"", tier:a.tier||"", titulo:a.titulo||a.title||"", url:a.url||a.url_canonica||"", snippet:a.snippet||a.contentSnippet||"" }; }
+function toNota(a){ return { id:nid(), medio:a.medio||a.fuente||a.nombre_medio_origen||"", fecha:a.fecha||a.pubDate||"", tier:a.tier||"", titulo:a.titulo||a.title||"", url:a.url||a.url_canonica||"", snippet:a.snippet||a.contentSnippet||"", esGacetilla:!!a.esGacetilla }; }
 
 /* ============ RENDER ============ */
 function applyTheme(){
@@ -272,7 +272,7 @@ function renderSection(s){
   return el;
 }
 function renderNote(n,showTier){
-  const el=document.createElement("div"); el.className="note"; el.dataset.id=n.id;
+  const el=document.createElement("div"); el.className="note"; el.dataset.id=n.id; el.dataset.gacetilla=n.esGacetilla?"1":"";
   const tierField = showTier ? '<input class="fld f-tier" placeholder="Tier">' : '';
   el.innerHTML=
     '<span class="grip note-handle" title="Arrastrar">⠿</span>'
@@ -316,7 +316,8 @@ function syncFromDOM(){
         tier:tierEl?tierEl.value.trim():"",
         titulo:nEl.querySelector(".f-titulo").value.trim(),
         url:nEl.querySelector(".f-url").value.trim(),
-        snippet:nEl.querySelector(".f-snippet").value.trim()
+        snippet:nEl.querySelector(".f-snippet").value.trim(),
+        esGacetilla:nEl.dataset.gacetilla==="1"
       });
     });
     secs.push(s);
@@ -467,7 +468,35 @@ document.getElementById("exportBtn").onclick=async()=>{
     }catch(e2){}
   }
   setStatus(okCopy ? ("Clipping de "+cli+" copiado ✓ — pegalo en el mail con Ctrl+V (queda formateado)") : "No pude copiar — probá de nuevo");
+  postMetricas();
 };
+
+/* ============ REGISTRO DE MÉTRICAS (al exportar) ============ */
+const METRICS_WEBHOOK = {
+  booking: "https://archytasai.app.n8n.cloud/webhook/clipping-metricas-export",
+  bms: null  // pendiente: replicar rama en workflow BMS
+};
+function buildMetricasPayload(){
+  return {
+    cliente: state.theme,
+    fecha: new Date().toISOString().slice(0,10),
+    exportTs: new Date().toISOString(),
+    secciones: state.sections.map(s=>({
+      titulo: s.titulo,
+      notas: (s.notas||[]).filter(n=>(n.titulo||"").trim()).map(n=>({
+        medio:n.medio||"", titulo:n.titulo||"", url:n.url||"", fecha:n.fecha||"",
+        tier:n.tier||"", seccion:s.titulo, esGacetilla:!!n.esGacetilla
+      }))
+    }))
+  };
+}
+async function postMetricas(){
+  const url = METRICS_WEBHOOK[state.theme];
+  if(!url) return; // cliente sin endpoint todavía
+  try{
+    await fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(buildMetricasPayload()), keepalive:true });
+  }catch(e){ setStatus("⚠️ Copiado, pero no pude registrar las métricas — reintentá exportar"); }
+}
 document.getElementById("exportClose").onclick=()=>document.getElementById("exportModal").classList.remove("open");
 document.getElementById("exportCopy").onclick=async()=>{ const ta=document.getElementById("exportArea"); ta.select();
   try{ await navigator.clipboard.writeText(ta.value); }catch(e){ document.execCommand("copy"); }
