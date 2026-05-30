@@ -479,7 +479,10 @@ const METRICS_WEBHOOK = {
 function buildMetricasPayload(){
   return {
     cliente: state.theme,
-    fecha: new Date().toISOString().slice(0,10),
+    // Fecha en horario de Argentina (no UTC). toISOString() salta de día a las 21:00 ART
+    // (medianoche UTC) y rompía el replace-by-day: dos exports del mismo día ART quedaban
+    // con fecha distinta y se duplicaban en stats. en-CA da formato YYYY-MM-DD.
+    fecha: new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }),
     exportTs: new Date().toISOString(),
     secciones: state.sections.map(s=>({
       titulo: s.titulo,
