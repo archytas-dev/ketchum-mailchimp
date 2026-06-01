@@ -135,6 +135,11 @@
 <script>
 "use strict";
 
+/* ============ ASSET BASE ============ */
+// Base absoluta para las portadas al EXPORTAR el mail (en el mail las rutas relativas no sirven).
+// En el editor (pantalla) se usan rutas relativas, que andan en localhost y en Vercel.
+const ASSET_BASE = "https://ketchum-mailchimp.vercel.app/";
+
 /* ============ THEMES ============ */
 const THEMES = {
   booking: {
@@ -145,7 +150,7 @@ const THEMES = {
     sectionImages:{
       "Exclusiva":"https://mcusercontent.com/36c5c572bba94d0ff7ebdd653/images/cd751c34-c6e6-263c-f1ea-2d8183a2063a.jpg",
       "Competencia":"https://mcusercontent.com/36c5c572bba94d0ff7ebdd653/images/467dd0af-9fa8-2ba8-70aa-e59e2dbde4d1.jpg",
-      "Turismo":"https://drive.google.com/thumbnail?id=1kHcaEmYpp5AmDoT2-IzVUeX_T1pJaH0Z&sz=w1000"
+      "Turismo":"images/portadas/booking-turismo.jpg"
     },
     tierSection:"Exclusiva", footerName:"KETCHUM ARGENTINA", footerMail:"contacto@ketchum.com.ar"
   },
@@ -154,19 +159,19 @@ const THEMES = {
     bannerAlt:"Ketchum Clipping+ - Bristol Myers Squibb",
     bmsLogo:"https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Bristol_Myers_Squibb_logo.svg/320px-Bristol_Myers_Squibb_logo.svg.png",
     colorHeader:"#D81B7C", colorLink:"#1A4FB5", colorText:"#1F1F1F", pageBg:"#FFFFFF",
-    sections:["Notas Exclusivas","Noticias del Sector","Áreas Terapéuticas","Competencia","Propiedad Intelectual","Onco Hematología","Cardiología","Psoriasis","Artritis","CAR-T","Trasplantes"],
+    sections:["Notas Exclusivas","Noticias del Sector","Propiedad Intelectual","Competencia","Onco Hematología","Cardiología","Psoriasis","Artritis","Trasplantes"],
     sectionImages:{
-      "Notas Exclusivas":"https://drive.google.com/thumbnail?id=1sY3aqnmXFokem6mZ0FZkZXjAf593oNFm&sz=w1000",
-      "Noticias del Sector":"https://drive.google.com/thumbnail?id=1ATdvE8S-cObzUEKiVWPuq7zqfCkVvnCm&sz=w1000",
-      "Áreas Terapéuticas":"https://drive.google.com/thumbnail?id=1tYqRvJJTZG9AlMMun1PudyP2Z9jzKV_9&sz=w1000",
-      "Competencia":"https://drive.google.com/thumbnail?id=1PWDToJ5aEPzOusJOgmePJCTaJv5dx8Cm&sz=w1000",
-      "Propiedad Intelectual":"https://drive.google.com/thumbnail?id=1-b4SpOmB7WmCXGYBVQS8MUo84EmnEPuI&sz=w1000",
-      "Onco Hematología":"https://drive.google.com/thumbnail?id=1cqUhFjTOZXxsT4io9fBsVdMesDS7pGtv&sz=w1000",
-      "Cardiología":"https://drive.google.com/thumbnail?id=1ZxoWIzgi0T4ykLIcES6hn6oKjs_xifO9&sz=w1000",
-      "Psoriasis":"https://drive.google.com/thumbnail?id=1QjMdLhAcMzjcYOBxv7-Se8gMMShpUck7&sz=w1000",
-      "Artritis":"https://drive.google.com/thumbnail?id=1OoGshX5WmWt_5JbpxP4_K67DG9Ri6iUs&sz=w1000",
-      "CAR-T":"https://drive.google.com/thumbnail?id=1_wzqqUUjcjhIfQ0U8C3dANkSrqwkqkQI&sz=w1000",
-      "Trasplantes":"https://drive.google.com/thumbnail?id=1sex69g_TuvS8qaJMeMJW9i9VfrLHh8Fl&sz=w1000"
+      "Notas Exclusivas":"images/portadas/bms-notas-exclusivas.jpg",
+      "Noticias del Sector":"images/portadas/bms-noticias-del-sector.jpg",
+      "Áreas Terapéuticas":"images/portadas/bms-areas-terapeuticas.jpg",
+      "Competencia":"images/portadas/bms-competencia.jpg",
+      "Propiedad Intelectual":"images/portadas/bms-propiedad-intelectual.jpg",
+      "Onco Hematología":"images/portadas/bms-onco-hematologia.jpg",
+      "Cardiología":"images/portadas/bms-cardiologia.jpg",
+      "Psoriasis":"images/portadas/bms-psoriasis.jpg",
+      "Artritis":"images/portadas/bms-artritis.jpg",
+      "CAR-T":"images/portadas/bms-cart.jpg",
+      "Trasplantes":"images/portadas/bms-trasplantes.jpg"
     },
     tierSection:"Notas Exclusivas", footerName:"Ketchum Argentina", footerMail:"contacto@ketchum.com.ar"
   }
@@ -209,7 +214,19 @@ function normalize(data){
     for(const [name,notas] of map){ if(!seen.has(name)) sections.push({id:nid(),titulo:name,notas}); }
   }
   if(!sections.length) sections=[{id:nid(),titulo:T.sections[0],notas:[]}];
+  sections=mergeCanonical(theme, sections);
   return { theme, fecha:data.fecha||fechaHoy(), sections };
+}
+// Garantiza la estructura del cliente: todas las secciones canónicas presentes y en orden
+// (las que no vinieron se agregan vacías). Las secciones extra/custom se mantienen al final.
+function mergeCanonical(theme, sections){
+  const order=(THEMES[theme]&&THEMES[theme].sections)||[];
+  const byTitle=new Map(sections.map(s=>[String(s.titulo||"").trim().toLowerCase(), s]));
+  const orderSet=new Set(order.map(o=>o.toLowerCase()));
+  const out=[];
+  for(const name of order){ const k=name.toLowerCase(); out.push(byTitle.has(k)?byTitle.get(k):{id:nid(),titulo:name,notas:[]}); }
+  for(const s of sections){ const k=String(s.titulo||"").trim().toLowerCase(); if(!orderSet.has(k)) out.push(s); }
+  return out;
 }
 function toNota(a){ return { id:nid(), medio:a.medio||a.fuente||a.nombre_medio_origen||"", fecha:a.fecha||a.pubDate||"", tier:a.tier||"", titulo:a.titulo||a.title||"", url:a.url||a.url_canonica||"", snippet:a.snippet||a.contentSnippet||"", esGacetilla:!!a.esGacetilla }; }
 
@@ -261,7 +278,8 @@ function renderSection(s){
     }
   };
   __applyCover();
-  __selSec.addEventListener("change",__applyCover);
+  // Al cambiar la categoría: reubicar la sección en el orden canónico (no la deja al final).
+  __selSec.addEventListener("change",()=>{ syncFromDOM(); reorderCanonical(); render(); });
   el.appendChild(head);
   const notes=document.createElement("div"); notes.className="notes";
   for(const n of s.notas) notes.appendChild(renderNote(n,showTier));
@@ -357,6 +375,13 @@ document.addEventListener("dragover",e=>{
 });
 
 /* ============ ACTIONS ============ */
+// Reordena state.sections según el orden canónico del cliente (THEMES[theme].sections).
+// Las secciones cuyo título no es canónico (custom) quedan al final, en su orden relativo. Sort estable.
+function reorderCanonical(){
+  const order=(THEMES[state.theme]&&THEMES[state.theme].sections)||[];
+  const rank=t=>{ const i=order.findIndex(o=>o.toLowerCase()===String(t||"").trim().toLowerCase()); return i<0?9999:i; };
+  state.sections=state.sections.map((s,i)=>({s,i})).sort((a,b)=>{ const d=rank(a.s.titulo)-rank(b.s.titulo); return d!==0?d:a.i-b.i; }).map(x=>x.s);
+}
 function addSection(){ syncFromDOM(); state.sections.push({id:nid(),titulo:"Nueva sección",notas:[]}); render(); }
 function delSection(secEl){ const ti=(secEl.querySelector(".section-title").value||"esta sección").trim(); if(!confirm('¿Borrar la sección "'+ti+'" y todas sus notas? No se puede deshacer.')) return; syncFromDOM(); state.sections=state.sections.filter(s=>s.id!==secEl.dataset.id); render(); }
 function addNote(secEl){ syncFromDOM(); const s=state.sections.find(x=>x.id===secEl.dataset.id); if(s) s.notas.push({id:nid(),medio:"",fecha:"",tier:"",titulo:"",url:"",snippet:""}); render(); }
@@ -367,6 +392,8 @@ function delNote(nEl){ syncFromDOM(); for(const s of state.sections) s.notas=s.n
 function exportHTML(){
   syncFromDOM();
   const T=THEMES[state.theme]; const W=720, FONT="Arial, Helvetica, sans-serif";
+  // Portadas: en el mail exportado deben ser URL absoluta (Vercel). Las relativas se absolutizan.
+  const toAbs=u=>{ u=String(u||""); return /^https?:\/\//i.test(u)?u:(ASSET_BASE+u.replace(/^\//,"")); };
   const banner = state.theme==="bms"
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0"><tr><td style="text-align:center"><img src="${T.banner}" alt="${escAttr(T.bannerAlt)}" width="${W}" style="display:block;width:100%;max-width:${W}px;height:auto;border:0"></td></tr></table>`
     : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse"><tr><td style="padding:0"><img src="${T.banner}" alt="${escAttr(T.bannerAlt)}" width="${W}" style="display:block;width:100%;max-width:${W}px;height:auto;border:0"></td></tr><tr><td style="background:${T.colorHeader};padding:10px 28px" align="right"><span style="font-family:${FONT};font-size:11px;color:#ffffff;letter-spacing:2px;text-transform:uppercase">${esc(state.fecha.toUpperCase())}</span></td></tr></table>`;
@@ -381,18 +408,20 @@ function exportHTML(){
   function sectionHTML(s){
     const showTier=(s.titulo.trim().toLowerCase()===T.tierSection.toLowerCase());
     const notes=s.notas.filter(n=>(n.titulo||"").trim()).map(n=>noteHTML(n,showTier)).join("\n");
-    if(!notes) return "";
+    // Sección sin notas: NO se elimina — se deja el encabezado con el placeholder pedido por el cliente.
+    const emptyHTML=`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse"><tr><td style="padding:16px 0;font-family:${FONT};font-size:${state.theme==="bms"?"14":"13"}px;color:#8a98a5;font-style:italic">No se produjeron menciones</td></tr></table>`;
+    const body=notes||emptyHTML;
     if(state.theme==="bms"){
       const __bmsImg=(T.sectionImages||{})[s.titulo];
-      if(__bmsImg){ return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:28px 0 0 0"><tr><td style="padding:0"><img src="${escAttr(__bmsImg)}" alt="${escAttr(s.titulo)}" width="${W}" style="display:block;width:100%;max-width:${W}px;height:auto;border:0"></td></tr></table>${notes}`; }
+      if(__bmsImg){ return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:28px 0 0 0"><tr><td style="padding:0"><img src="${escAttr(toAbs(__bmsImg))}" alt="${escAttr(s.titulo)}" width="${W}" style="display:block;width:100%;max-width:${W}px;height:auto;border:0"></td></tr></table>${body}`; }
       const logo=showTier?`<img src="${T.bmsLogo}" alt="Bristol Myers Squibb" height="28" style="float:right;display:inline-block;margin-top:8px">`:"";
-      return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:36px 0 14px 0"><tr><td>${logo}<h2 style="margin:0;font-family:${FONT};font-size:24px;font-weight:bold;color:${T.colorHeader};letter-spacing:-.3px">${esc(s.titulo)}</h2></td></tr></table>${notes}`;
+      return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:36px 0 14px 0"><tr><td>${logo}<h2 style="margin:0;font-family:${FONT};font-size:24px;font-weight:bold;color:${T.colorHeader};letter-spacing:-.3px">${esc(s.titulo)}</h2></td></tr></table>${body}`;
     }
     const __secImg=(T.sectionImages||{})[s.titulo];
     const bar=__secImg
-      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-top:24px"><tr><td style="padding:0"><img src="${escAttr(__secImg)}" alt="${escAttr(s.titulo)}" width="${W}" style="display:block;width:100%;max-width:${W}px;height:auto;border:0"></td></tr></table>`
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-top:24px"><tr><td style="padding:0"><img src="${escAttr(toAbs(__secImg))}" alt="${escAttr(s.titulo)}" width="${W}" style="display:block;width:100%;max-width:${W}px;height:auto;border:0"></td></tr></table>`
       : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-top:24px"><tr><td style="background:${T.colorHeader};padding:14px 22px"><span style="font-family:${FONT};font-size:15px;font-weight:bold;color:#ffffff;letter-spacing:2px;text-transform:uppercase">${esc(s.titulo.toUpperCase())}</span></td></tr></table>`;
-    return `${bar}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#ffffff;border:1px solid #e0e6ec;border-top:none"><tr><td style="padding:0 22px">${notes}</td></tr></table>`;
+    return `${bar}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#ffffff;border:1px solid #e0e6ec;border-top:none"><tr><td style="padding:0 22px">${body}</td></tr></table>`;
   }
   const body=state.sections.map(sectionHTML).join("\n");
   const emptyMsg=`<p style="text-align:center;font-family:${FONT};color:#5A5A5A;padding:40px 0">Sin artículos.</p>`;
