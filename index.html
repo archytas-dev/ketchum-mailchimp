@@ -62,18 +62,23 @@
   .note:hover .note-actions{visibility:visible}
   .icon-btn{background:#fff;border:1px solid var(--ui-border);border-radius:6px;width:28px;height:28px;font-size:13px;cursor:pointer;color:#465b6b;display:inline-flex;align-items:center;justify-content:center;padding:0}
   .icon-btn:hover{background:#f0f4f7;border-color:var(--ui-accent);color:var(--ui-accent)}
-  .headline{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px;font-size:14px;line-height:1.5}
-  .online{color:var(--color-link);font-weight:700}
-  .sep{color:#7a8a96}
+  .headline{font-size:14px;line-height:1.7}
+  .online{color:var(--color-link);font-weight:700;margin:0 3px}
+  .sep{color:#7a8a96;margin:0 3px}
   .fld{font-family:Arial,Helvetica,sans-serif;border:1px solid transparent;background:transparent;border-radius:4px;padding:2px 5px}
   .fld:hover{border-color:var(--ui-border)}
   .fld:focus{outline:none;border-color:var(--ui-accent);background:#f7fbfd}
-  .f-medio,.f-fecha,.f-tier{color:var(--color-link);font-weight:700;font-size:14px}
-  .f-titulo{color:var(--color-link);font-weight:700;text-decoration:underline;font-size:14px;flex:1;min-width:220px}
+  .f-medio,.f-fecha,.f-tier{color:var(--color-link);font-weight:700;font-size:14px;display:inline-block;vertical-align:baseline}
+  .f-titulo{color:var(--color-link);font-weight:700;text-decoration:underline;font-size:14px;display:inline}
   body[data-theme="bms"] .headline{font-size:15px}
   body[data-theme="bms"] .f-medio,body[data-theme="bms"] .f-fecha{font-size:15px}
-  .f-snippet{display:block;width:100%;margin-top:7px;color:var(--color-text);font-size:12px;line-height:1.6;resize:none;overflow:hidden}
+  .f-snippet{display:block;width:100%;margin-top:7px;color:var(--color-text);font-size:12px;line-height:1.6}
   body[data-theme="bms"] .f-snippet{font-size:14px}
+  /* rich-text (contenteditable): para pintar palabras */
+  .rich{white-space:pre-wrap;word-break:break-word;min-height:1.2em;cursor:text}
+  .rich:empty:before{content:attr(data-ph);color:#9fb0bd;pointer-events:none}
+  #paintBtn{background:var(--hl,#D32F2F);border-color:var(--hl,#D32F2F);color:#fff;font-weight:700}
+  #paintBtn:hover{filter:brightness(1.08)}
   .urlrow{margin-top:6px;font-size:11px;color:#8aa0b0;display:flex;align-items:center;gap:4px}
   .f-url{flex:1;font-size:11px;border:1px solid var(--ui-border);border-radius:4px;padding:3px 6px;color:#465b6b;background:#fbfdfe}
 
@@ -105,6 +110,8 @@
   <span id="fechaLabel" title="Fecha del clipping (fija)"></span>
   <span class="grow"></span>
   <span id="status"></span>
+  <button class="act" id="paintBtn" title="Pintar lo seleccionado (título o snippet)">🖍 Pintar</button>
+  <button class="act" id="unpaintBtn" title="Quitar el pintado de lo seleccionado">Despintar</button>
   <button class="act primary" id="exportBtn">Copiar para Mail</button>
 </div>
 
@@ -152,7 +159,8 @@ const THEMES = {
       "Competencia":"https://mcusercontent.com/36c5c572bba94d0ff7ebdd653/images/467dd0af-9fa8-2ba8-70aa-e59e2dbde4d1.jpg",
       "Turismo":"images/portadas/booking-turismo.jpg"
     },
-    tierSection:"Exclusiva", footerName:"KETCHUM ARGENTINA", footerMail:"contacto@ketchum.com.ar"
+    tierSection:"Exclusiva", footerName:"KETCHUM ARGENTINA", footerMail:"contacto@ketchum.com.ar",
+    hlColor:"#D32F2F", autoTerm:"Booking"
   },
   bms: {
     banner:"https://mcusercontent.com/36c5c572bba94d0ff7ebdd653/images/cef6a241-f54a-cc30-f31f-8ea528843471.jpg",
@@ -173,7 +181,8 @@ const THEMES = {
       "CAR-T":"images/portadas/bms-cart.jpg",
       "Trasplantes":"images/portadas/bms-trasplantes.jpg"
     },
-    tierSection:"Notas Exclusivas", footerName:"Ketchum Argentina", footerMail:"contacto@ketchum.com.ar"
+    tierSection:"Notas Exclusivas", footerName:"Ketchum Argentina", footerMail:"contacto@ketchum.com.ar",
+    hlColor:"#D81B7C", autoTerm:""
   }
 };
 
@@ -215,7 +224,43 @@ function normalize(data){
   }
   if(!sections.length) sections=[{id:nid(),titulo:T.sections[0],notas:[]}];
   sections=mergeCanonical(theme, sections);
+  sections=prepRich(theme, sections);
   return { theme, fecha:data.fecha||fechaHoy(), sections };
+}
+// Convierte titulo/snippet (texto plano del n8n) a HTML seguro y auto-pinta el término del cliente (ej. "Booking").
+function prepRich(theme, sections){
+  const T=THEMES[theme]||{}; const term=T.autoTerm||""; const color=T.hlColor||"#D32F2F";
+  for(const s of sections){ for(const n of (s.notas||[])){
+    n.titulo = paintTerm(esc(n.titulo||""), term, color);
+    n.snippet = paintTerm(esc(n.snippet||""), term, color);
+  }}
+  return sections;
+}
+function paintTerm(html, term, color){
+  if(!term) return html;
+  try{ return String(html).replace(new RegExp("("+term.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","gi"), '<span style="color:'+color+'">$1</span>'); }
+  catch(e){ return html; }
+}
+// Lee el innerHTML de un campo rich y lo sanea: solo conserva texto + <span style="color:..."> + <br>.
+function cleanRich(node){
+  const tmp=document.createElement("div"); tmp.innerHTML=String(node||"");
+  function walk(el){
+    let out="";
+    el.childNodes.forEach(c=>{
+      if(c.nodeType===3){ out+=esc(c.nodeValue); }
+      else if(c.nodeType===1){
+        const tag=c.tagName.toLowerCase();
+        if(tag==="br"){ out+="<br>"; return; }
+        const inner=walk(c);
+        let color="";
+        try{ if(c.style&&c.style.color) color=c.style.color; }catch(e){}
+        if(!color && tag==="font" && c.getAttribute("color")) color=c.getAttribute("color");
+        out+= color ? ('<span style="color:'+color+'">'+inner+'</span>') : inner;
+      }
+    });
+    return out;
+  }
+  return walk(tmp).replace(/\s+/g," ").trim();
 }
 // Garantiza la estructura del cliente: todas las secciones canónicas presentes y en orden
 // (las que no vinieron se agregan vacías). Las secciones extra/custom se mantienen al final.
@@ -236,6 +281,7 @@ function applyTheme(){
   const r=document.documentElement.style;
   r.setProperty("--color-header",T.colorHeader); r.setProperty("--color-link",T.colorLink);
   r.setProperty("--color-text",T.colorText); r.setProperty("--page-bg",T.pageBg);
+  r.setProperty("--hl", T.hlColor||"#D32F2F");
   const b=document.getElementById("bannerImg"); b.src=T.banner; b.alt=T.bannerAlt;
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.theme===state.theme));
   document.getElementById("footerClip").innerHTML='<div style="background:#f7f8f9;margin:0 -20px;padding:0 20px"><div style="text-align:center;padding:28px 0 20px 0"><a href="http://www.twitter.com/KetchumArg" style="margin:0 13px;display:inline-block"><img src="images/social/color-twitter-48.png" width="28" height="28" style="border:0;vertical-align:middle"></a><a href="https://www.facebook.com/KetchumARG" style="margin:0 13px;display:inline-block"><img src="images/social/color-facebook-48.png" width="28" height="28" style="border:0;vertical-align:middle"></a><a href="https://www.ketchum.com/" style="margin:0 13px;display:inline-block"><img src="images/social/color-link-48.png" width="28" height="28" style="border:0;vertical-align:middle"></a></div><div style="padding:20px 0 28px 0;border-top:1px solid #e6e6e6;font-size:13px;color:#656565;line-height:1.7;text-align:center">This email was sent to <span style="text-decoration:underline">fedra.cacciamano@ketchum.com.ar</span><br>Ketchum &middot; 11 de septiembre de 1888 N&deg;2173 3C - Buenos Aires, Ciudad de Buenos Aires CP 1428 &middot; Argentina</div></div>';
@@ -246,7 +292,6 @@ function render(){
   document.getElementById("dateBar").textContent=state.fecha;
   const cont=document.getElementById("sections"); cont.innerHTML="";
   for(const s of state.sections) cont.appendChild(renderSection(s));
-  document.querySelectorAll(".f-snippet").forEach(autoGrow);
   document.querySelectorAll(".f-medio,.f-fecha,.f-tier").forEach(autoSize);
 }
 function renderSection(s){
@@ -300,9 +345,9 @@ function renderNote(n,showTier){
    +    '<input class="fld f-fecha" placeholder="Fecha">'
    +    tierField
    +    '<span class="sep">-</span>'
-   +    '<input class="fld f-titulo" placeholder="Título de la nota">'
+   +    '<div class="fld f-titulo rich" contenteditable="true" data-ph="Título de la nota"></div>'
    +  '</div>'
-   +  '<textarea class="fld f-snippet" placeholder="Snippet / resumen…"></textarea>'
+   +  '<div class="fld f-snippet rich" contenteditable="true" data-ph="Snippet / resumen…"></div>'
    +  '<div class="urlrow">🔗 <input class="f-url" placeholder="https://…"></div>'
    +'</div>'
    +'<div class="note-actions">'
@@ -312,8 +357,8 @@ function renderNote(n,showTier){
   el.querySelector(".f-medio").value=n.medio||"";
   el.querySelector(".f-fecha").value=n.fecha||"";
   if(showTier) el.querySelector(".f-tier").value=n.tier||"";
-  el.querySelector(".f-titulo").value=n.titulo||"";
-  el.querySelector(".f-snippet").value=n.snippet||"";
+  el.querySelector(".f-titulo").innerHTML=n.titulo||"";
+  el.querySelector(".f-snippet").innerHTML=n.snippet||"";
   el.querySelector(".f-url").value=n.url||"";
   return el;
 }
@@ -332,9 +377,9 @@ function syncFromDOM(){
         medio:nEl.querySelector(".f-medio").value.trim(),
         fecha:nEl.querySelector(".f-fecha").value.trim(),
         tier:tierEl?tierEl.value.trim():"",
-        titulo:nEl.querySelector(".f-titulo").value.trim(),
+        titulo:cleanRich(nEl.querySelector(".f-titulo").innerHTML),
         url:nEl.querySelector(".f-url").value.trim(),
-        snippet:nEl.querySelector(".f-snippet").value.trim(),
+        snippet:cleanRich(nEl.querySelector(".f-snippet").innerHTML),
         esGacetilla:nEl.dataset.gacetilla==="1"
       });
     });
@@ -401,8 +446,8 @@ function exportHTML(){
     const partes=[`<strong style="color:${T.colorLink};font-weight:bold">${esc(n.medio||"Sin medio")} (Online)</strong>`];
     if(n.fecha) partes.push(`<span style="color:${T.colorLink};font-weight:bold">${esc(n.fecha)}</span>`);
     if(showTier && n.tier) partes.push(`<span style="color:${T.colorLink};font-weight:bold">${esc(n.tier)}</span>`);
-    const title=`<a href="${escAttr(n.url)}" style="color:${T.colorLink};text-decoration:underline;font-weight:bold">${esc(n.titulo)}</a>`;
-    const snip=n.snippet?`<div style="font-family:${FONT};font-size:${state.theme==="bms"?"14":"12"}px;color:${T.colorText};margin-top:8px;line-height:1.6">${esc(n.snippet)}</div>`:"";
+    const title=`<a href="${escAttr(n.url)}" style="color:${T.colorLink};text-decoration:underline;font-weight:bold">${n.titulo||""}</a>`;
+    const snip=n.snippet?`<div style="font-family:${FONT};font-size:${state.theme==="bms"?"14":"12"}px;color:${T.colorText};margin-top:8px;line-height:1.6">${n.snippet}</div>`:"";
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" mc:repeatable="nota" mc:variant="Nota" style="border-collapse:collapse"><tr><td mc:edit="nota" style="padding:16px 0;border-bottom:1px solid #e0e6ec"><div style="font-family:${FONT};font-size:14px;color:${T.colorLink};font-weight:bold;line-height:1.45">${partes.join(" ")} - ${title}</div>${snip}</td></tr></table>`;
   }
   function sectionHTML(s){
@@ -470,10 +515,24 @@ document.addEventListener("click",ev=>{
   else if(t.closest(".btn-delnote")) delNote(t.closest(".note"));
 });
 document.addEventListener("input",ev=>{
-  if(ev.target.classList.contains("f-snippet")) autoGrow(ev.target);
   if(ev.target.classList.contains("f-medio")||ev.target.classList.contains("f-fecha")||ev.target.classList.contains("f-tier")) autoSize(ev.target);
 });
 document.getElementById("addSectionBottom").onclick=addSection;
+
+/* ============ PINTAR / DESPINTAR ============ */
+// Los botones usan mousedown preventDefault para NO robar el foco del campo (así no se pierde la selección).
+["paintBtn","unpaintBtn"].forEach(id=>document.getElementById(id).addEventListener("mousedown",e=>e.preventDefault()));
+function applyPaint(on){
+  const sel=window.getSelection();
+  if(!sel||sel.rangeCount===0||sel.isCollapsed){ setStatus("Seleccioná texto en un título o snippet"); return; }
+  const a=sel.anchorNode; const host=(a&&a.nodeType===1?a:(a&&a.parentElement)) ? (a.nodeType===1?a:a.parentElement).closest(".rich") : null;
+  if(!host){ setStatus("Seleccioná dentro del título o snippet"); return; }
+  try{ document.execCommand("styleWithCSS",false,true); }catch(e){}
+  if(on){ document.execCommand("foreColor",false,(THEMES[state.theme].hlColor||"#D32F2F")); setStatus("Pintado ✓"); }
+  else { document.execCommand("removeFormat",false,null); setStatus("Despintado ✓"); }
+}
+document.getElementById("paintBtn").addEventListener("click",()=>applyPaint(true));
+document.getElementById("unpaintBtn").addEventListener("click",()=>applyPaint(false));
 document.getElementById("exportBtn").onclick=async()=>{
   const html=exportHTML(); const cli=(state.theme==="bms"?"BMS":"Booking");
   // Copiar como text/html (rich) para que al pegar en el mail (Gmail/Outlook) quede formateado TAL CUAL,
@@ -516,7 +575,7 @@ function buildMetricasPayload(){
     secciones: state.sections.map(s=>({
       titulo: s.titulo,
       notas: (s.notas||[]).filter(n=>(n.titulo||"").trim()).map(n=>({
-        medio:n.medio||"", titulo:n.titulo||"", url:n.url||"", fecha:n.fecha||"",
+        medio:n.medio||"", titulo:String(n.titulo||"").replace(/<[^>]+>/g,""), url:n.url||"", fecha:n.fecha||"",
         tier:n.tier||"", seccion:s.titulo, esGacetilla:!!n.esGacetilla
       }))
     }))
