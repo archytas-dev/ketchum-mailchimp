@@ -241,6 +241,19 @@ function paintTerm(html, term, color){
   try{ return String(html).replace(new RegExp("("+term.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","gi"), '<span style="color:'+color+'">$1</span>'); }
   catch(e){ return html; }
 }
+// True si el color es negro o un gris oscuro (el color por defecto del texto pegado de un diario).
+// Los resaltados reales (rojo #D32F2F, rosa #D81B7C) tienen un canal alto → devuelven false y se conservan.
+function isDarkDefault(color){
+  const c=String(color||"").trim().toLowerCase();
+  if(!c) return false;
+  if(c==="black") return true;
+  let r,g,b;
+  let m=c.match(/^#([0-9a-f]{3})$/); if(m){ r=parseInt(m[1][0]+m[1][0],16); g=parseInt(m[1][1]+m[1][1],16); b=parseInt(m[1][2]+m[1][2],16); }
+  if(r===undefined){ m=c.match(/^#([0-9a-f]{6})$/); if(m){ r=parseInt(m[1].slice(0,2),16); g=parseInt(m[1].slice(2,4),16); b=parseInt(m[1].slice(4,6),16); } }
+  if(r===undefined){ m=c.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/); if(m){ r=+m[1]; g=+m[2]; b=+m[3]; } }
+  if(r===undefined) return false; // color desconocido: no lo toco
+  return (r<90 && g<90 && b<90); // negro o gris oscuro
+}
 // Lee el innerHTML de un campo rich y lo sanea: solo conserva texto + <span style="color:..."> + <br>.
 function cleanRich(node){
   const tmp=document.createElement("div"); tmp.innerHTML=String(node||"");
@@ -255,6 +268,9 @@ function cleanRich(node){
         let color="";
         try{ if(c.style&&c.style.color) color=c.style.color; }catch(e){}
         if(!color && tag==="font" && c.getAttribute("color")) color=c.getAttribute("color");
+        // Ignorar negros/grises oscuros (color por defecto del diario al pegar): NO deben pisar el azul del título.
+        // Solo se conservan colores reales de resaltado (rojo/rosa del Pintar), que no son oscuros.
+        if(color && isDarkDefault(color)) color="";
         out+= color ? ('<span style="color:'+color+'">'+inner+'</span>') : inner;
       }
     });
@@ -518,6 +534,18 @@ document.addEventListener("input",ev=>{
   if(ev.target.classList.contains("f-medio")||ev.target.classList.contains("f-fecha")||ev.target.classList.contains("f-tier")) autoSize(ev.target);
 });
 document.getElementById("addSectionBottom").onclick=addSection;
+
+/* ============ PEGAR COMO TEXTO PLANO ============ */
+// En los campos rich (título/snippet), pegar SIEMPRE como texto plano: así el color/typografía
+// de la fuente (ej. el negro del diario) NO entra y el título queda con el azul del clipping.
+// El color se agrega solo a propósito con el botón Pintar.
+document.addEventListener("paste", e=>{
+  const r = e.target.closest && e.target.closest(".rich");
+  if(!r) return;
+  e.preventDefault();
+  const text = ((e.clipboardData || window.clipboardData).getData("text/plain") || "").replace(/\r/g,"");
+  document.execCommand("insertText", false, text);
+});
 
 /* ============ PINTAR / DESPINTAR ============ */
 // Los botones usan mousedown preventDefault para NO robar el foco del campo (así no se pierde la selección).
