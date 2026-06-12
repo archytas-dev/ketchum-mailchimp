@@ -68,7 +68,7 @@
   .fld{font-family:Arial,Helvetica,sans-serif;border:1px solid transparent;background:transparent;border-radius:4px;padding:2px 5px}
   .fld:hover{border-color:var(--ui-border)}
   .fld:focus{outline:none;border-color:var(--ui-accent);background:#f7fbfd}
-  .f-medio,.f-fecha,.f-tier{color:var(--color-link);font-weight:700;font-size:14px;display:inline-block;vertical-align:baseline}
+  .f-medio,.f-fecha,.f-tier,.f-online{color:var(--color-link);font-weight:700;font-size:14px;display:inline-block;vertical-align:baseline}
   .f-titulo{color:var(--color-link);font-weight:700;text-decoration:underline;font-size:14px;display:inline}
   body[data-theme="bms"] .headline{font-size:15px}
   body[data-theme="bms"] .f-medio,body[data-theme="bms"] .f-fecha{font-size:15px}
@@ -289,7 +289,7 @@ function mergeCanonical(theme, sections){
   for(const s of sections){ const k=String(s.titulo||"").trim().toLowerCase(); if(!orderSet.has(k)) out.push(s); }
   return out;
 }
-function toNota(a){ return { id:nid(), medio:a.medio||a.fuente||a.nombre_medio_origen||"", fecha:a.fecha||a.pubDate||"", tier:a.tier||"", titulo:a.titulo||a.title||"", url:a.url||a.url_canonica||"", snippet:a.snippet||a.contentSnippet||"", esGacetilla:!!a.esGacetilla }; }
+function toNota(a){ return { id:nid(), medio:a.medio||a.fuente||a.nombre_medio_origen||"", online:(a.online!==undefined&&a.online!==null)?a.online:"(Online)", fecha:a.fecha||a.pubDate||"", tier:a.tier||"", titulo:a.titulo||a.title||"", url:a.url||a.url_canonica||"", snippet:a.snippet||a.contentSnippet||"", esGacetilla:!!a.esGacetilla }; }
 
 /* ============ RENDER ============ */
 function applyTheme(){
@@ -308,7 +308,7 @@ function render(){
   document.getElementById("dateBar").textContent=state.fecha;
   const cont=document.getElementById("sections"); cont.innerHTML="";
   for(const s of state.sections) cont.appendChild(renderSection(s));
-  document.querySelectorAll(".f-medio,.f-fecha,.f-tier").forEach(autoSize);
+  document.querySelectorAll(".f-medio,.f-fecha,.f-tier,.f-online").forEach(autoSize);
 }
 function renderSection(s){
   const T=THEMES[state.theme];
@@ -357,7 +357,7 @@ function renderNote(n,showTier){
     '<span class="grip note-handle" title="Arrastrar">⠿</span>'
    +'<div class="note-body">'
    +  '<div class="headline">'
-   +    '<input class="fld f-medio" placeholder="Medio"><span class="online">(Online)</span>'
+   +    '<input class="fld f-medio" placeholder="Medio"><input class="fld f-online" title="Editá el (Online) — ej. (Gráfica), (Papel)… o vacialo si no va">'
    +    '<input class="fld f-fecha" placeholder="Fecha">'
    +    tierField
    +    '<span class="sep">-</span>'
@@ -371,6 +371,7 @@ function renderNote(n,showTier){
    +  '<button class="icon-btn btn-delnote" title="Borrar">🗑</button>'
    +'</div>';
   el.querySelector(".f-medio").value=n.medio||"";
+  el.querySelector(".f-online").value=(n.online!==undefined&&n.online!==null)?n.online:"(Online)";
   el.querySelector(".f-fecha").value=n.fecha||"";
   if(showTier) el.querySelector(".f-tier").value=n.tier||"";
   el.querySelector(".f-titulo").innerHTML=n.titulo||"";
@@ -391,6 +392,7 @@ function syncFromDOM(){
       s.notas.push({
         id:nEl.dataset.id,
         medio:nEl.querySelector(".f-medio").value.trim(),
+        online:(function(){const e=nEl.querySelector(".f-online");return e?e.value.trim():"(Online)";})(),
         fecha:nEl.querySelector(".f-fecha").value.trim(),
         tier:tierEl?tierEl.value.trim():"",
         titulo:cleanRich(nEl.querySelector(".f-titulo").innerHTML),
@@ -459,7 +461,8 @@ function exportHTML(){
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0"><tr><td style="text-align:center"><img src="${T.banner}" alt="${escAttr(T.bannerAlt)}" width="${W}" style="display:block;width:100%;max-width:${W}px;height:auto;border:0"></td></tr></table>`
     : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse"><tr><td style="padding:0"><img src="${T.banner}" alt="${escAttr(T.bannerAlt)}" width="${W}" style="display:block;width:100%;max-width:${W}px;height:auto;border:0"></td></tr><tr><td style="background:${T.colorHeader};padding:10px 28px" align="right"><span style="font-family:${FONT};font-size:11px;color:#ffffff;letter-spacing:2px;text-transform:uppercase">${esc(state.fecha.toUpperCase())}</span></td></tr></table>`;
   function noteHTML(n,showTier){
-    const partes=[`<strong style="color:${T.colorLink};font-weight:bold">${esc(n.medio||"Sin medio")} (Online)</strong>`];
+    const __on=(n.online!==undefined&&n.online!==null)?n.online:"(Online)";
+    const partes=[`<strong style="color:${T.colorLink};font-weight:bold">${esc(n.medio||"Sin medio")}${__on?(' '+esc(__on)):''}</strong>`];
     if(n.fecha) partes.push(`<span style="color:${T.colorLink};font-weight:bold">${esc(n.fecha)}</span>`);
     if(showTier && n.tier) partes.push(`<span style="color:${T.colorLink};font-weight:bold">${esc(n.tier)}</span>`);
     const title=`<a href="${escAttr(n.url)}" style="color:${T.colorLink};text-decoration:underline;font-weight:bold">${n.titulo||""}</a>`;
@@ -531,7 +534,7 @@ document.addEventListener("click",ev=>{
   else if(t.closest(".btn-delnote")) delNote(t.closest(".note"));
 });
 document.addEventListener("input",ev=>{
-  if(ev.target.classList.contains("f-medio")||ev.target.classList.contains("f-fecha")||ev.target.classList.contains("f-tier")) autoSize(ev.target);
+  if(ev.target.classList.contains("f-medio")||ev.target.classList.contains("f-fecha")||ev.target.classList.contains("f-tier")||ev.target.classList.contains("f-online")) autoSize(ev.target);
 });
 document.getElementById("addSectionBottom").onclick=addSection;
 
