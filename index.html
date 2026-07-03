@@ -39,13 +39,13 @@
   .section-head{display:flex;align-items:center;gap:6px}
   .grip{cursor:grab;color:#9fb0bd;font-size:16px;user-select:none;padding:0 2px;line-height:1}
   .grip:active{cursor:grabbing}
-  body[data-theme="booking"] .section-title{background:var(--color-header);color:#fff;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:12px 18px;font-size:15px;flex:1;border:1px solid transparent;border-radius:3px}
+  body[data-theme="booking"] .section-title,body[data-theme="msd"] .section-title{background:var(--color-header);color:#fff;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:12px 18px;font-size:15px;flex:1;border:1px solid transparent;border-radius:3px}
   body[data-theme="bms"] .section-title{color:var(--color-header);font-weight:700;font-size:23px;letter-spacing:-.3px;padding:4px 4px;flex:1;border:1px solid transparent;border-radius:3px;background:transparent}
   .section-title:hover{border-color:rgba(10,127,163,.4)}
   .section-title:focus{outline:none;box-shadow:0 0 0 2px var(--ui-accent)}
-  body[data-theme="booking"] .section-title:focus{box-shadow:inset 0 0 0 2px #fff}
+  body[data-theme="booking"] .section-title:focus,body[data-theme="msd"] .section-title:focus{box-shadow:inset 0 0 0 2px #fff}
   .sec-btns{display:flex;gap:4px}
-  body[data-theme="booking"] .notes{background:#fff;border:1px solid #e0e6ec;border-top:none;padding:2px 20px;min-height:14px}
+  body[data-theme="booking"] .notes,body[data-theme="msd"] .notes{background:#fff;border:1px solid #e0e6ec;border-top:none;padding:2px 20px;min-height:14px}
   body[data-theme="bms"] .notes{padding:0 4px;min-height:14px}
   .add-note-row button{margin-top:6px;background:transparent;border:1px dashed #b9c6d1;border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;color:#5b7080;width:100%}
   .add-note-row button:hover{border-color:var(--ui-accent);color:var(--ui-accent)}
@@ -106,6 +106,7 @@
   <div class="tabs">
     <button class="tab" data-theme="booking">Booking</button>
     <button class="tab" data-theme="bms">BMS</button>
+    <button class="tab" data-theme="msd">MSD</button>
   </div>
   <span id="fechaLabel" title="Fecha del clipping (fija)"></span>
   <span class="grow"></span>
@@ -183,6 +184,24 @@ const THEMES = {
     },
     tierSection:"Notas Exclusivas", footerName:"Ketchum Argentina", footerMail:"contacto@ketchum.com.ar",
     hlColor:"#D81B7C", autoTerm:""
+  },
+  msd: {
+    banner:"images/portadas/msd-banner.jpg",
+    bannerAlt:"Ketchum Clipping - MSD Salud Animal",
+    colorHeader:"#008080", colorLink:"#007C89", colorText:"#202020", pageBg:"#FFFFFF",
+    sections:["Exclusivas","Corporativas","Salud","Animales de Compañía","Aves","Cerdos","Ganadería","Innovación en Salud Animal"],
+    sectionImages:{
+      "Exclusivas":"images/portadas/msd-exclusivas.jpg",
+      "Corporativas":"images/portadas/msd-corporativas.jpg",
+      "Salud":"images/portadas/msd-salud.jpg",
+      "Animales de Compañía":"images/portadas/msd-animales-de-compania.jpg",
+      "Aves":"images/portadas/msd-aves.jpg",
+      "Cerdos":"images/portadas/msd-cerdos.jpg",
+      "Ganadería":"images/portadas/msd-ganaderia.jpg",
+      "Innovación en Salud Animal":"images/portadas/msd-innovacion-salud-animal.jpg"
+    },
+    tierSection:"Exclusivas", footerName:"Ketchum Argentina", footerMail:"contacto@ketchum.com.ar",
+    hlColor:"#C62828", autoTerm:"MSD"
   }
 };
 
@@ -211,7 +230,8 @@ function escAttr(s){return esc(s).replace(/"/g,"&quot;");}
 
 /* ============ NORMALIZE ============ */
 function normalize(data){
-  const theme = (data.cliente||data.theme||"booking").toLowerCase().includes("bms") ? "bms" : "booking";
+  const cli = (data.cliente||data.theme||"booking").toLowerCase();
+  const theme = cli.includes("bms") ? "bms" : (cli.includes("msd") ? "msd" : "booking");
   const T = THEMES[theme]; let sections=[];
   if (Array.isArray(data.secciones) && data.secciones.length){
     sections = data.secciones.map(s=>({id:nid(),titulo:s.titulo||"Sección",notas:(s.notas||[]).map(toNota)}));
@@ -503,7 +523,7 @@ function loadData(data){
   catch(e){ setStatus("Error al cargar"); alert("No pude leer el JSON: "+e.message); }
 }
 function setStatus(t){ const s=document.getElementById("status"); s.textContent=t; if(t) setTimeout(()=>{if(s.textContent===t)s.textContent="";},4000); }
-const WEBHOOKS={ booking:"https://archytasai.app.n8n.cloud/webhook/clipping-booking", bms:"https://archytasai.app.n8n.cloud/webhook/clipping-bms" };
+const WEBHOOKS={ booking:"https://archytasai.app.n8n.cloud/webhook/clipping-booking", bms:"https://archytasai.app.n8n.cloud/webhook/clipping-bms", msd:"https://archytasai.app.n8n.cloud/webhook/clipping-msd" };
 async function loadClient(c){
   c=(c||"").toLowerCase();
   if(!WEBHOOKS[c]) return false;
@@ -593,7 +613,8 @@ document.getElementById("exportBtn").onclick=async()=>{
 /* ============ REGISTRO DE MÉTRICAS (al exportar) ============ */
 const METRICS_WEBHOOK = {
   booking: "https://archytasai.app.n8n.cloud/webhook/clipping-metricas-export",
-  bms: "https://archytasai.app.n8n.cloud/webhook/clipping-metricas-export-bms"
+  bms: "https://archytasai.app.n8n.cloud/webhook/clipping-metricas-export-bms",
+  msd: "https://archytasai.app.n8n.cloud/webhook/clipping-metricas-export-msd"
 };
 function buildMetricasPayload(){
   return {
