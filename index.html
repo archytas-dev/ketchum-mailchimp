@@ -39,13 +39,13 @@
   .section-head{display:flex;align-items:center;gap:6px}
   .grip{cursor:grab;color:#9fb0bd;font-size:16px;user-select:none;padding:0 2px;line-height:1}
   .grip:active{cursor:grabbing}
-  body[data-theme="booking"] .section-title,body[data-theme="msd"] .section-title{background:var(--color-header);color:#fff;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:12px 18px;font-size:15px;flex:1;border:1px solid transparent;border-radius:3px}
+  body[data-theme="booking"] .section-title,body[data-theme="msd"] .section-title,body[data-theme="mars"] .section-title{background:var(--color-header);color:#fff;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:12px 18px;font-size:15px;flex:1;border:1px solid transparent;border-radius:3px}
   body[data-theme="bms"] .section-title{color:var(--color-header);font-weight:700;font-size:23px;letter-spacing:-.3px;padding:4px 4px;flex:1;border:1px solid transparent;border-radius:3px;background:transparent}
   .section-title:hover{border-color:rgba(10,127,163,.4)}
   .section-title:focus{outline:none;box-shadow:0 0 0 2px var(--ui-accent)}
-  body[data-theme="booking"] .section-title:focus,body[data-theme="msd"] .section-title:focus{box-shadow:inset 0 0 0 2px #fff}
+  body[data-theme="booking"] .section-title:focus,body[data-theme="msd"] .section-title:focus,body[data-theme="mars"] .section-title:focus{box-shadow:inset 0 0 0 2px #fff}
   .sec-btns{display:flex;gap:4px}
-  body[data-theme="booking"] .notes,body[data-theme="msd"] .notes{background:#fff;border:1px solid #e0e6ec;border-top:none;padding:2px 20px;min-height:14px}
+  body[data-theme="booking"] .notes,body[data-theme="msd"] .notes,body[data-theme="mars"] .notes{background:#fff;border:1px solid #e0e6ec;border-top:none;padding:2px 20px;min-height:14px}
   body[data-theme="bms"] .notes{padding:0 4px;min-height:14px}
   .add-note-row button{margin-top:6px;background:transparent;border:1px dashed #b9c6d1;border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;color:#5b7080;width:100%}
   .add-note-row button:hover{border-color:var(--ui-accent);color:var(--ui-accent)}
@@ -107,6 +107,7 @@
     <button class="tab" data-theme="booking">Booking</button>
     <button class="tab" data-theme="bms">BMS</button>
     <button class="tab" data-theme="msd">MSD</button>
+    <button class="tab" data-theme="mars">Mars</button>
   </div>
   <span id="fechaLabel" title="Fecha del clipping (fija)"></span>
   <span class="grow"></span>
@@ -202,6 +203,22 @@ const THEMES = {
     },
     tierSection:"Exclusivas", footerName:"Ketchum Argentina", footerMail:"contacto@ketchum.com.ar",
     hlColor:"#C62828", autoTerm:"MSD"
+  },
+  mars: {
+    banner:"images/portadas/mars-banner.jpg",
+    bannerAlt:"Ketchum Clipping+ - Mars",
+    colorHeader:"#1B1B6F", colorLink:"#0000FF", colorText:"rgb(32,32,32)", pageBg:"#FFFFFF",
+    sections:["Exclusivas","Corporativo","Pet Nutrition","Snacking","Competencia","Noticias de interés"],
+    sectionImages:{
+      "Exclusivas":"images/portadas/mars-exclusivas.jpg",
+      "Corporativo":"images/portadas/mars-corporativo.jpg",
+      "Pet Nutrition":"images/portadas/mars-pet-nutrition.jpg",
+      "Snacking":"images/portadas/mars-snacking.jpg",
+      "Competencia":"images/portadas/mars-competencia.jpg",
+      "Noticias de interés":"images/portadas/mars-noticias-de-interes.jpg"
+    },
+    tierSection:"Exclusivas", footerName:"Ketchum Argentina", footerMail:"contacto@ketchum.com.ar",
+    hlColor:"#8E24AA", autoTerm:"Mars"
   }
 };
 
@@ -231,13 +248,13 @@ function escAttr(s){return esc(s).replace(/"/g,"&quot;");}
 /* ============ NORMALIZE ============ */
 function normalize(data){
   const cli = (data.cliente||data.theme||"booking").toLowerCase();
-  const theme = cli.includes("bms") ? "bms" : (cli.includes("msd") ? "msd" : "booking");
+  const theme = cli.includes("bms") ? "bms" : (cli.includes("msd") ? "msd" : (cli.includes("mars") ? "mars" : "booking"));
   const T = THEMES[theme]; let sections=[];
   if (Array.isArray(data.secciones) && data.secciones.length){
     sections = data.secciones.map(s=>({id:nid(),titulo:s.titulo||"Sección",notas:(s.notas||[]).map(toNota)}));
   } else if (Array.isArray(data.articles)){
     const map=new Map();
-    for(const a of data.articles){ const sec=a.seccion||a.grupo||a.group||(theme==="bms"?"Noticias del Sector":"Turismo"); if(!map.has(sec))map.set(sec,[]); map.get(sec).push(toNota(a)); }
+    for(const a of data.articles){ const sec=a.seccion||a.grupo||a.group||(theme==="bms"?"Noticias del Sector":theme==="mars"?"Noticias de interés":"Turismo"); if(!map.has(sec))map.set(sec,[]); map.get(sec).push(toNota(a)); }
     const seen=new Set();
     for(const name of T.sections){ if(map.has(name)){ sections.push({id:nid(),titulo:name,notas:map.get(name)}); seen.add(name);} }
     for(const [name,notas] of map){ if(!seen.has(name)) sections.push({id:nid(),titulo:name,notas}); }
@@ -523,7 +540,7 @@ function loadData(data){
   catch(e){ setStatus("Error al cargar"); alert("No pude leer el JSON: "+e.message); }
 }
 function setStatus(t){ const s=document.getElementById("status"); s.textContent=t; if(t) setTimeout(()=>{if(s.textContent===t)s.textContent="";},4000); }
-const WEBHOOKS={ booking:"https://archytasai.app.n8n.cloud/webhook/clipping-booking", bms:"https://archytasai.app.n8n.cloud/webhook/clipping-bms", msd:"https://archytasai.app.n8n.cloud/webhook/clipping-msd" };
+const WEBHOOKS={ booking:"https://archytasai.app.n8n.cloud/webhook/clipping-booking", bms:"https://archytasai.app.n8n.cloud/webhook/clipping-bms", msd:"https://archytasai.app.n8n.cloud/webhook/clipping-msd", mars:"https://archytasai.app.n8n.cloud/webhook/clipping-mars" };
 async function loadClient(c){
   c=(c||"").toLowerCase();
   if(!WEBHOOKS[c]) return false;
@@ -614,7 +631,8 @@ document.getElementById("exportBtn").onclick=async()=>{
 const METRICS_WEBHOOK = {
   booking: "https://archytasai.app.n8n.cloud/webhook/clipping-metricas-export",
   bms: "https://archytasai.app.n8n.cloud/webhook/clipping-metricas-export-bms",
-  msd: "https://archytasai.app.n8n.cloud/webhook/clipping-metricas-export-msd"
+  msd: "https://archytasai.app.n8n.cloud/webhook/clipping-metricas-export-msd",
+  mars: "https://archytasai.app.n8n.cloud/webhook/clipping-metricas-export-mars"
 };
 function buildMetricasPayload(){
   return {
