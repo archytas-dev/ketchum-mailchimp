@@ -71,10 +71,13 @@ export async function saveEditorState(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false };
 
+  // Estado de edición POR USUARIO (aislado por cuenta), no en la fila compartida del clipping.
   const { error } = await supabase
-    .from("clippings")
-    .update({ editor_state: editorState })
-    .eq("id", clippingId);
+    .from("user_clipping_state")
+    .upsert(
+      { user_id: user.id, clipping_id: clippingId, editor_state: editorState, updated_at: new Date().toISOString() },
+      { onConflict: "user_id,clipping_id" },
+    );
   return { ok: !error };
 }
 
@@ -91,7 +94,10 @@ export async function exportClip(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "No autenticado" };
 
-  await supabase.from("clippings").update({ editor_state: editorState }).eq("id", clippingId);
+  await supabase.from("user_clipping_state").upsert(
+    { user_id: user.id, clipping_id: clippingId, editor_state: editorState, updated_at: new Date().toISOString() },
+    { onConflict: "user_id,clipping_id" },
+  );
   const { error } = await supabase.from("exports").upsert(
     { clipping_id: clippingId, user_id: user.id, html, updated_at: new Date().toISOString() },
     { onConflict: "clipping_id,user_id" },

@@ -32,17 +32,18 @@ type NoteRow = {
   pub_date: string | null;
   orden: number;
 };
-type ClipRow = { id: string; client_id: string; fecha: string; editor_state: unknown; resumen_ia: unknown };
+type ClipRow = { id: string; client_id: string; fecha: string; resumen_ia: unknown };
 
 export default async function HoyPage() {
   const supabase = await createClient();
 
-  const [{ data: clientRows }, { data: clipRows }] = await Promise.all([
+  const [{ data: { user } }, { data: clientRows }, { data: clipRows }] = await Promise.all([
+    supabase.auth.getUser(),
     supabase.from("clients").select("id, slug, nombre"),
     // Traé lo ÚLTIMO que se envió por cliente: todos los clippings, más nuevo primero.
     supabase
       .from("clippings")
-      .select("id, client_id, fecha, editor_state, resumen_ia")
+      .select("id, client_id, fecha, resumen_ia")
       .order("fecha", { ascending: false }),
   ]);
 
@@ -54,6 +55,19 @@ export default async function HoyPage() {
   for (const c of clips) if (!latestByClient.has(c.client_id)) latestByClient.set(c.client_id, c);
 
   const clipIds = [...latestByClient.values()].map((c) => c.id);
+
+  // Estado de edición POR USUARIO (aislado por cuenta). Fallback: semilla de n8n.
+  const editorStateByClip = new Map<string, unknown>();
+  if (user && clipIds.length) {
+    const { data: stateRows } = await supabase
+      .from("user_clipping_state")
+      .select("clipping_id, editor_state")
+      .eq("user_id", user.id)
+      .in("clipping_id", clipIds);
+    for (const s of (stateRows ?? []) as { clipping_id: string; editor_state: unknown }[]) {
+      editorStateByClip.set(s.clipping_id, s.editor_state);
+    }
+  }
   const notesByClip = new Map<string, NoteRow[]>();
   if (clipIds.length) {
     const { data: noteRows } = await supabase
@@ -73,17 +87,18 @@ export default async function HoyPage() {
     const clip = latestByClient.get(c.id);
     if (!clip) return { slug: c.slug, nombre: c.nombre, clippingId: null, data: null, fecha: null };
     const fecha = fechaLarga(clip.fecha);
+    const editorState = editorStateByClip.get(clip.id);
     let data: unknown;
-    if (clip.editor_state) {
-      // Si el editor ya autoguardó estado pero todavía sin resumen, usar el de n8n (resumen_ia).
-      const es = clip.editor_state as { resumen?: unknown } | null;
+    if (editorState) {
+      // Si el editor ya autoguardó estado (de ESTE usuario) pero todavía sin resumen, usar el de n8n (resumen_ia).
+      const es = editorState as { resumen?: unknown } | null;
       const esResumen = es && typeof es === "object" ? es.resumen : undefined;
       const tieneResumen =
         esResumen && typeof esResumen === "object" &&
         (String((esResumen as { exclusivas?: unknown }).exclusivas ?? "").trim() ||
           String((esResumen as { competencia?: unknown }).competencia ?? "").trim());
       data = tieneResumen || !clip.resumen_ia
-        ? clip.editor_state
+        ? editorState
         : { ...(es as object), resumen: clip.resumen_ia };
     } else {
       const notes = notesByClip.get(clip.id) ?? [];
