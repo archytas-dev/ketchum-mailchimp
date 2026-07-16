@@ -99,13 +99,13 @@ export default function HistorialView({
   }, [rows]);
 
   return (
-    <div className="px-4 sm:px-6 py-6">
-      <h1 className="text-xl font-semibold text-slate-800 mb-4">Historial</h1>
+    <div className="px-4 sm:px-6 py-6 h-screen flex flex-col">
+      <h1 className="text-xl font-semibold text-slate-800 mb-4 shrink-0">Historial</h1>
 
-      <div className="grid gap-5 lg:grid-cols-[340px_1fr]">
+      <div className="grid gap-5 lg:grid-cols-[340px_1fr] flex-1 min-h-0">
         {/* Panel izquierdo: filtros + lista */}
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-end gap-2 bg-white rounded-xl border border-slate-200 p-3">
+        <div className="flex flex-col gap-3 min-h-0">
+          <div className="flex flex-wrap items-end gap-2 bg-white rounded-xl border border-slate-200 p-3 shrink-0">
             <div className="flex flex-col gap-1">
               <label className="text-xs text-slate-500">Cliente</label>
               <Select
@@ -159,7 +159,7 @@ export default function HistorialView({
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="bg-white rounded-xl border border-slate-200 overflow-y-auto flex-1 min-h-0">
             {pending && (
               <div className="p-4 text-sm text-slate-400 flex items-center gap-2">
                 <Loader2 size={15} className="animate-spin" /> Cargando…
@@ -171,7 +171,7 @@ export default function HistorialView({
             {!pending &&
               grupos.map(([fecha, items]) => (
                 <div key={fecha}>
-                  <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border-y border-slate-100 text-slate-500">
+                  <div className="sticky top-0 z-10 flex items-center gap-2 px-3 py-2 bg-slate-50 border-y border-slate-100 text-slate-500">
                     <CalendarDays size={13} />
                     <span className="text-xs font-medium">{fechaBonita(fecha)}</span>
                   </div>
