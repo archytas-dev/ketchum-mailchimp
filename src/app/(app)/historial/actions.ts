@@ -29,7 +29,7 @@ export async function fetchHistory(opts: {
   let q = supabase
     .from("clippings")
     .select("id, client_id, fecha, estado, clients(nombre)")
-    .lt("fecha", todayAR()) // historial = días anteriores a hoy (hoy está en Principal)
+    .lte("fecha", todayAR()) // historial = hasta hoy inclusive (hoy también está en Principal)
     .order("fecha", { ascending: false })
     .range(offset, offset + limit); // pido uno de más para saber si hay más
 
