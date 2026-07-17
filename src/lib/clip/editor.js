@@ -44,7 +44,7 @@ const THEMES = {
     bannerAlt: "Ketchum Clipping+ - Bristol Myers Squibb",
     bmsLogo: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Bristol_Myers_Squibb_logo.svg/320px-Bristol_Myers_Squibb_logo.svg.png",
     colorHeader: "#D81B7C", colorLink: "#1A4FB5", colorText: "#1F1F1F", pageBg: "#FFFFFF",
-    sections: ["Notas Exclusivas", "Noticias del Sector", "Propiedad Intelectual", "Competencia", "Áreas Terapéuticas", "Onco Hematología", "CAR-T", "Cardiología", "Artritis", "Psoriasis", "Trasplantes"],
+    sections: ["Notas Exclusivas", "Noticias del Sector", "Propiedad Intelectual", "Competencia", "Onco Hematología", "CAR-T", "Cardiología", "Artritis", "Psoriasis", "Trasplantes"],
     sectionImages: {
       "Notas Exclusivas": "images/portadas/bms-notas-exclusivas.jpg",
       "Noticias del Sector": "images/portadas/bms-noticias-del-sector.jpg",
@@ -111,7 +111,7 @@ function slugToTheme(slug) {
 function foldStr(s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim(); }
 const FALLBACK_SEC = { booking: "Turismo", bms: "Noticias del Sector", msd: "Salud", mars: "Noticias de interés" };
 // Grupos internos de n8n que no matchean por texto con la sección visible.
-const SEC_ALIAS = { bms: { "productos bms": "Notas Exclusivas", "regulatorio y gobierno": "Noticias del Sector", "sector y gestion": "Noticias del Sector" } };
+const SEC_ALIAS = { bms: { "productos bms": "Notas Exclusivas", "regulatorio y gobierno": "Noticias del Sector", "sector y gestion": "Noticias del Sector", "indicaciones y areas terapeuticas": "Noticias del Sector", "areas terapeuticas": "Noticias del Sector", "indicaciones": "Noticias del Sector" } };
 // Ejes del Resumen IA por cliente (2º eje varía: MSD usa Corporativas, el resto Competencia).
 const RESUMEN_LABELS = { booking: ["Exclusivas", "Competencia"], bms: ["Exclusivas", "Competencia"], msd: ["Exclusivas", "Corporativas"], mars: ["Exclusivas", "Competencia"] };
 function canonSection(theme, raw) {

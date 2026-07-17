@@ -4,7 +4,7 @@ const SECTIONS: Record<string, string[]> = {
   booking: ["Exclusiva", "Competencia", "Turismo"],
   bms: [
     "Notas Exclusivas", "Noticias del Sector", "Propiedad Intelectual", "Competencia",
-    "Áreas Terapéuticas", "Onco Hematología", "CAR-T", "Cardiología", "Artritis", "Psoriasis", "Trasplantes",
+    "Onco Hematología", "CAR-T", "Cardiología", "Artritis", "Psoriasis", "Trasplantes",
   ],
   msd: ["Exclusivas", "Corporativas", "Salud", "Animales de Compañía", "Aves", "Cerdos", "Ganadería", "Innovación en Salud Animal"],
   mars: ["Exclusivas", "Corporativo", "Pet Nutrition", "Snacking", "Competencia", "Noticias de interés"],
@@ -22,6 +22,10 @@ const ALIAS: Record<string, Record<string, string>> = {
     "productos bms": "Notas Exclusivas",
     "regulatorio y gobierno": "Noticias del Sector",
     "sector y gestion": "Noticias del Sector",
+    // [Cliente 2026-07-17] "Áreas Terapéuticas" es solo encabezado; las notas genéricas van a Noticias del Sector.
+    "indicaciones y areas terapeuticas": "Noticias del Sector",
+    "areas terapeuticas": "Noticias del Sector",
+    "indicaciones": "Noticias del Sector",
   },
 };
 
