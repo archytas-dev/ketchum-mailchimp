@@ -60,6 +60,21 @@ export async function generateResumen(
   }
 }
 
+// Registra una acción de edición en `activity` para Estadísticas. Best-effort: nunca rompe la edición.
+const ACCIONES_OK = new Set(["agrega", "quita", "reordena", "pinta", "despinta", "regresa"]);
+export async function logActivity(clippingId: string, accion: string): Promise<{ ok: boolean }> {
+  if (!ACCIONES_OK.has(accion)) return { ok: false };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false };
+  const { error } = await supabase
+    .from("activity")
+    .insert({ clipping_id: clippingId, user_id: user.id, accion });
+  return { ok: !error };
+}
+
 // Autosave del estado del editor (refresh-safe). Best-effort: nunca rompe la edición.
 export async function saveEditorState(
   clippingId: string,

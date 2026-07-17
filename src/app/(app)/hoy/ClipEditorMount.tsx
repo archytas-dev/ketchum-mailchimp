@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { mountEditor } from "@/lib/clip/editor.js";
-import { saveEditorState, exportClip, generateResumen } from "./actions";
+import { saveEditorState, exportClip, generateResumen, logActivity } from "./actions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -82,6 +82,10 @@ export default function ClipEditorMount({
         return res;
       },
       resumen: (slug: string, sections: unknown) => generateResumen(slug, sections as never),
+      // Registra cada acción de edición para Estadísticas (best-effort, no bloquea la UI).
+      onActivity: (_s: string, cid: string, accion: string) => {
+        void logActivity(cid, accion);
+      },
       confirm: askConfirm,
     });
     return unmount;

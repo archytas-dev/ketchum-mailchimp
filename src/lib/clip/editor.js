@@ -130,6 +130,9 @@ export function mountEditor(root, opts) {
   const payload = opts.payload || {}; // { slug, nombre, clippingId, data }
   const onSave = opts.onSave || (() => {});
   const onExport = opts.onExport || (() => {});
+  const onActivity = opts.onActivity || (() => {});
+  // Registra una acción de edición (agrega/quita/reordena/pinta/despinta/regresa) para Estadísticas.
+  const logAct = (accion) => { try { if (curClippingId) onActivity(curSlug, curClippingId, accion); } catch (e) {} };
   const confirmFn = opts.confirm || ((m) => Promise.resolve(window.confirm(m)));
   const resumenFn = opts.resumen || (() => Promise.resolve(null));
   let currentResumen = null; // {exclusivas, competencia} — solo booking/bms
@@ -383,7 +386,7 @@ export function mountEditor(root, opts) {
   function undo() {
     if (!undoStack.length) return;
     syncFromDOM(); redoStack.push(clone(state.sections));
-    state.sections = undoStack.pop(); render(); scheduleSave(); updateUndoUI(); setStatus("Deshecho");
+    state.sections = undoStack.pop(); render(); scheduleSave(); updateUndoUI(); setStatus("Deshecho"); logAct("regresa");
   }
   function redo() {
     if (!redoStack.length) return;
@@ -423,19 +426,19 @@ export function mountEditor(root, opts) {
           const changed = evt.oldIndex !== evt.newIndex || evt.from !== evt.to;
           if (changed && dragPrev) { undoStack.push(dragPrev); if (undoStack.length > HISTORY_MAX) undoStack.shift(); redoStack = []; updateUndoUI(); }
           dragPrev = null;
-          syncFromDOM(); scheduleSave();
+          syncFromDOM(); scheduleSave(); if (changed) logAct("reordena");
         },
       }));
     });
   }
 
   // ---- acciones (sin agregar/borrar sección: fijas) ----
-  function addNote(secEl) { pushHistory(); const s = state.sections.find(x => x.id === secEl.dataset.id); if (s) s.notas.push({ id: nid(), medio: "", online: "(Online)", fecha: "", tier: "", titulo: "", url: "", snippet: "" }); render(); scheduleSave(); }
-  function dupNote(nEl) { pushHistory(); for (const s of state.sections) { const i = s.notas.findIndex(n => n.id === nEl.dataset.id); if (i >= 0) { s.notas.splice(i + 1, 0, Object.assign({}, s.notas[i], { id: nid() })); break; } } render(); scheduleSave(); }
+  function addNote(secEl) { pushHistory(); const s = state.sections.find(x => x.id === secEl.dataset.id); if (s) s.notas.push({ id: nid(), medio: "", online: "(Online)", fecha: "", tier: "", titulo: "", url: "", snippet: "" }); render(); scheduleSave(); logAct("agrega"); }
+  function dupNote(nEl) { pushHistory(); for (const s of state.sections) { const i = s.notas.findIndex(n => n.id === nEl.dataset.id); if (i >= 0) { s.notas.splice(i + 1, 0, Object.assign({}, s.notas[i], { id: nid() })); break; } } render(); scheduleSave(); logAct("agrega"); }
   async function delNote(nEl) {
     const ok = await confirmFn("¿Eliminar esta noticia? Podés deshacerlo con la flecha ↶.");
     if (!ok) return;
-    pushHistory(); for (const s of state.sections) s.notas = s.notas.filter(n => n.id !== nEl.dataset.id); render(); scheduleSave();
+    pushHistory(); for (const s of state.sections) s.notas = s.notas.filter(n => n.id !== nEl.dataset.id); render(); scheduleSave(); logAct("quita");
   }
 
   // ---- export ---- (unificado: booking/msd/mars comparten layout; bms es especial)
@@ -579,7 +582,7 @@ export function mountEditor(root, opts) {
     if (on) { document.execCommand("foreColor", false, (THEMES[state.theme].hlColor || "#D32F2F")); setStatus("Pintado ✓"); }
     else { document.execCommand("removeFormat", false, null); setStatus("Despintado ✓"); }
     inPaint = false;
-    scheduleSave();
+    scheduleSave(); logAct(on ? "pinta" : "despinta");
   }
   const paintBtn = $(".kx-paint"), unpaintBtn = $(".kx-unpaint");
   const onPaintMd = e => e.preventDefault();
