@@ -8,10 +8,9 @@ import {
   ArrowUpDown,
   Undo2,
   Sparkles,
-  Newspaper,
-  Radio,
 } from "lucide-react";
 import EstadisticasFilter from "./EstadisticasFilter";
+import SeccionMediosTabs from "./SeccionMediosTabs";
 import { canonSection } from "@/lib/clip/canon";
 
 export const dynamic = "force-dynamic";
@@ -142,8 +141,34 @@ export default async function EstadisticasPage({
     if (med) byMedio.set(med, (byMedio.get(med) ?? 0) + 1);
   }
   const secciones = [...bySeccion.entries()].sort((a, b) => b[1] - a[1]);
-  const maxSec = Math.max(1, ...secciones.map((s) => s[1]));
   const topMedios = [...byMedio.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+
+  // EXPORTADAS: contenido final de los clippings que se exportaron (editor_state), no lo entregado por n8n.
+  const exportedIds = clips.filter((c) => c.estado === "exportado" && clip30.includes(c.id)).map((c) => c.id);
+  const { data: expStateRows } = exportedIds.length
+    ? await supabase.from("user_clipping_state").select("clipping_id, editor_state").in("clipping_id", exportedIds)
+    : { data: [] as { clipping_id: string; editor_state: unknown }[] };
+  const stateByClip = new Map<string, unknown>();
+  for (const r of (expStateRows ?? []) as { clipping_id: string; editor_state: unknown }[]) {
+    if (!stateByClip.has(r.clipping_id)) stateByClip.set(r.clipping_id, r.editor_state);
+  }
+  const bySeccionExp = new Map<string, number>();
+  const byMedioExp = new Map<string, number>();
+  for (const [cid, st] of stateByClip) {
+    const clip = clipById.get(cid);
+    const secs = (st as { sections?: { titulo?: string; notas?: { medio?: string }[] }[] } | null)?.sections ?? [];
+    for (const s of secs) {
+      const secName = clip ? canonSection(nombreOf(clip), s.titulo ?? "") : s.titulo ?? "—";
+      const nn = s.notas ?? [];
+      if (nn.length) bySeccionExp.set(secName, (bySeccionExp.get(secName) ?? 0) + nn.length);
+      for (const n of nn) {
+        const med = (n.medio || "").trim();
+        if (med) byMedioExp.set(med, (byMedioExp.get(med) ?? 0) + 1);
+      }
+    }
+  }
+  const seccionesExp = [...bySeccionExp.entries()].sort((a, b) => b[1] - a[1]);
+  const topMediosExp = [...byMedioExp.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
 
   const cards = [
     { label: "Clippings", value: totalClippings, Icon: FileText, hint: "cargados en total" },
@@ -204,48 +229,11 @@ export default async function EstadisticasPage({
         </div>
       </div>
 
-      {/* Tipos de noticias + Top medios */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <h2 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
-            <Newspaper size={15} className="text-slate-400" /> Notas por sección · últimos 30 días
-          </h2>
-          {secciones.length === 0 ? (
-            <p className="text-sm text-slate-400">Sin datos.</p>
-          ) : (
-            <div className="space-y-2">
-              {secciones.map(([sec, n]) => (
-                <div key={sec} className="flex items-center gap-3">
-                  <span className="text-xs text-slate-600 w-40 truncate shrink-0">{sec}</span>
-                  <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
-                    <div className="h-full rounded-full bg-[#243f55]" style={{ width: `${(n / maxSec) * 100}%` }} />
-                  </div>
-                  <span className="text-xs font-medium text-slate-500 w-8 text-right">{n}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <h2 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
-            <Radio size={15} className="text-slate-400" /> Top medios · últimos 30 días
-          </h2>
-          {topMedios.length === 0 ? (
-            <p className="text-sm text-slate-400">Sin datos.</p>
-          ) : (
-            <ol className="space-y-1.5">
-              {topMedios.map(([med, n], i) => (
-                <li key={med} className="flex items-center gap-2 text-sm">
-                  <span className="text-slate-300 w-4 text-right">{i + 1}</span>
-                  <span className="text-slate-700 flex-1 truncate">{med}</span>
-                  <span className="text-xs font-medium text-slate-500">{n}</span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-      </div>
+      {/* Tipos de noticias + Top medios (Exportadas / Encontradas) */}
+      <SeccionMediosTabs
+        exportadas={{ secciones: seccionesExp, topMedios: topMediosExp }}
+        encontradas={{ secciones, topMedios }}
+      />
 
       {!clientId && (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
