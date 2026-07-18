@@ -42,6 +42,7 @@ export default function HistorialView({
   const [selected, setSelected] = useState<HistRow | null>(null);
   const [html, setHtml] = useState<string | null>(null);
   const [notas, setNotas] = useState(0);
+  const [exported, setExported] = useState(false);
   const [viewerLoading, setViewerLoading] = useState(false);
 
   const filters = useMemo(
@@ -85,6 +86,7 @@ export default function HistorialView({
     const res = await fetchExport(row.id);
     setHtml(res.html);
     setNotas(res.notas);
+    setExported(res.exported);
     setViewerLoading(false);
   }
 
@@ -193,12 +195,12 @@ export default function HistorialView({
                         <span
                           className={
                             "text-[10px] px-1.5 py-0.5 rounded-full " +
-                            (r.estado === "exportado"
+                            (r.exportada
                               ? "bg-green-100 text-green-700"
                               : "bg-slate-100 text-slate-500")
                           }
                         >
-                          {r.estado}
+                          {r.exportada ? "Exportado" : "Sin exportar"}
                         </span>
                       </button>
                     );
@@ -222,7 +224,7 @@ export default function HistorialView({
         <div className="min-w-0">
           {!selected ? (
             <div className="h-64 lg:h-full rounded-xl border border-dashed border-slate-300 bg-white flex items-center justify-center text-sm text-slate-400">
-              Elegí un día para ver lo que se envió.
+              Elegí un día para ver el clipping.
             </div>
           ) : (
             <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
@@ -234,7 +236,18 @@ export default function HistorialView({
                     {html ? ` · ${notas} notas` : ""}
                   </p>
                 </div>
-                <span className="text-xs text-slate-400">solo lectura</span>
+                {!viewerLoading && html && (
+                  <span
+                    className={
+                      "text-[10px] px-2 py-0.5 rounded-full font-medium " +
+                      (exported
+                        ? "bg-green-100 text-green-700"
+                        : "bg-amber-100 text-amber-700")
+                    }
+                  >
+                    {exported ? "Exportado" : "Base (sin exportar)"}
+                  </span>
+                )}
               </div>
               <div className="max-h-[70vh] overflow-auto">
                 {viewerLoading ? (
@@ -245,7 +258,7 @@ export default function HistorialView({
                   <div dangerouslySetInnerHTML={{ __html: html }} />
                 ) : (
                   <div className="p-10 text-center text-sm text-slate-400">
-                    Este día no se copió para mail (sin versión guardada).
+                    Este día no tiene notas guardadas.
                   </div>
                 )}
               </div>
