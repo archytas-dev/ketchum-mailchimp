@@ -49,6 +49,14 @@ export default function HistorialView({
     new Map<string, { html: string | null; notas: number; exported: boolean }>(),
   );
   const lastReq = useRef<string | null>(null); // último día pedido (para descartar respuestas viejas)
+  // Cache de la lista por combinación de filtros (evita recargar al volver a un cliente ya visto).
+  const listCache = useRef(
+    new Map<string, { rows: HistRow[]; hasMore: boolean }>([
+      ["all||", { rows: initialRows, hasMore: initialHasMore }], // vista inicial ("Todos")
+    ]),
+  );
+  const listReq = useRef<string>("");
+  const keyOf = (c: string, d: string, h: string) => `${c}|${d}|${h}`;
 
   const filters = useMemo(
     () => ({
@@ -63,6 +71,15 @@ export default function HistorialView({
     const c = next.cliente ?? cliente;
     const d = next.desde ?? desde;
     const h = next.hasta ?? hasta;
+    const key = keyOf(c, d, h);
+    listReq.current = key;
+    // Hit de cache: cambio de filtro instantáneo, sin spinner ni re-fetch.
+    const hit = listCache.current.get(key);
+    if (hit) {
+      setRows(hit.rows);
+      setHasMore(hit.hasMore);
+      return;
+    }
     startTransition(async () => {
       const res = await fetchHistory({
         clientId: c === "all" ? undefined : c,
@@ -71,6 +88,8 @@ export default function HistorialView({
         limit: PAGE,
         offset: 0,
       });
+      listCache.current.set(key, { rows: res.rows, hasMore: res.hasMore });
+      if (listReq.current !== key) return; // el usuario ya cambió de filtro
       setRows(res.rows);
       setHasMore(res.hasMore);
     });
@@ -79,8 +98,10 @@ export default function HistorialView({
   async function loadMore() {
     setLoadingMore(true);
     const res = await fetchHistory({ ...filters, limit: PAGE, offset: rows.length });
-    setRows((r) => [...r, ...res.rows]);
+    const merged = [...rows, ...res.rows];
+    setRows(merged);
     setHasMore(res.hasMore);
+    listCache.current.set(keyOf(cliente, desde, hasta), { rows: merged, hasMore: res.hasMore });
     setLoadingMore(false);
   }
 
