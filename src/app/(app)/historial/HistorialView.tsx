@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { FileText, CalendarDays, Loader2 } from "lucide-react";
 import {
   Select,
@@ -44,6 +44,11 @@ export default function HistorialView({
   const [notas, setNotas] = useState(0);
   const [exported, setExported] = useState(false);
   const [viewerLoading, setViewerLoading] = useState(false);
+  // Cache del contenido ya cargado por día (evita re-fetch al reabrir el mismo clipping).
+  const cache = useRef(
+    new Map<string, { html: string | null; notas: number; exported: boolean }>(),
+  );
+  const lastReq = useRef<string | null>(null); // último día pedido (para descartar respuestas viejas)
 
   const filters = useMemo(
     () => ({
@@ -81,9 +86,22 @@ export default function HistorialView({
 
   async function open(row: HistRow) {
     setSelected(row);
+    lastReq.current = row.id;
+    // Hit de cache: mostrar al instante, sin spinner ni re-fetch.
+    const hit = cache.current.get(row.id);
+    if (hit) {
+      setHtml(hit.html);
+      setNotas(hit.notas);
+      setExported(hit.exported);
+      setViewerLoading(false);
+      return;
+    }
     setViewerLoading(true);
     setHtml(null);
     const res = await fetchExport(row.id);
+    cache.current.set(row.id, { html: res.html, notas: res.notas, exported: res.exported });
+    // Descartar si el usuario ya pidió otro día mientras cargaba.
+    if (lastReq.current !== row.id) return;
     setHtml(res.html);
     setNotas(res.notas);
     setExported(res.exported);
