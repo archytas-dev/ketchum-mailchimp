@@ -4,7 +4,7 @@ const SECTIONS: Record<string, string[]> = {
   booking: ["Exclusiva", "Competencia", "Turismo"],
   bms: [
     "Notas Exclusivas", "Noticias del Sector", "Propiedad Intelectual", "Competencia",
-    "Onco Hematología", "CAR-T", "Cardiología", "Artritis", "Psoriasis", "Trasplantes",
+    "Áreas Terapéuticas", "Onco Hematología", "CAR-T", "Cardiología", "Artritis", "Psoriasis", "Trasplantes",
   ],
   msd: ["Exclusivas", "Corporativas", "Salud", "Animales de Compañía", "Aves", "Cerdos", "Ganadería", "Innovación en Salud Animal"],
   mars: ["Exclusivas", "Corporativo", "Pet Nutrition", "Snacking", "Competencia", "Noticias de interés"],

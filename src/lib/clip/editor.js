@@ -44,7 +44,7 @@ const THEMES = {
     bannerAlt: "Ketchum Clipping+ - Bristol Myers Squibb",
     bmsLogo: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Bristol_Myers_Squibb_logo.svg/320px-Bristol_Myers_Squibb_logo.svg.png",
     colorHeader: "#D81B7C", colorLink: "#1A4FB5", colorText: "#1F1F1F", pageBg: "#FFFFFF",
-    sections: ["Notas Exclusivas", "Noticias del Sector", "Propiedad Intelectual", "Competencia", "Onco Hematología", "CAR-T", "Cardiología", "Artritis", "Psoriasis", "Trasplantes"],
+    sections: ["Notas Exclusivas", "Noticias del Sector", "Propiedad Intelectual", "Competencia", "Áreas Terapéuticas", "Onco Hematología", "CAR-T", "Cardiología", "Artritis", "Psoriasis", "Trasplantes"],
     sectionImages: {
       "Notas Exclusivas": "images/portadas/bms-notas-exclusivas.jpg",
       "Noticias del Sector": "images/portadas/bms-noticias-del-sector.jpg",
@@ -165,11 +165,22 @@ export function mountEditor(root, opts) {
         bucket.get(canon).push(...(s.notas || []).map(toNota));
       }
       sections = [...bucket.entries()].map(([titulo, notas]) => ({ id: nid(), titulo, notas }));
+      // Un editor_state guardado ANTES de que "Áreas Terapéuticas" se agregara como separador no la
+      // tiene: se fuerza igual que en el camino de datos frescos, para que reabrir un dia ya editado
+      // tambien la muestre.
+      if (theme === "bms" && !bucket.has("Áreas Terapéuticas")) {
+        sections.push({ id: nid(), titulo: "Áreas Terapéuticas", notas: [] });
+      }
     } else if (Array.isArray(data.articles)) {
       const map = new Map();
       for (const a of data.articles) { const sec = canonSection(theme, a.seccion || a.grupo || a.group || ""); if (!map.has(sec)) map.set(sec, []); map.get(sec).push(toNota(a)); }
       const seen = new Set();
-      for (const name of T.sections) { if (map.has(name)) { sections.push({ id: nid(), titulo: name, notas: map.get(name) }); seen.add(name); } }
+      for (const name of T.sections) {
+        if (map.has(name)) { sections.push({ id: nid(), titulo: name, notas: map.get(name) }); seen.add(name); }
+        // "Áreas Terapéuticas" es separador: nunca tiene notas propias (van a Noticias del Sector),
+        // pero debe verse siempre en la herramienta, igual que en el mail.
+        else if (name === "Áreas Terapéuticas") { sections.push({ id: nid(), titulo: name, notas: [] }); seen.add(name); }
+      }
       for (const [name, notas] of map) { if (!seen.has(name)) sections.push({ id: nid(), titulo: name, notas }); }
     }
     if (!sections.length) sections = [{ id: nid(), titulo: T.sections[0], notas: [] }];
