@@ -324,7 +324,7 @@ for (const n of articles) {
   grupos.get(label).push(n);
 }
 
-const SECTION_ORDER = ['Notas Exclusivas','Noticias del Sector','Propiedad Intelectual','Competencia','Onco Hematología','Cardiología','Psoriasis','Artritis','Trasplantes'];
+const SECTION_ORDER = ['Notas Exclusivas','Noticias del Sector','Propiedad Intelectual','Competencia','Áreas Terapéuticas','Onco Hematología','CAR-T','Cardiología','Psoriasis','Artritis','Trasplantes'];
 
 const SECTION_IMAGES = {"Notas Exclusivas":"https://ketchum-mailchimp.vercel.app/images/portadas/bms-notas-exclusivas.jpg","Noticias del Sector":"https://ketchum-mailchimp.vercel.app/images/portadas/bms-noticias-del-sector.jpg","Áreas Terapéuticas":"https://ketchum-mailchimp.vercel.app/images/portadas/bms-areas-terapeuticas.jpg","Competencia":"https://ketchum-mailchimp.vercel.app/images/portadas/bms-competencia.jpg","Propiedad Intelectual":"https://ketchum-mailchimp.vercel.app/images/portadas/bms-propiedad-intelectual.jpg","Onco Hematología":"https://ketchum-mailchimp.vercel.app/images/portadas/bms-onco-hematologia.jpg","Cardiología":"https://ketchum-mailchimp.vercel.app/images/portadas/bms-cardiologia.jpg","Psoriasis":"https://ketchum-mailchimp.vercel.app/images/portadas/bms-psoriasis.jpg","Artritis":"https://ketchum-mailchimp.vercel.app/images/portadas/bms-artritis.jpg","CAR-T":"https://ketchum-mailchimp.vercel.app/images/portadas/bms-cart.jpg","Trasplantes":"https://ketchum-mailchimp.vercel.app/images/portadas/bms-trasplantes.jpg"};
 const renderSection = (label, arts) => {
@@ -369,6 +369,15 @@ const footerHtml = `
 
 let seccionesHtml = '';
 for (const sec of SECTION_ORDER) {
+  // 'Áreas Terapéuticas' es SEPARADOR: agrupa a las secciones terapeuticas que siguen.
+  // No recibe notas propias -> se dibuja solo la portada, sin 'No se produjeron menciones'.
+  if (sec === 'Áreas Terapéuticas') {
+    const __atArr = grupos.has(sec) ? grupos.get(sec) : [];
+    seccionesHtml += __atArr.length
+      ? renderSection(sec, __atArr)
+      : '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:36px 0 18px 0"><tr><td><img src="' + SECTION_IMAGES['Áreas Terapéuticas'] + '" alt="Áreas Terapéuticas" width="720" style="display:block;width:100%;max-width:720px;height:auto;border:0"></td></tr></table>';
+    continue;
+  }
   const __arr = grupos.has(sec) ? grupos.get(sec) : [];
   if (__arr.length > 0) seccionesHtml += renderSection(sec, __arr);
   else if (sec !== 'Gacetillas BMS') seccionesHtml += renderSection(sec, []);
