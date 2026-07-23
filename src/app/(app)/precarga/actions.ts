@@ -66,6 +66,29 @@ export async function addPrecarga(
   return { ok: true, count: typeof data === "number" ? data : clean.length };
 }
 
+// Edita una nota precargada (solo si todavía no se volcó al clipping).
+export async function updatePrecarga(
+  id: string,
+  patch: { medio?: string; titulo?: string; url?: string; snippet?: string },
+): Promise<{ ok: boolean; error?: string }> {
+  const fields: Record<string, string> = {};
+  if (patch.medio !== undefined) fields.medio = String(patch.medio).trim();
+  if (patch.titulo !== undefined) fields.titulo = String(patch.titulo).trim();
+  if (patch.url !== undefined) fields.url = String(patch.url).trim();
+  if (patch.snippet !== undefined) fields.snippet = String(patch.snippet).trim();
+  if (fields.titulo !== undefined && !fields.titulo) return { ok: false, error: "El título no puede quedar vacío." };
+  if (fields.url !== undefined && !fields.url) return { ok: false, error: "La URL no puede quedar vacía." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("notes_precarga")
+    .update(fields)
+    .eq("id", id)
+    .is("consumed_at", null);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 // Borra una nota precargada (solo si todavía no se volcó al clipping).
 export async function delPrecarga(
   id: string,

@@ -3,11 +3,29 @@
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Download, RefreshCw, Check } from "lucide-react";
+import { Plus, Trash2, Download, RefreshCw, Check, Pencil, X } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   addPrecarga,
   listPrecarga,
   delPrecarga,
+  updatePrecarga,
   fetchMeta,
   type PrecargaRow,
 } from "./actions";
@@ -15,6 +33,7 @@ import {
 export type ClientOpt = { id: string; slug: string; nombre: string };
 
 type Draft = { medio: string; titulo: string; url: string; snippet: string; loading?: boolean };
+type EditFields = { medio: string; titulo: string; url: string; snippet: string };
 
 // Fecha de mañana en horario AR (UTC-3), formato YYYY-MM-DD.
 function tomorrowAR(): string {
@@ -32,6 +51,11 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
   const [existing, setExisting] = useState<PrecargaRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [bulk, setBulk] = useState("");
+
+  // Edición inline de una precargada + borrado con confirmación.
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editFields, setEditFields] = useState<EditFields>({ medio: "", titulo: "", url: "", snippet: "" });
+  const [delTarget, setDelTarget] = useState<PrecargaRow | null>(null);
 
   const refresh = useCallback(async () => {
     if (!clientId || !fecha) return;
@@ -87,7 +111,7 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
       return [...base, ...nuevos];
     });
     setBulk("");
-    toast.success(`${nuevos.length} fila(s) agregada(s). Usá "Autocompletar" para traer título y descripción.`);
+    toast.success(`${nuevos.length} fila(s) agregada(s). Usá "Autocompletar todas" para traer título y descripción.`);
   }
 
   async function autofillAll() {
@@ -119,49 +143,157 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
     void refresh();
   }
 
-  async function borrar(id: string) {
-    const res = await delPrecarga(id);
+  function startEdit(e: PrecargaRow) {
+    setEditId(e.id);
+    setEditFields({ medio: e.medio ?? "", titulo: e.titulo ?? "", url: e.url ?? "", snippet: e.snippet ?? "" });
+  }
+  function cancelEdit() {
+    setEditId(null);
+  }
+  async function saveEdit(id: string) {
+    const res = await updatePrecarga(id, editFields);
+    if (!res.ok) {
+      toast.error("No se pudo guardar", { description: res.error });
+      return;
+    }
+    toast.success("Nota actualizada");
+    setEditId(null);
+    void refresh();
+  }
+
+  async function confirmDelete() {
+    if (!delTarget) return;
+    const res = await delPrecarga(delTarget.id);
+    setDelTarget(null);
     if (!res.ok) {
       toast.error("No se pudo borrar", { description: res.error });
       return;
     }
+    toast.success("Nota eliminada");
     void refresh();
   }
 
+  const clienteNombre = clients.find((c) => c.id === clientId)?.nombre ?? "";
   const pendientes = existing.filter((e) => !e.consumed_at);
   const volcadas = existing.filter((e) => e.consumed_at);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-4 items-end">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted-foreground">Cliente</span>
-          <select
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            className="border rounded-md px-3 py-2 bg-background min-w-[180px]"
-          >
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted-foreground">Fecha del clipping</span>
+      {/* Selector de cliente + fecha — arriba y prominente */}
+      <div className="flex flex-wrap gap-4 items-end bg-muted/40 border rounded-lg p-4">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium">Cliente</span>
+          <Select value={clientId} onValueChange={(v) => v && setClientId(v)}>
+            <SelectTrigger className="min-w-[240px] h-11 text-base font-semibold bg-background shadow-sm">
+              <SelectValue placeholder="Elegí un cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              {clients.map((c) => (
+                <SelectItem key={c.id} value={c.id} className="text-base">
+                  {c.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium">Fecha del clipping</span>
           <input
             type="date"
             value={fecha}
             onChange={(e) => setFecha(e.target.value)}
-            className="border rounded-md px-3 py-2 bg-background"
+            className="border rounded-md px-4 py-2.5 bg-background text-base shadow-sm"
           />
         </label>
       </div>
 
+      {/* Ya precargadas — arriba para ver de una lo que hay */}
+      <section className="space-y-2">
+        <h2 className="font-medium">
+          Precargadas de {clienteNombre} para {fecha} · {pendientes.length} pendiente
+          {pendientes.length === 1 ? "" : "s"}
+        </h2>
+        {existing.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nada precargado todavía para este cliente y fecha.</p>
+        ) : (
+          <ul className="space-y-2">
+            {pendientes.map((e) =>
+              editId === e.id ? (
+                <li key={e.id} className="border rounded-md p-3 space-y-2 bg-muted/30">
+                  <input
+                    value={editFields.medio}
+                    onChange={(ev) => setEditFields((f) => ({ ...f, medio: ev.target.value }))}
+                    placeholder="Medio"
+                    className="border rounded-md px-2 py-1.5 text-sm bg-background w-full"
+                  />
+                  <input
+                    value={editFields.url}
+                    onChange={(ev) => setEditFields((f) => ({ ...f, url: ev.target.value }))}
+                    placeholder="URL"
+                    className="border rounded-md px-2 py-1.5 text-sm bg-background w-full"
+                  />
+                  <input
+                    value={editFields.titulo}
+                    onChange={(ev) => setEditFields((f) => ({ ...f, titulo: ev.target.value }))}
+                    placeholder="Título"
+                    className="border rounded-md px-2 py-1.5 text-sm bg-background w-full"
+                  />
+                  <textarea
+                    value={editFields.snippet}
+                    onChange={(ev) => setEditFields((f) => ({ ...f, snippet: ev.target.value }))}
+                    placeholder="Descripción"
+                    rows={2}
+                    className="border rounded-md px-2 py-1.5 text-sm bg-background w-full resize-y"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={cancelEdit}>
+                      <X size={14} /> Cancelar
+                    </Button>
+                    <Button size="sm" onClick={() => saveEdit(e.id)}>
+                      <Check size={14} /> Guardar
+                    </Button>
+                  </div>
+                </li>
+              ) : (
+                <li key={e.id} className="flex items-start gap-2 text-sm border rounded-md px-3 py-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{e.medio || "—"}</div>
+                    <div className="truncate">{e.titulo}</div>
+                    {e.url ? (
+                      <a href={e.url} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground truncate block hover:underline">
+                        {e.url}
+                      </a>
+                    ) : null}
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => startEdit(e)} title="Editar">
+                    <Pencil size={15} />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setDelTarget(e)} title="Eliminar">
+                    <Trash2 size={15} />
+                  </Button>
+                </li>
+              ),
+            )}
+            {volcadas.map((e) => (
+              <li
+                key={e.id}
+                className="flex items-center gap-2 text-sm border rounded-md px-3 py-2 opacity-60"
+                title="Ya volcada al clipping (no editable)"
+              >
+                <Check size={15} className="text-green-600 shrink-0" />
+                <span className="font-medium min-w-[140px] truncate">{e.medio || "—"}</span>
+                <span className="flex-1 truncate">{e.titulo}</span>
+                <span className="text-xs text-muted-foreground">volcada</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Cargar nuevas */}
       <section className="border rounded-lg p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">Notas a precargar</h2>
+          <h2 className="font-medium">Agregar notas</h2>
           <div className="flex gap-2">
             <Button type="button" variant="outline" size="sm" onClick={autofillAll}>
               <RefreshCw size={14} /> Autocompletar todas
@@ -248,38 +380,22 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
         </div>
       </section>
 
-      <section className="space-y-2">
-        <h2 className="font-medium">
-          Ya precargadas para {fecha} ({pendientes.length} pendiente{pendientes.length === 1 ? "" : "s"})
-        </h2>
-        {existing.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nada precargado todavía.</p>
-        ) : (
-          <ul className="space-y-1">
-            {pendientes.map((e) => (
-              <li key={e.id} className="flex items-center gap-2 text-sm border rounded-md px-3 py-2">
-                <span className="font-medium min-w-[140px] truncate">{e.medio || "—"}</span>
-                <span className="flex-1 truncate">{e.titulo}</span>
-                <Button variant="ghost" size="icon" onClick={() => borrar(e.id)} title="Quitar">
-                  <Trash2 size={15} />
-                </Button>
-              </li>
-            ))}
-            {volcadas.map((e) => (
-              <li
-                key={e.id}
-                className="flex items-center gap-2 text-sm border rounded-md px-3 py-2 opacity-60"
-                title="Ya volcada al clipping"
-              >
-                <Check size={15} className="text-green-600" />
-                <span className="font-medium min-w-[140px] truncate">{e.medio || "—"}</span>
-                <span className="flex-1 truncate">{e.titulo}</span>
-                <span className="text-xs text-muted-foreground">volcada</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <AlertDialog open={!!delTarget} onOpenChange={(o) => !o && setDelTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar nota precargada</AlertDialogTitle>
+            <AlertDialogDescription>
+              {delTarget ? `"${delTarget.titulo}" (${delTarget.medio || "sin medio"}). Esta acción no se puede deshacer.` : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDelTarget(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700 text-white">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
