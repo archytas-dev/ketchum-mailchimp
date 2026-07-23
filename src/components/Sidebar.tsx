@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   History,
   BarChart3,
+  Upload,
   LogOut,
   Menu,
 } from "lucide-react";
@@ -35,6 +36,7 @@ type Item = { href: string; label: string; Icon: typeof LayoutDashboard; blocked
 
 const ITEMS: Item[] = [
   { href: "/hoy", label: "Principal", Icon: LayoutDashboard },
+  { href: "/precarga", label: "Precarga", Icon: Upload },
   { href: "/historial", label: "Historial", Icon: History },
   { href: "/estadisticas", label: "Estadísticas", Icon: BarChart3 },
 ];
