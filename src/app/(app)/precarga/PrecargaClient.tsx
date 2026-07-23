@@ -185,7 +185,9 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
           <span className="text-sm font-medium">Cliente</span>
           <Select value={clientId} onValueChange={(v) => v && setClientId(v)}>
             <SelectTrigger className="min-w-[240px] h-11 text-base font-semibold bg-background shadow-sm">
-              <SelectValue placeholder="Elegí un cliente" />
+              <SelectValue placeholder="Elegí un cliente">
+                {(value: string) => clients.find((c) => c.id === value)?.nombre ?? ""}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {clients.map((c) => (
