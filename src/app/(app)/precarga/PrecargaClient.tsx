@@ -29,11 +29,12 @@ import {
   fetchMeta,
   type PrecargaRow,
 } from "./actions";
+import { sectionsFor, defaultSection } from "@/lib/clip/canon";
 
 export type ClientOpt = { id: string; slug: string; nombre: string };
 
-type Draft = { medio: string; titulo: string; url: string; snippet: string; loading?: boolean };
-type EditFields = { medio: string; titulo: string; url: string; snippet: string };
+type Draft = { medio: string; titulo: string; url: string; snippet: string; seccion: string; loading?: boolean };
+type EditFields = { medio: string; titulo: string; url: string; snippet: string; seccion: string };
 
 // Fecha de mañana en horario AR (UTC-3), formato YYYY-MM-DD.
 function tomorrowAR(): string {
@@ -41,20 +42,23 @@ function tomorrowAR(): string {
   return now.toISOString().slice(0, 10);
 }
 
-const SECCION = "Notas Exclusivas";
-const emptyDraft = (): Draft => ({ medio: "", titulo: "", url: "", snippet: "" });
+const emptyDraft = (seccion: string): Draft => ({ medio: "", titulo: "", url: "", snippet: "", seccion });
 
 export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
   const [clientId, setClientId] = useState(clients[0]?.id ?? "");
   const [fecha, setFecha] = useState<string>(() => tomorrowAR());
-  const [rows, setRows] = useState<Draft[]>([emptyDraft()]);
+  const clientSlug = clients.find((c) => c.id === clientId)?.slug ?? "";
+  // "Áreas Terapéuticas" (BMS) es solo un separador visual en el mail, nunca lleva notas propias.
+  const sections = sectionsFor(clientSlug).filter((s) => s !== "Áreas Terapéuticas");
+  const defaultSeccion = defaultSection(clientSlug);
+  const [rows, setRows] = useState<Draft[]>([emptyDraft(defaultSeccion)]);
   const [existing, setExisting] = useState<PrecargaRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [bulk, setBulk] = useState("");
 
   // Edición inline de una precargada + borrado con confirmación.
   const [editId, setEditId] = useState<string | null>(null);
-  const [editFields, setEditFields] = useState<EditFields>({ medio: "", titulo: "", url: "", snippet: "" });
+  const [editFields, setEditFields] = useState<EditFields>({ medio: "", titulo: "", url: "", snippet: "", seccion: defaultSeccion });
   const [delTarget, setDelTarget] = useState<PrecargaRow | null>(null);
 
   const refresh = useCallback(async () => {
@@ -73,14 +77,22 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
     };
   }, [clientId, fecha]);
 
+  // Cambiar de cliente reinicia el borrador (las secciones disponibles son otras).
+  // Patrón "ajustar estado durante el render" en vez de un efecto (no es una sincronización externa).
+  const [prevClientId, setPrevClientId] = useState(clientId);
+  if (clientId !== prevClientId) {
+    setPrevClientId(clientId);
+    setRows([emptyDraft(defaultSeccion)]);
+  }
+
   function setRow(i: number, patch: Partial<Draft>) {
     setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   }
   function addRow() {
-    setRows((r) => [...r, emptyDraft()]);
+    setRows((r) => [...r, emptyDraft(defaultSeccion)]);
   }
   function removeRow(i: number) {
-    setRows((r) => (r.length === 1 ? [emptyDraft()] : r.filter((_, j) => j !== i)));
+    setRows((r) => (r.length === 1 ? [emptyDraft(defaultSeccion)] : r.filter((_, j) => j !== i)));
   }
 
   async function autofill(i: number) {
@@ -103,8 +115,8 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
     if (!lines.length) return;
     const nuevos: Draft[] = lines.map((l) => {
       const parts = l.split("|").map((p) => p.trim());
-      if (parts.length >= 2) return { medio: parts[0], url: parts[1], titulo: "", snippet: "" };
-      return { medio: "", url: parts[0], titulo: "", snippet: "" };
+      if (parts.length >= 2) return { medio: parts[0], url: parts[1], titulo: "", snippet: "", seccion: defaultSeccion };
+      return { medio: "", url: parts[0], titulo: "", snippet: "", seccion: defaultSeccion };
     });
     setRows((r) => {
       const base = r.filter((x) => x.url || x.titulo || x.medio);
@@ -126,7 +138,7 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
     if (!clientId || !fecha) return;
     const notes = rows
       .filter((r) => r.titulo.trim() && r.url.trim())
-      .map((r) => ({ medio: r.medio, titulo: r.titulo, url: r.url, snippet: r.snippet, seccion: SECCION }));
+      .map((r) => ({ medio: r.medio, titulo: r.titulo, url: r.url, snippet: r.snippet, seccion: r.seccion || defaultSeccion }));
     if (!notes.length) {
       toast.error("Nada para guardar", { description: "Cada nota necesita al menos título y URL." });
       return;
@@ -139,13 +151,19 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
       return;
     }
     toast.success(`${res.count} nota(s) precargada(s)`);
-    setRows([emptyDraft()]);
+    setRows([emptyDraft(defaultSeccion)]);
     void refresh();
   }
 
   function startEdit(e: PrecargaRow) {
     setEditId(e.id);
-    setEditFields({ medio: e.medio ?? "", titulo: e.titulo ?? "", url: e.url ?? "", snippet: e.snippet ?? "" });
+    setEditFields({
+      medio: e.medio ?? "",
+      titulo: e.titulo ?? "",
+      url: e.url ?? "",
+      snippet: e.snippet ?? "",
+      seccion: e.seccion || defaultSeccion,
+    });
   }
   function cancelEdit() {
     setEditId(null);
@@ -222,12 +240,29 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
             {pendientes.map((e) =>
               editId === e.id ? (
                 <li key={e.id} className="border rounded-md p-3 space-y-2 bg-muted/30">
-                  <input
-                    value={editFields.medio}
-                    onChange={(ev) => setEditFields((f) => ({ ...f, medio: ev.target.value }))}
-                    placeholder="Medio"
-                    className="border rounded-md px-2 py-1.5 text-sm bg-background w-full"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      value={editFields.medio}
+                      onChange={(ev) => setEditFields((f) => ({ ...f, medio: ev.target.value }))}
+                      placeholder="Medio"
+                      className="border rounded-md px-2 py-1.5 text-sm bg-background flex-1"
+                    />
+                    <Select
+                      value={editFields.seccion}
+                      onValueChange={(v) => v && setEditFields((f) => ({ ...f, seccion: v }))}
+                    >
+                      <SelectTrigger className="w-48 text-sm bg-background">
+                        <SelectValue placeholder="Sección" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sections.map((s) => (
+                          <SelectItem key={s} value={s} className="text-sm">
+                            {s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <input
                     value={editFields.url}
                     onChange={(ev) => setEditFields((f) => ({ ...f, url: ev.target.value }))}
@@ -259,7 +294,12 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
               ) : (
                 <li key={e.id} className="flex items-start gap-2 text-sm border rounded-md px-3 py-2">
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{e.medio || "—"}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium truncate">{e.medio || "—"}</span>
+                      <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
+                        {e.seccion || defaultSeccion}
+                      </span>
+                    </div>
                     <div className="truncate">{e.titulo}</div>
                     {e.url ? (
                       <a href={e.url} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground truncate block hover:underline">
@@ -284,6 +324,9 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
               >
                 <Check size={15} className="text-green-600 shrink-0" />
                 <span className="font-medium min-w-[140px] truncate">{e.medio || "—"}</span>
+                <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
+                  {e.seccion || defaultSeccion}
+                </span>
                 <span className="flex-1 truncate">{e.titulo}</span>
                 <span className="text-xs text-muted-foreground">volcada</span>
               </li>
@@ -308,13 +351,25 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
 
         <div className="space-y-3">
           {rows.map((r, i) => (
-            <div key={i} className="grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2 items-start border-b pb-3">
+            <div key={i} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_2fr_auto] gap-2 items-start border-b pb-3">
               <input
                 placeholder="Medio"
                 value={r.medio}
                 onChange={(e) => setRow(i, { medio: e.target.value })}
                 className="border rounded-md px-2 py-1.5 text-sm bg-background"
               />
+              <Select value={r.seccion} onValueChange={(v) => v && setRow(i, { seccion: v })}>
+                <SelectTrigger className="text-sm bg-background">
+                  <SelectValue placeholder="Sección" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sections.map((s) => (
+                    <SelectItem key={s} value={s} className="text-sm">
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <div className="flex flex-col gap-2">
                 <div className="flex gap-2">
                   <input
