@@ -41,6 +41,16 @@ export function themeOf(slug: string): string {
   return "booking";
 }
 
+// Secciones canónicas del cliente (mismo orden que ve en el mail), para poblar selects (ej. Precarga).
+export function sectionsFor(slug: string): string[] {
+  return SECTIONS[themeOf(slug)] || [];
+}
+
+// Sección por defecto de "Exclusivas" del cliente (primera de la lista en los 4 clientes).
+export function defaultSection(slug: string): string {
+  return sectionsFor(slug)[0] || "";
+}
+
 export function canonSection(slug: string, raw: string | null): string {
   const theme = themeOf(slug);
   const cans = SECTIONS[theme] || [];

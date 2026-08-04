@@ -50,7 +50,7 @@ export async function addPrecarga(
       titulo: String(n.titulo || "").trim(),
       url: String(n.url || "").trim(),
       snippet: String(n.snippet || "").trim(),
-      seccion: String(n.seccion || "").trim() || "Notas Exclusivas",
+      seccion: String(n.seccion || "").trim(),
       orden: i + 1,
     }))
     .filter((n) => n.titulo && n.url);
@@ -69,15 +69,17 @@ export async function addPrecarga(
 // Edita una nota precargada (solo si todavía no se volcó al clipping).
 export async function updatePrecarga(
   id: string,
-  patch: { medio?: string; titulo?: string; url?: string; snippet?: string },
+  patch: { medio?: string; titulo?: string; url?: string; snippet?: string; seccion?: string },
 ): Promise<{ ok: boolean; error?: string }> {
   const fields: Record<string, string> = {};
   if (patch.medio !== undefined) fields.medio = String(patch.medio).trim();
   if (patch.titulo !== undefined) fields.titulo = String(patch.titulo).trim();
   if (patch.url !== undefined) fields.url = String(patch.url).trim();
   if (patch.snippet !== undefined) fields.snippet = String(patch.snippet).trim();
+  if (patch.seccion !== undefined) fields.seccion = String(patch.seccion).trim();
   if (fields.titulo !== undefined && !fields.titulo) return { ok: false, error: "El título no puede quedar vacío." };
   if (fields.url !== undefined && !fields.url) return { ok: false, error: "La URL no puede quedar vacía." };
+  if (fields.seccion !== undefined && !fields.seccion) return { ok: false, error: "La sección no puede quedar vacía." };
 
   const supabase = await createClient();
   const { error } = await supabase
