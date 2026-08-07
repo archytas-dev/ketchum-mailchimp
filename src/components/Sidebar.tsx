@@ -8,6 +8,7 @@ import {
   History,
   BarChart3,
   Upload,
+  Database,
   LogOut,
   Menu,
 } from "lucide-react";
@@ -39,6 +40,7 @@ const ITEMS: Item[] = [
   { href: "/precarga", label: "Precarga", Icon: Upload },
   { href: "/historial", label: "Historial", Icon: History },
   { href: "/estadisticas", label: "Estadísticas", Icon: BarChart3 },
+  { href: "/base-datos", label: "Base de Datos", Icon: Database },
 ];
 
 function NavContent({ onNavigate }: { onNavigate?: () => void }) {
