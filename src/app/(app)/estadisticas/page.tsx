@@ -176,53 +176,59 @@ export default async function EstadisticasPage({
     { label: "Notas editadas", value: notasEditadas, Icon: PlusCircle, hint: "agregar/quitar/mover/pintar" },
   ];
 
+  const totalExportsWindow = exportsByDay.reduce((s, x) => s + x.n, 0);
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-slate-800">Estadísticas</h1>
+        <h1 className="text-xl font-semibold text-foreground">Estadísticas</h1>
         <EstadisticasFilter clients={clients} value={clientId ?? "all"} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
         {cards.map((c) => (
-          <div key={c.label} className="bg-white rounded-xl border border-slate-200 p-4">
-            <div className="flex items-center gap-2 text-slate-400">
+          <div key={c.label} className="bg-card rounded-xl border border-border p-4">
+            <div className="flex items-center gap-2 text-muted-foreground">
               <c.Icon size={16} />
               <span className="text-xs font-medium uppercase tracking-wide">{c.label}</span>
             </div>
-            <p className="text-3xl font-semibold text-slate-800 mt-2">{c.value}</p>
-            <p className="text-xs text-slate-400 mt-0.5">{c.hint}</p>
+            <p className="text-3xl font-semibold text-foreground mt-2">{c.value}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{c.hint}</p>
           </div>
         ))}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <h2 className="text-sm font-medium text-slate-700 mb-3">Exportaciones · últimos 14 días</h2>
-          <div className="flex items-end gap-1.5 h-32">
-            {exportsByDay.map((x) => (
-              <div key={x.d} className="flex-1 flex flex-col items-center gap-1 group">
-                <div className="w-full flex items-end justify-center h-full">
-                  <div
-                    className="w-full rounded-t bg-[#243f55] group-hover:bg-[#1b3143]"
-                    style={{ height: `${(x.n / maxDay) * 100}%`, minHeight: x.n ? 4 : 0 }}
-                    title={`${x.n} exportaciones`}
-                  />
+        <div className="bg-card rounded-xl border border-border p-4">
+          <h2 className="text-sm font-medium text-foreground mb-3">Exportaciones · últimos 14 días</h2>
+          {totalExportsWindow === 0 ? (
+            <p className="h-32 flex items-center justify-center text-sm text-muted-foreground">Sin datos.</p>
+          ) : (
+            <div className="flex items-end gap-1.5 h-32">
+              {exportsByDay.map((x) => (
+                <div key={x.d} className="flex-1 flex flex-col items-center gap-1 group">
+                  <div className="w-full flex items-end justify-center h-full">
+                    <div
+                      className="w-full rounded-t bg-brand group-hover:bg-brand-dark"
+                      style={{ height: `${(x.n / maxDay) * 100}%`, minHeight: x.n ? 4 : 0 }}
+                      title={`${x.n} exportaciones`}
+                    />
+                  </div>
+                  <span className="text-[9px] text-muted-foreground">{chip(x.d).split(" ")[0]}</span>
                 </div>
-                <span className="text-[9px] text-slate-400">{chip(x.d).split(" ")[0]}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <h2 className="text-sm font-medium text-slate-700 mb-3">Actividad · últimos 30 días</h2>
+        <div className="bg-card rounded-xl border border-border p-4">
+          <h2 className="text-sm font-medium text-foreground mb-3">Actividad · últimos 30 días</h2>
           <div className="grid grid-cols-2 gap-2">
             {bd.map((b) => (
-              <div key={b.label} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
-                <b.Icon size={15} className="text-slate-400 shrink-0" />
-                <span className="text-sm text-slate-600 flex-1 truncate">{b.label}</span>
-                <span className="text-sm font-semibold text-slate-800">{b.value}</span>
+              <div key={b.label} className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
+                <b.Icon size={15} className="text-muted-foreground shrink-0" />
+                <span className="text-sm text-foreground/80 flex-1 truncate">{b.label}</span>
+                <span className="text-sm font-semibold text-foreground">{b.value}</span>
               </div>
             ))}
           </div>
@@ -236,12 +242,12 @@ export default async function EstadisticasPage({
       />
 
       {!clientId && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <h2 className="text-sm font-medium text-slate-700 px-4 py-3 border-b border-slate-100">Por cliente</h2>
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <h2 className="text-sm font-medium text-foreground px-4 py-3 border-b border-border">Por cliente</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
+                <tr className="text-left text-xs text-muted-foreground border-b border-border">
                   <th className="px-4 py-2 font-medium">Cliente</th>
                   <th className="px-4 py-2 font-medium text-right">Clippings</th>
                   <th className="px-4 py-2 font-medium text-right">Exportados</th>
@@ -250,11 +256,11 @@ export default async function EstadisticasPage({
               </thead>
               <tbody>
                 {clientStats.map((c) => (
-                  <tr key={c.nombre} className="border-b border-slate-50 last:border-0">
-                    <td className="px-4 py-2.5 font-medium text-slate-700">{c.nombre}</td>
-                    <td className="px-4 py-2.5 text-right text-slate-600">{c.total}</td>
-                    <td className="px-4 py-2.5 text-right text-slate-600">{c.exportados}</td>
-                    <td className="px-4 py-2.5 text-right text-slate-500">{c.ultima ? chip(c.ultima) : "—"}</td>
+                  <tr key={c.nombre} className="border-b border-border/60 last:border-0">
+                    <td className="px-4 py-2.5 font-medium text-foreground/90">{c.nombre}</td>
+                    <td className="px-4 py-2.5 text-right text-foreground/80">{c.total}</td>
+                    <td className="px-4 py-2.5 text-right text-foreground/80">{c.exportados}</td>
+                    <td className="px-4 py-2.5 text-right text-muted-foreground">{c.ultima ? chip(c.ultima) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -263,24 +269,24 @@ export default async function EstadisticasPage({
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <h2 className="text-sm font-medium text-slate-700 px-4 py-3 border-b border-slate-100">
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        <h2 className="text-sm font-medium text-foreground px-4 py-3 border-b border-border">
           Actividad reciente
         </h2>
         {acts.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-slate-400">Sin actividad todavía.</p>
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">Sin actividad todavía.</p>
         ) : (
-          <ul className="divide-y divide-slate-50">
+          <ul className="divide-y divide-border/60">
             {acts.slice(0, 12).map((a, i) => {
               const clip = clipById.get(a.clipping_id);
               const nombre = clip ? nombreOf(clip) : "—";
               return (
                 <li key={i} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                  <span className="text-slate-700">
+                  <span className="text-foreground/90">
                     <span className="font-medium">{nombre}</span>{" "}
-                    <span className="text-slate-500">{ACCION_LABEL[a.accion] ?? a.accion}</span>
+                    <span className="text-muted-foreground">{ACCION_LABEL[a.accion] ?? a.accion}</span>
                   </span>
-                  <span className="ml-auto text-xs text-slate-400">{relTime(a.created_at)}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">{relTime(a.created_at)}</span>
                 </li>
               );
             })}

@@ -14,6 +14,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { tierDotClasses, tierBadgeClasses } from "@/lib/tier";
+import StaffOnlySection from "@/components/StaffOnlySection";
 import {
   Table,
   TableBody,
@@ -93,8 +95,16 @@ export default function BaseDatosClient({
           <TabsTrigger value="generales">Medios generales</TabsTrigger>
           <TabsTrigger value="keywords">Palabras clave</TabsTrigger>
           <TabsTrigger value="secciones">Secciones</TabsTrigger>
-          {isStaff && <TabsTrigger value="alerts">Google Alerts</TabsTrigger>}
-          {isStaff && <TabsTrigger value="seguimiento">Seguimiento</TabsTrigger>}
+          {isStaff && (
+            <TabsTrigger value="alerts" className="text-purple-700 data-active:text-purple-700 dark:text-purple-400">
+              Google Alerts
+            </TabsTrigger>
+          )}
+          {isStaff && (
+            <TabsTrigger value="seguimiento" className="text-purple-700 data-active:text-purple-700 dark:text-purple-400">
+              Seguimiento
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="nicho" className="pt-4">
@@ -111,12 +121,16 @@ export default function BaseDatosClient({
         </TabsContent>
         {isStaff && (
           <TabsContent value="alerts" className="pt-4">
-            <GoogleAlertsTab clientId={clientId} />
+            <StaffOnlySection label="Solo staff — el cliente nunca ve esto">
+              <GoogleAlertsTab clientId={clientId} />
+            </StaffOnlySection>
           </TabsContent>
         )}
         {isStaff && (
           <TabsContent value="seguimiento" className="pt-4">
-            <SeguimientoTab clientId={clientId} />
+            <StaffOnlySection label="Solo staff — el cliente nunca ve esto">
+              <SeguimientoTab clientId={clientId} />
+            </StaffOnlySection>
           </TabsContent>
         )}
       </Tabs>
@@ -239,9 +253,14 @@ function MediosTab({ clientId, tipo }: { clientId: string; tipo: "monitoreado" |
                     value={r.tier ? String(r.tier) : "none"}
                     onValueChange={(v) => handleTier(r, { tier: v === "none" ? null : Number(v) })}
                   >
-                    <SelectTrigger className="h-8 w-24">
+                    <SelectTrigger className={"h-8 w-28 border-transparent font-medium " + tierBadgeClasses(r.tier as 1 | 2 | 3 | 4 | null)}>
                       <SelectValue>
-                        {(value: string) => (value === "none" ? "Sin asignar" : `Tier ${value}`)}
+                        {(value: string) => (
+                          <span className="flex items-center gap-1.5">
+                            <span className={"size-1.5 rounded-full " + tierDotClasses(value === "none" ? null : (Number(value) as 1 | 2 | 3 | 4))} />
+                            {value === "none" ? "Sin asignar" : `Tier ${value}`}
+                          </span>
+                        )}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>

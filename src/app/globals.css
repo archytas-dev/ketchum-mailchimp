@@ -46,6 +46,31 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Identidad Ketchum Clipping+: el navy ya vivía hardcodeado en 13 archivos
+     (Sidebar, logo, login, historial, estadísticas...) — acá se vuelve token
+     real en vez de hex sueltos repetidos. El teal ya vivía como --ui-accent
+     dentro del editor (.kx-editor); ahora es la misma variable en toda la app. */
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-foreground: var(--brand-accent-foreground);
+  --color-brand-warm: var(--brand-warm);
+
+  /* Tier de medios: antes era texto plano ("Tier 1"/"Sin asignar") idéntico
+     para todos — un medio de $41M de Ad Value se veía igual que uno sin
+     asignar. Colores reales para que la jerarquía de valor sea instantánea. */
+  --color-tier-1: var(--tier-1);
+  --color-tier-1-bg: var(--tier-1-bg);
+  --color-tier-2: var(--tier-2);
+  --color-tier-2-bg: var(--tier-2-bg);
+  --color-tier-3: var(--tier-3);
+  --color-tier-3-bg: var(--tier-3-bg);
+  --color-tier-4: var(--tier-4);
+  --color-tier-4-bg: var(--tier-4-bg);
+  --color-tier-none: var(--tier-none);
+  --color-tier-none-bg: var(--tier-none-bg);
 }
 
 /* Inputs siempre texto oscuro sobre fondo claro (nada de white-on-white). */
@@ -124,8 +149,14 @@ textarea::placeholder {
 .kx-note:last-child { border-bottom: none; }
 .kx-note.dragging { opacity: 0.4; background: #eef7fb; }
 .kx-note-body { flex: 1; min-width: 0; }
-.kx-note-actions { display: flex; flex-direction: column; gap: 4px; visibility: hidden; }
-.kx-note:hover .kx-note-actions { visibility: visible; }
+/* Antes: visibility:hidden hasta :hover -- invisibles en touch/mobile, y en desktop
+   nadie las descubre si no pasa el mouse por casualidad (feedback de auditoria UX). */
+.kx-note-actions { display: flex; flex-direction: column; gap: 4px; opacity: 0.4; transition: opacity 0.15s; }
+.kx-note:hover .kx-note-actions,
+.kx-note:focus-within .kx-note-actions { opacity: 1; }
+@media (hover: none) {
+  .kx-note-actions { opacity: 0.7; }
+}
 .kx-icon-btn { background: #fff; border: 1px solid var(--ui-border); border-radius: 6px; width: 28px; height: 28px; font-size: 13px; cursor: pointer; color: #465b6b; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
 .kx-icon-btn:hover { background: #f0f4f7; border-color: var(--ui-accent); color: var(--ui-accent); }
 .kx-headline { font-size: 14px; line-height: 1.7; }
@@ -186,38 +217,58 @@ textarea::placeholder {
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  /* Marca: el navy #243f55 y el teal #0a7fa3 ya existían (Sidebar, logo,
+     login, editor) — quedan formalizados como tokens en vez de hex sueltos. */
+  --brand: #243f55;
+  --brand-dark: #1b3143;
+  --brand-foreground: #ffffff;
+  --brand-accent: #0a7fa3;
+  --brand-accent-foreground: #ffffff;
+  --brand-warm: #d6641f;
+
+  --tier-1: #9a6b0a;
+  --tier-1-bg: #fbf0d9;
+  --tier-2: #4b5f70;
+  --tier-2-bg: #e6ecf1;
+  --tier-3: #8a5a2b;
+  --tier-3-bg: #f1e6d8;
+  --tier-4: #74828f;
+  --tier-4-bg: #eef1f4;
+  --tier-none: #9aa7b2;
+  --tier-none-bg: #f3f5f7;
+
+  --background: #f3f6f9;
+  --foreground: #16232e;
+  --card: #ffffff;
+  --card-foreground: #16232e;
+  --popover: #ffffff;
+  --popover-foreground: #16232e;
+  --primary: var(--brand);
+  --primary-foreground: #ffffff;
+  --secondary: #e6ecf1;
+  --secondary-foreground: var(--brand);
+  --muted: #eef2f5;
+  --muted-foreground: #5b7185;
+  --accent: #e3f0f4;
+  --accent-foreground: #0a5a73;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --border: #dce4ea;
+  --input: #dce4ea;
+  --ring: var(--brand-accent);
+  --chart-1: var(--brand-accent);
+  --chart-2: var(--brand);
+  --chart-3: var(--brand-warm);
+  --chart-4: #7e9aae;
+  --chart-5: #16232e;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: var(--brand-dark);
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: var(--brand-accent);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(255, 255, 255, 0.12);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.12);
+  --sidebar-ring: var(--brand-accent);
 }
 
 .dark {

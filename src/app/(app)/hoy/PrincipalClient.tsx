@@ -33,21 +33,26 @@ export default function PrincipalClient({ clients }: { clients: ClientPayload[] 
 
   return (
     <div className="flex flex-col min-h-screen">
-      <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-slate-200 bg-white sticky top-0 z-30">
-        <Select value={active} onValueChange={(v) => setActive(v ?? "")}>
-          <SelectTrigger className="w-52 font-medium">
-            <span>{cur?.nombre ?? "Elegí un cliente"}</span>
-          </SelectTrigger>
-          <SelectContent>
-            {clients.map((c) => (
-              <SelectItem key={c.slug} value={c.slug}>
-                {c.nombre}
-                {!c.clippingId ? " · sin clipping" : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <span className="text-sm text-slate-400 hidden sm:inline">
+      <div className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-border bg-card sticky top-0 z-30">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground hidden sm:inline">
+            Clipping de hoy
+          </span>
+          <Select value={active} onValueChange={(v) => setActive(v ?? "")}>
+            <SelectTrigger className="w-52 font-medium">
+              <span>{cur?.nombre ?? "Elegí un cliente"}</span>
+            </SelectTrigger>
+            <SelectContent>
+              {clients.map((c) => (
+                <SelectItem key={c.slug} value={c.slug}>
+                  {c.nombre}
+                  {!c.clippingId ? " · sin clipping" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <span className="text-sm text-muted-foreground hidden sm:inline">
           {cur?.fecha ? `Último clipping · ${fechaBonita(cur.fecha)}` : "Sin clipping"}
         </span>
       </div>
@@ -63,11 +68,11 @@ export default function PrincipalClient({ clients }: { clients: ClientPayload[] 
           />
         ) : (
           <div className="max-w-lg mx-auto px-6 py-16 text-center">
-            <div className="bg-white rounded-xl border border-dashed border-slate-300 p-10">
-              <p className="text-sm font-medium text-slate-600">
+            <div className="bg-card rounded-xl border border-dashed border-border p-10">
+              <p className="text-sm font-medium text-foreground">
                 {cur?.nombre ?? "Cliente"}: todavía no hay ningún clipping cargado.
               </p>
-              <p className="text-sm text-slate-400 mt-1">
+              <p className="text-sm text-muted-foreground mt-1">
                 Cuando el flujo de n8n escriba en Supabase, vas a poder editarlo acá.
               </p>
             </div>

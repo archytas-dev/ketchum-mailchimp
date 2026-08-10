@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getEffectiveRole, isStaffRole } from "@/lib/auth";
 import PrincipalClient, { type ClientPayload } from "./PrincipalClient";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +48,12 @@ export default async function HoyPage() {
       .order("fecha", { ascending: false }),
   ]);
 
-  const clients = (clientRows ?? []) as ClientRow[];
+  // Un cliente real nunca ve *-test porque RLS filtra su user_client_access. Un dev
+  // simulando "Ver como cliente" SÍ sigue teniendo acceso real a los 8 -- sin este chequeo
+  // extra, la simulación de UX quedaría incompleta (vería clientes que Fedra nunca ve).
+  const { effective } = await getEffectiveRole(supabase);
+  const ocultarTest = !isStaffRole(effective);
+  const clients = ((clientRows ?? []) as ClientRow[]).filter((c) => !ocultarTest || !c.slug.endsWith("-test"));
   const clips = (clipRows ?? []) as ClipRow[];
 
   // Último clipping por cliente (el primero que aparece = fecha más nueva).

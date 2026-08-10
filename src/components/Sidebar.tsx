@@ -9,6 +9,8 @@ import {
   BarChart3,
   Upload,
   Database,
+  Activity,
+  ClipboardCheck,
   LogOut,
   Menu,
 } from "lucide-react";
@@ -40,11 +42,17 @@ const ITEMS: Item[] = [
   { href: "/precarga", label: "Precarga", Icon: Upload },
   { href: "/historial", label: "Historial", Icon: History },
   { href: "/estadisticas", label: "Estadísticas", Icon: BarChart3 },
+  { href: "/actividad", label: "Actividad", Icon: Activity },
   { href: "/base-datos", label: "Base de Datos", Icon: Database },
 ];
 
-function NavContent({ onNavigate }: { onNavigate?: () => void }) {
+// TDD §9: Panel PM es ❌ para cliente (a diferencia de Actividad/Base de Datos, que muestran
+// una versión curada) -- por eso ni siquiera aparece en el menú, en vez de un tab oculto.
+const ITEM_PANEL_PM: Item = { href: "/panel-pm", label: "Panel PM", Icon: ClipboardCheck };
+
+function NavContent({ onNavigate, isStaff }: { onNavigate?: () => void; isStaff: boolean }) {
   const pathname = usePathname();
+  const items = isStaff ? [...ITEMS, ITEM_PANEL_PM] : ITEMS;
   return (
     <div className="flex flex-col h-full">
       <div className="px-5 py-5 border-b border-white/10">
@@ -52,7 +60,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {ITEMS.map(({ href, label, Icon, blocked }) => {
+        {items.map(({ href, label, Icon, blocked }) => {
           if (blocked) {
             return (
               <div
@@ -74,13 +82,17 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
               key={href}
               href={href}
               onClick={onNavigate}
+              aria-current={active ? "page" : undefined}
               className={
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition " +
+                "relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition " +
                 (active
-                  ? "bg-white/15 font-medium"
+                  ? "bg-white/15 font-medium text-white"
                   : "text-white/75 hover:bg-white/10 hover:text-white")
               }
             >
+              {active && (
+                <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-brand-accent" />
+              )}
               <Icon size={18} />
               <span>{label}</span>
             </Link>
@@ -108,7 +120,7 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
               <form action={logout}>
                 <button
                   type="submit"
-                  className="inline-flex h-9 items-center justify-center rounded-md bg-[#243f55] px-4 text-sm font-medium text-white hover:bg-[#1b3143]"
+                  className="inline-flex h-9 items-center justify-center rounded-md bg-brand px-4 text-sm font-medium text-white hover:bg-brand-dark"
                 >
                   Cerrar sesión
                 </button>
@@ -124,17 +136,17 @@ function NavContent({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ isStaff = false }: { isStaff?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       {/* Desktop: fijo, alto de pantalla completo */}
-      <aside className="hidden md:block w-56 shrink-0 bg-[#243f55] text-white h-screen sticky top-0">
-        <NavContent />
+      <aside className="hidden md:block w-56 shrink-0 bg-brand-dark text-white h-screen sticky top-0">
+        <NavContent isStaff={isStaff} />
       </aside>
 
       {/* Mobile: barra superior con hamburguesa */}
-      <header className="md:hidden sticky top-0 z-40 flex items-center gap-3 bg-[#243f55] text-white px-4 py-3">
+      <header className="md:hidden sticky top-0 z-40 flex items-center gap-3 bg-brand-dark text-white px-4 py-3">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger
             aria-label="Abrir menú"
@@ -142,9 +154,9 @@ export default function Sidebar() {
           >
             <Menu size={22} />
           </SheetTrigger>
-          <SheetContent side="left" className="w-64 bg-[#243f55] text-white border-none p-0">
+          <SheetContent side="left" className="w-64 bg-brand-dark text-white border-none p-0">
             <SheetTitle className="sr-only">Menú</SheetTitle>
-            <NavContent onNavigate={() => setOpen(false)} />
+            <NavContent onNavigate={() => setOpen(false)} isStaff={isStaff} />
           </SheetContent>
         </Sheet>
         <KetchumLogo className="h-5 w-auto brightness-0 invert" />

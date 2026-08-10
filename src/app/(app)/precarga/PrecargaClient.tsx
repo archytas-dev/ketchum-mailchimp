@@ -340,7 +340,13 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Agregar notas</h2>
           <div className="flex gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={autofillAll}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={autofillAll}
+              title="Trae título y descripción de cada fila que tenga URL pero le falte alguno de los dos"
+            >
               <RefreshCw size={14} /> Autocompletar todas
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={addRow}>
