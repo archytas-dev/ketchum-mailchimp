@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getEffectiveRole, isStaffRole } from "@/lib/auth";
 import {
   FileText,
   Send,
@@ -62,8 +63,14 @@ export default async function EstadisticasPage({
   const clientId = sp.cliente && sp.cliente !== "all" ? sp.cliente : null;
   const supabase = await createClient();
 
-  const { data: clientRows } = await supabase.from("clients").select("id, nombre").order("nombre");
-  const clients = (clientRows ?? []) as { id: string; nombre: string }[];
+  const { effective } = await getEffectiveRole(supabase);
+  const isStaff = isStaffRole(effective);
+  const { data: clientRows } = await supabase.from("clients").select("id, slug, nombre").order("nombre");
+  // El cliente no debe ni saber que los *-test existen (TDD §8.3) -- antes aparecían igual
+  // en el selector, aunque RLS ya impedía ver sus datos si los elegía.
+  const clients = ((clientRows ?? []) as { id: string; slug: string; nombre: string }[]).filter(
+    (c) => isStaff || !c.slug.endsWith("-test"),
+  );
 
   let clipQ = supabase.from("clippings").select("id, client_id, fecha, estado, clients(nombre)");
   if (clientId) clipQ = clipQ.eq("client_id", clientId);
