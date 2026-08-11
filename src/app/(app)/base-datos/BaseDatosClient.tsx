@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, ExternalLink } from "lucide-react";
+import { Plus, ExternalLink, Lock, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -74,22 +74,69 @@ export default function BaseDatosClient({
     return <p className="text-sm text-muted-foreground">No hay clientes visibles para tu usuario.</p>;
   }
 
+  const elegido = clients.find((c) => c.id === clientId);
+  // "<Cliente> - Version Nueva" es la entrada editable. La otra es la version que se envia
+  // hoy, que se muestra solo para consultar.
+  const esVersionNueva = !!elegido?.slug.endsWith("-test");
+  const readOnly = !esVersionNueva;
+
+  // La configuracion que usa la version nueva vive bajo el cliente base (los 4 workflows v3
+  // la piden con get_config_clipping(p_slug: 'booking'|'bms'|'mars'|'msd')). Por eso las dos
+  // entradas del par leen la MISMA config: cambia si se puede editar, no lo que se ve.
+  const slugBase = (elegido?.slug ?? "").replace(/-test$/, "");
+  const configClientId = clients.find((c) => c.slug === slugBase)?.id ?? clientId;
+
   return (
     <div className="space-y-6">
-      <Select value={clientId} onValueChange={(v) => v && setClientId(v)}>
-        <SelectTrigger className="w-56">
-          <SelectValue placeholder="Elegí un cliente">
-            {(value: string) => clients.find((c) => c.id === value)?.nombre ?? ""}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {clients.map((c) => (
-            <SelectItem key={c.id} value={c.id}>
-              {c.nombre}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="flex flex-wrap items-center gap-3">
+        <Select value={clientId} onValueChange={(v) => v && setClientId(v)}>
+          <SelectTrigger className="w-64">
+            <SelectValue placeholder="Elegí un cliente">
+              {(value: string) => clients.find((c) => c.id === value)?.nombre ?? ""}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {clients.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.nombre}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span
+          className={
+            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium " +
+            (esVersionNueva
+              ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-400"
+              : "border-border bg-muted text-muted-foreground")
+          }
+        >
+          {esVersionNueva ? "Se puede editar" : "Solo lectura"}
+        </span>
+      </div>
+
+      {readOnly ? (
+        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 p-3">
+          <Lock size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
+          <p className="text-sm text-foreground/80">
+            Esta es la versión del clipping que estás recibiendo hoy. Sus medios, palabras clave
+            y secciones se administran por fuera de esta pantalla, así que acá se ven pero no se
+            editan.{" "}
+            <span className="font-medium">
+              Para preparar cambios, elegí “{elegido?.nombre} - Versión Nueva” en el selector.
+            </span>
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-start gap-2.5 rounded-lg border border-brand/20 bg-brand/5 p-3">
+          <Info size={16} className="mt-0.5 shrink-0 text-brand" />
+          <p className="text-sm text-foreground/80">
+            Estás editando la nueva versión del clipping. Lo que cambies acá queda guardado y se
+            va a aplicar apenas la pongamos en marcha — el clipping que recibís todos los días
+            todavía no lo toma.
+          </p>
+        </div>
+      )}
 
       <Tabs key={clientId} defaultValue="nicho">
         <TabsList>
@@ -110,28 +157,28 @@ export default function BaseDatosClient({
         </TabsList>
 
         <TabsContent value="nicho" className="pt-6">
-          <MediosTab clientId={clientId} tipo="monitoreado" />
+          <MediosTab clientId={configClientId} tipo="monitoreado" readOnly={readOnly} />
         </TabsContent>
         <TabsContent value="generales" className="pt-6">
-          <MediosTab clientId={clientId} tipo="adicional" />
+          <MediosTab clientId={configClientId} tipo="adicional" readOnly={readOnly} />
         </TabsContent>
         <TabsContent value="keywords" className="pt-6">
-          <KeywordsTab clientId={clientId} />
+          <KeywordsTab clientId={configClientId} readOnly={readOnly} />
         </TabsContent>
         <TabsContent value="secciones" className="pt-6">
-          <SeccionesTab clientId={clientId} />
+          <SeccionesTab clientId={configClientId} readOnly={readOnly} />
         </TabsContent>
         {isStaff && (
           <TabsContent value="alerts" className="pt-6">
             <StaffOnlySection label="Solo staff — el cliente nunca ve esto">
-              <GoogleAlertsTab clientId={clientId} />
+              <GoogleAlertsTab clientId={configClientId} readOnly={readOnly} />
             </StaffOnlySection>
           </TabsContent>
         )}
         {isStaff && (
           <TabsContent value="seguimiento" className="pt-6">
             <StaffOnlySection label="Solo staff — el cliente nunca ve esto">
-              <SeguimientoTab clientId={clientId} />
+              <SeguimientoTab clientId={configClientId} />
             </StaffOnlySection>
           </TabsContent>
         )}
@@ -162,7 +209,7 @@ function DominioLink({ dominio }: { dominio: string }) {
   );
 }
 
-function MediosTab({ clientId, tipo }: { clientId: string; tipo: "monitoreado" | "adicional" }) {
+function MediosTab({ clientId, tipo, readOnly }: { clientId: string; tipo: "monitoreado" | "adicional"; readOnly: boolean }) {
   const cacheKey = `medios:${clientId}:${tipo}`;
   const { rows, setRows, loading, refresh } = useCachedList<MedioRow>(cacheKey, () =>
     listMedios(clientId, tipo),
@@ -211,7 +258,7 @@ function MediosTab({ clientId, tipo }: { clientId: string; tipo: "monitoreado" |
           {rows.length} en total.
         </p>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger render={<Button size="sm" />}>
+          <DialogTrigger render={<Button size="sm" disabled={readOnly} />}>
             <Plus className="size-4" /> Sumar nuevo
           </DialogTrigger>
           <DialogContent>
@@ -262,8 +309,9 @@ function MediosTab({ clientId, tipo }: { clientId: string; tipo: "monitoreado" |
                   <Select
                     value={r.tier ? String(r.tier) : "none"}
                     onValueChange={(v) => handleTier(r, { tier: v === "none" ? null : Number(v) })}
+                    disabled={readOnly}
                   >
-                    <SelectTrigger className={"h-8 w-28 border-transparent font-medium " + tierBadgeClasses(r.tier as 1 | 2 | 3 | 4 | null)}>
+                    <SelectTrigger className={"h-8 w-36 cursor-pointer border-transparent font-medium " + tierBadgeClasses(r.tier as 1 | 2 | 3 | 4 | null)}>
                       <SelectValue>
                         {(value: string) => (
                           <span className="flex items-center gap-1.5">
@@ -296,7 +344,7 @@ function MediosTab({ clientId, tipo }: { clientId: string; tipo: "monitoreado" |
                   />
                 </TableCell>
                 <TableCell>
-                  <EstadoBadge activo={r.activo} onClick={() => handleToggle(r)} />
+                  <EstadoBadge activo={r.activo} onClick={() => handleToggle(r)} disabled={readOnly} />
                 </TableCell>
               </TableRow>
             ))}
@@ -309,7 +357,7 @@ function MediosTab({ clientId, tipo }: { clientId: string; tipo: "monitoreado" |
 
 // ---------------------------------------------------------------------------
 
-function KeywordsTab({ clientId }: { clientId: string }) {
+function KeywordsTab({ clientId, readOnly }: { clientId: string; readOnly: boolean }) {
   const { rows, setRows, loading, refresh } = useCachedList<KeywordRow>(`keywords:${clientId}`, () =>
     listKeywords(clientId),
   );
@@ -343,7 +391,7 @@ function KeywordsTab({ clientId }: { clientId: string }) {
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{rows.length} palabras clave.</p>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger render={<Button size="sm" />}>
+          <DialogTrigger render={<Button size="sm" disabled={readOnly} />}>
             <Plus className="size-4" /> Sumar nueva
           </DialogTrigger>
           <DialogContent>
@@ -394,6 +442,7 @@ function KeywordsTab({ clientId }: { clientId: string }) {
                     onClick={() => handleToggle(r)}
                     labelActivo="Activa"
                     labelInactivo="Inactiva"
+                    disabled={readOnly}
                   />
                 </TableCell>
               </TableRow>
@@ -407,7 +456,7 @@ function KeywordsTab({ clientId }: { clientId: string }) {
 
 // ---------------------------------------------------------------------------
 
-function SeccionesTab({ clientId }: { clientId: string }) {
+function SeccionesTab({ clientId, readOnly }: { clientId: string; readOnly: boolean }) {
   const { rows, setRows, loading, refresh } = useCachedList<SeccionRow>(`secciones:${clientId}`, () =>
     listSecciones(clientId),
   );
@@ -460,7 +509,7 @@ function SeccionesTab({ clientId }: { clientId: string }) {
             }
           }}
         >
-          <DialogTrigger render={<Button size="sm" />}>
+          <DialogTrigger render={<Button size="sm" disabled={readOnly} />}>
             <Plus className="size-4" /> Sumar nueva
           </DialogTrigger>
           <DialogContent>
@@ -539,6 +588,7 @@ function SeccionesTab({ clientId }: { clientId: string }) {
                     onClick={() => handleToggle(r)}
                     labelActivo="Activa"
                     labelInactivo="Inactiva"
+                    disabled={readOnly}
                   />
                 </TableCell>
               </TableRow>
@@ -553,7 +603,7 @@ function SeccionesTab({ clientId }: { clientId: string }) {
 // ---------------------------------------------------------------------------
 // Solo staff (dev/pm) llega a ver estas dos — KET-46.
 
-function GoogleAlertsTab({ clientId }: { clientId: string }) {
+function GoogleAlertsTab({ clientId, readOnly }: { clientId: string; readOnly: boolean }) {
   const { rows, setRows, loading, refresh } = useCachedList<AlertRow>(`alerts:${clientId}`, () =>
     listGoogleAlerts(clientId),
   );
@@ -587,7 +637,7 @@ function GoogleAlertsTab({ clientId }: { clientId: string }) {
           {rows.length} alertas de Google. El cliente no ve esta pestaña.
         </p>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger render={<Button size="sm" />}>
+          <DialogTrigger render={<Button size="sm" disabled={readOnly} />}>
             <Plus className="size-4" /> Sumar nueva
           </DialogTrigger>
           <DialogContent>
@@ -638,6 +688,7 @@ function GoogleAlertsTab({ clientId }: { clientId: string }) {
                     onClick={() => handleToggle(r)}
                     labelActivo="Activa"
                     labelInactivo="Inactiva"
+                    disabled={readOnly}
                   />
                 </TableCell>
               </TableRow>

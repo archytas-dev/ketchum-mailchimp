@@ -21,10 +21,12 @@ test.describe("Base de Datos (KET-45)", () => {
     await expect(page.getByRole("cell", { name: "Clarin" }).first()).toBeVisible({ timeout: 30_000 });
   });
 
+  // Las altas van contra "- Versión Nueva": la entrada sin sufijo es la version que se envia
+  // hoy y quedo en solo lectura.
   test("sumar un medio nuevo aparece en la tabla sin recargar", async ({ page }) => {
     await page.goto("/base-datos");
     await page.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "BMS", exact: true }).click();
+    await page.getByRole("option", { name: "BMS - Versión Nueva" }).click();
     await expect(page.getByRole("cell", { name: "Clarin" }).first()).toBeVisible({ timeout: 30_000 });
 
     const dominio = `e2e-${Date.now()}.com.ar`;
@@ -40,7 +42,7 @@ test.describe("Base de Datos (KET-45)", () => {
   test("crear una sección sin elegir keywords se rechaza (no puede quedar vacía)", async ({ page }) => {
     await page.goto("/base-datos");
     await page.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "BMS", exact: true }).click();
+    await page.getByRole("option", { name: "BMS - Versión Nueva" }).click();
     await page.getByRole("tab", { name: "Secciones" }).click();
 
     await page.getByRole("button", { name: "Sumar nueva" }).click();

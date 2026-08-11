@@ -67,19 +67,42 @@ test.describe("Feedback Fede — Base de Datos", () => {
 
 test.describe("Base de Datos — qué cliente se configura", () => {
   // La version nueva del clipping LEE la config del cliente real (verificado en los 4
-  // workflows v3: get_config_clipping con p_slug 'booking'|'bms'|'mars'|'msd') y ESCRIBE sus
-  // resultados en el *-test. Por eso los "- Versión Nueva" no van en esta pantalla: no tienen
-  // config propia y solo mostraban tablas vacias que parecian un error.
-  test("solo se ofrecen los clientes reales, con el aviso de qué versión los usa", async ({ page }) => {
+  // workflows v3: get_config_clipping con p_slug 'booking'|'bms'|'mars'|'msd'). Por eso las
+  // dos entradas del par muestran la MISMA config: lo que cambia es si se puede editar.
+  test("aparecen las dos versiones de cada cliente", async ({ page }) => {
     await loginAsDev(page);
     await page.goto("/base-datos");
-    await expect(page.getByText(/nueva versión del clipping/i)).toBeVisible();
-
     await page.getByRole("combobox").first().click();
     const opciones = await page.getByRole("option").allInnerTexts();
-    expect(opciones.length).toBeGreaterThan(0);
-    expect(opciones.some((o) => /versión nueva/i.test(o))).toBe(false);
-    expect(opciones.some((o) => /test/i.test(o))).toBe(false);
+    expect(opciones.some((o) => /^booking$/i.test(o.trim()))).toBe(true);
+    expect(opciones.some((o) => /booking - versión nueva/i.test(o))).toBe(true);
+  });
+
+  test("la versión que se envía hoy se ve pero no se edita", async ({ page }) => {
+    await loginAsDev(page);
+    await page.goto("/base-datos");
+    await page.getByRole("combobox").first().click();
+    await page.getByRole("option", { name: "BMS", exact: true }).click();
+    await expect(page.getByRole("cell", { name: "Clarin" }).first()).toBeVisible({ timeout: 30_000 });
+
+    await expect(page.getByText("Solo lectura")).toBeVisible();
+    await expect(page.getByText(/se administran por fuera de esta pantalla/i)).toBeVisible();
+    // El estado se sigue viendo (con su color) pero no se puede tocar.
+    await expect(page.getByRole("button", { name: "Activo" }).first()).toBeDisabled();
+    await expect(page.getByRole("button", { name: /Sumar nuevo/ })).toBeDisabled();
+  });
+
+  test("la Versión Nueva muestra la misma config y sí se edita", async ({ page }) => {
+    await loginAsDev(page);
+    await page.goto("/base-datos");
+    await page.getByRole("combobox").first().click();
+    await page.getByRole("option", { name: "BMS - Versión Nueva" }).click();
+    await expect(page.getByRole("cell", { name: "Clarin" }).first()).toBeVisible({ timeout: 30_000 });
+
+    await expect(page.getByText("Se puede editar")).toBeVisible();
+    await expect(page.getByText(/Estás editando la nueva versión/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Activo" }).first()).toBeEnabled();
+    await expect(page.getByRole("button", { name: /Sumar nuevo/ })).toBeEnabled();
   });
 });
 

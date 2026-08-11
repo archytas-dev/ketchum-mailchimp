@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole, isStaffRole } from "@/lib/auth";
-import { Info } from "lucide-react";
 import BaseDatosClient, { type ClientOpt } from "./BaseDatosClient";
 
 export const dynamic = "force-dynamic";
@@ -16,37 +15,26 @@ export default async function BaseDatosPage() {
   const isStaff = isStaffRole(effective);
 
   const { data: clientRows } = await supabase.from("clients").select("id, slug, nombre");
-  const clients = ((clientRows ?? []) as ClientOpt[])
-    // Los *-test NO se ofrecen acá, ni siquiera a staff: no tienen configuración propia (0
-    // medios, 0 keywords, 0 secciones). Son el destino donde la versión nueva del clipping
-    // guarda sus resultados de prueba. La config que esa versión LEE es la del cliente real
-    // -- verificado en los 4 workflows v3: get_config_clipping(p_slug: 'booking'|'bms'|...).
-    // Ofrecerlos acá solo lograba una pantalla vacía que parecía un error.
-    .filter((c) => !c.slug.endsWith("-test"))
-    .sort((a, b) => {
-      const ia = ORDEN.indexOf(a.slug);
-      const ib = ORDEN.indexOf(b.slug);
-      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-    });
+  // Se ofrecen los 8: cada cliente aparece dos veces, la version actual y la Version Nueva.
+  // Quedan uno al lado del otro (Booking, Booking - Version Nueva, BMS, BMS - Version Nueva...)
+  // para que se lea como un par y no como ocho clientes distintos.
+  const clients = ((clientRows ?? []) as ClientOpt[]).sort((a, b) => {
+    const base = (s: string) => s.replace(/-test$/, "");
+    const ia = ORDEN.indexOf(base(a.slug));
+    const ib = ORDEN.indexOf(base(b.slug));
+    if (ia !== ib) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    // Dentro del par, primero la version actual.
+    return Number(a.slug.endsWith("-test")) - Number(b.slug.endsWith("-test"));
+  });
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
+    // Ancho completo: las tablas de esta pantalla tienen 5 columnas y con max-w-5xl quedaban
+    // apretadas contra el borde mientras sobraba viewport a los costados.
+    <div className="w-full p-6">
       <h1 className="text-xl font-semibold mb-1">Base de Datos</h1>
       <p className="text-sm text-muted-foreground mb-4">
         Medios, palabras clave y secciones de cada clipping.
       </p>
-
-      {/* Los cambios de acá los toma la version nueva del clipping, que todavia no es la que
-          se envia. Se avisa sin nombrar el detalle tecnico de donde sale la config actual:
-          al cliente no le aporta y solo genera preguntas. */}
-      <div className="mb-6 flex items-start gap-2.5 rounded-lg border border-brand/20 bg-brand/5 p-3">
-        <Info size={16} className="mt-0.5 shrink-0 text-brand" />
-        <p className="text-sm text-foreground/80">
-          Lo que edites acá queda guardado y se va a aplicar en la nueva versión del clipping,
-          que estamos terminando de poner en marcha. El clipping que recibís todos los días
-          todavía no toma estos cambios — te avisamos apenas empiece a hacerlo.
-        </p>
-      </div>
 
       <BaseDatosClient clients={clients} isStaff={isStaff} />
     </div>
