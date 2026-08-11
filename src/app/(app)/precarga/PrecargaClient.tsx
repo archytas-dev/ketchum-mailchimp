@@ -27,13 +27,26 @@ import {
   delPrecarga,
   updatePrecarga,
   fetchMeta,
+  lookupTiers,
+  setTierMedio,
   type PrecargaRow,
 } from "./actions";
 import { sectionsFor, defaultSection } from "@/lib/clip/canon";
+import { tierDotClasses, tierBadgeClasses } from "@/lib/tier";
 
 export type ClientOpt = { id: string; slug: string; nombre: string };
 
-type Draft = { medio: string; titulo: string; url: string; snippet: string; seccion: string; loading?: boolean };
+type Draft = {
+  medio: string;
+  titulo: string;
+  url: string;
+  snippet: string;
+  seccion: string;
+  loading?: boolean;
+  // Tier del MEDIO (tabla `tiers`), no de la nota: se muestra el que ya tiene y se puede
+  // cambiar desde acá. `undefined` = todavía no se consultó.
+  tier?: number | null;
+};
 type EditFields = { medio: string; titulo: string; url: string; snippet: string; seccion: string };
 
 // Fecha de mañana en horario AR (UTC-3), formato YYYY-MM-DD.
@@ -95,6 +108,28 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
     setRows((r) => (r.length === 1 ? [emptyDraft(defaultSeccion)] : r.filter((_, j) => j !== i)));
   }
 
+  // Al terminar de escribir el medio, trae el tier que ya tiene cargado para ese cliente:
+  // muestra lo que va a salir en el mail sin tener que ir a Base de Datos a chequearlo.
+  async function refrescarTier(i: number) {
+    const medio = rows[i].medio.trim();
+    if (!medio) return setRow(i, { tier: undefined });
+    const res = await lookupTiers(clientId, [medio]);
+    if (!res.ok) return;
+    setRow(i, { tier: res.data?.[medio]?.tier ?? null });
+  }
+
+  // Cambiar el tier acá escribe en `tiers`, o sea que afecta al medio entero, no solo a esta
+  // nota. Es a propósito: es el mismo dato que edita Base de Datos.
+  async function handleTier(i: number, tier: number | null) {
+    const medio = rows[i].medio.trim();
+    const res = await setTierMedio(clientId, medio, tier);
+    if (!res.ok) return toast.error(res.error);
+    setRow(i, { tier });
+    toast.success(
+      tier ? `${medio} quedó como Tier ${tier} para este cliente.` : `${medio} quedó sin tier asignado.`,
+    );
+  }
+
   async function autofill(i: number) {
     const url = rows[i].url.trim();
     if (!url) return;
@@ -124,6 +159,18 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
     });
     setBulk("");
     toast.success(`${nuevos.length} fila(s) agregada(s). Usá "Autocompletar todas" para traer título y descripción.`);
+    // Las filas pegadas con formato "medio | url" ya traen medio: se les completa el tier de
+    // una sola consulta, en vez de esperar a que el usuario toque cada campo.
+    const medios = [...new Set(nuevos.map((n) => n.medio.trim()).filter(Boolean))];
+    if (medios.length) {
+      lookupTiers(clientId, medios).then((res) => {
+        if (!res.ok || !res.data) return;
+        const porMedio = res.data;
+        setRows((r) =>
+          r.map((x) => (x.medio.trim() && x.tier === undefined ? { ...x, tier: porMedio[x.medio.trim()]?.tier ?? null } : x)),
+        );
+      });
+    }
   }
 
   async function autofillAll() {
@@ -358,12 +405,53 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
         <div className="space-y-3">
           {rows.map((r, i) => (
             <div key={i} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_2fr_auto] gap-2 items-start border-b pb-3">
-              <input
-                placeholder="Medio"
-                value={r.medio}
-                onChange={(e) => setRow(i, { medio: e.target.value })}
-                className="border rounded-md px-2 py-1.5 text-sm bg-background"
-              />
+              <div className="flex flex-col gap-2">
+                <input
+                  placeholder="Medio"
+                  value={r.medio}
+                  onChange={(e) => setRow(i, { medio: e.target.value })}
+                  onBlur={() => refrescarTier(i)}
+                  className="border rounded-md px-2 py-1.5 text-sm bg-background"
+                />
+                <Select
+                  value={r.tier ? String(r.tier) : "none"}
+                  onValueChange={(v) => v && handleTier(i, v === "none" ? null : Number(v))}
+                  disabled={!r.medio.trim()}
+                >
+                  <SelectTrigger
+                    className={
+                      "h-8 text-sm border-transparent font-medium " +
+                      tierBadgeClasses((r.tier ?? null) as 1 | 2 | 3 | 4 | null)
+                    }
+                    title={
+                      r.medio.trim()
+                        ? "Tier del medio — se guarda para todas sus notas, no solo esta"
+                        : "Escribí el medio para poder asignarle un tier"
+                    }
+                  >
+                    <SelectValue>
+                      {(value: string) => (
+                        <span className="flex items-center gap-1.5">
+                          <span
+                            className={
+                              "size-1.5 rounded-full " +
+                              tierDotClasses(value === "none" ? null : (Number(value) as 1 | 2 | 3 | 4))
+                            }
+                          />
+                          {value === "none" ? "Sin tier" : `Tier ${value}`}
+                        </span>
+                      )}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin asignar</SelectItem>
+                    <SelectItem value="1">Tier 1</SelectItem>
+                    <SelectItem value="2">Tier 2</SelectItem>
+                    <SelectItem value="3">Tier 3</SelectItem>
+                    <SelectItem value="4">Tier 4</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <Select value={r.seccion} onValueChange={(v) => v && setRow(i, { seccion: v })}>
                 <SelectTrigger className="text-sm bg-background">
                   <SelectValue placeholder="Sección" />

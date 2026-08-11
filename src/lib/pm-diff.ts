@@ -24,6 +24,25 @@ export function normalizeUrlForDiff(raw: string | null | undefined): string {
   }
 }
 
+// El editor guarda el resaltado de marca dentro del texto (editor.js pinta con foreColor
+// #D32F2F), asi que un titulo "sin tocar" puede venir como
+// `... busquedas en <span style="color:rgb(211, 47, 47)">Booking</span> ...`.
+// Para mostrar y para comparar contenido nos interesa el texto pelado; el markup se compara
+// aparte para poder distinguir "solo pinto la marca" de una edicion real (ver DiffRow.soloFormato).
+export function stripHtml(raw: string | null | undefined): string {
+  if (!raw) return "";
+  return raw
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export type BaseNote = {
   id: string;
   url: string | null;
@@ -49,6 +68,12 @@ export type DiffRow = {
   base?: BaseNote;
   final?: FinalNote;
   descartada?: { fase: string; motivo: string } | null;
+  // Solo en amarillo_editada: el texto pelado quedo igual y lo unico que cambio fue el
+  // resaltado de la marca. Se sigue mostrando, pero etiquetada aparte para no leerla como
+  // una correccion de contenido.
+  soloFormato?: boolean;
+  // Que campos cambiaron, para el desplegable de dos columnas.
+  campos?: ("titulo" | "snippet" | "seccion")[];
 };
 
 // editor_state guardado usa `sections` (ver src/lib/clip/editor.js normalize()); cada nota trae
@@ -104,9 +129,18 @@ export function computeDiff(
     const f = finalByUrl.get(u);
     if (!f) {
       rows.push({ urlNorm: u, tipo: "rojo", base: b });
-    } else if (f.titulo !== b.titulo || f.snippet !== b.snippet || f.seccion !== b.seccion) {
-      rows.push({ urlNorm: u, tipo: "amarillo_editada", base: b, final: f });
+      continue;
     }
+    const campos: ("titulo" | "snippet" | "seccion")[] = [];
+    if (f.titulo !== b.titulo) campos.push("titulo");
+    if (f.snippet !== b.snippet) campos.push("snippet");
+    if (f.seccion !== b.seccion) campos.push("seccion");
+    if (!campos.length) continue;
+    const soloFormato =
+      f.seccion === b.seccion &&
+      stripHtml(f.titulo) === stripHtml(b.titulo) &&
+      stripHtml(f.snippet) === stripHtml(b.snippet);
+    rows.push({ urlNorm: u, tipo: "amarillo_editada", base: b, final: f, soloFormato, campos });
   }
   for (const [u, f] of finalByUrl) {
     if (baseByUrl.has(u)) continue;
@@ -124,6 +158,8 @@ export type DiffStats = {
   verdes: number;
   amarillasNuevas: number;
   amarillasEditadas: number;
+  // Subconjunto de amarillasEditadas donde lo unico que cambio fue el resaltado de la marca.
+  amarillasSoloFormato: number;
   agregadas: number;
   editadas: number;
   precision: number | null;
@@ -137,6 +173,7 @@ export function computeStats(base: BaseNote[], finalNotes: FinalNote[] | null, r
   const verdes = rows.filter((r) => r.tipo === "verde").length;
   const amarillasNuevas = rows.filter((r) => r.tipo === "amarillo_nueva").length;
   const amarillasEditadas = rows.filter((r) => r.tipo === "amarillo_editada").length;
+  const amarillasSoloFormato = rows.filter((r) => r.tipo === "amarillo_editada" && r.soloFormato).length;
   return {
     enviadas,
     totalFinal,
@@ -144,6 +181,7 @@ export function computeStats(base: BaseNote[], finalNotes: FinalNote[] | null, r
     verdes,
     amarillasNuevas,
     amarillasEditadas,
+    amarillasSoloFormato,
     agregadas: verdes + amarillasNuevas,
     editadas: amarillasEditadas,
     precision: enviadas > 0 ? (enviadas - rojas) / enviadas : null,

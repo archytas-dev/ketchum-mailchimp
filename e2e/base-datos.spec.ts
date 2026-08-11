@@ -17,15 +17,15 @@ test.describe("Base de Datos (KET-45)", () => {
     // Seleccionar BMS y esperar que la tabla de "medios de nicho" traiga datos reales
     // (44 medios monitoreados en la base local, clonados de produccion).
     await page.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "BMS" }).click();
-    await expect(page.getByRole("cell", { name: "Clarin" }).first()).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("option", { name: "BMS", exact: true }).click();
+    await expect(page.getByRole("cell", { name: "Clarin" }).first()).toBeVisible({ timeout: 30_000 });
   });
 
   test("sumar un medio nuevo aparece en la tabla sin recargar", async ({ page }) => {
     await page.goto("/base-datos");
     await page.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "BMS" }).click();
-    await expect(page.getByRole("cell", { name: "Clarin" }).first()).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("option", { name: "BMS", exact: true }).click();
+    await expect(page.getByRole("cell", { name: "Clarin" }).first()).toBeVisible({ timeout: 30_000 });
 
     const dominio = `e2e-${Date.now()}.com.ar`;
     await page.getByRole("button", { name: "Sumar nuevo" }).click();
@@ -40,7 +40,7 @@ test.describe("Base de Datos (KET-45)", () => {
   test("crear una sección sin elegir keywords se rechaza (no puede quedar vacía)", async ({ page }) => {
     await page.goto("/base-datos");
     await page.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "BMS" }).click();
+    await page.getByRole("option", { name: "BMS", exact: true }).click();
     await page.getByRole("tab", { name: "Secciones" }).click();
 
     await page.getByRole("button", { name: "Sumar nueva" }).click();

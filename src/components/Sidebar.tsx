@@ -10,6 +10,7 @@ import {
   Upload,
   Database,
   Activity,
+  AlertOctagon,
   ClipboardCheck,
   LogOut,
   Menu,
@@ -41,9 +42,12 @@ const ITEMS: Item[] = [
   { href: "/hoy", label: "Principal", Icon: LayoutDashboard },
   { href: "/precarga", label: "Precarga", Icon: Upload },
   { href: "/historial", label: "Historial", Icon: History },
-  { href: "/estadisticas", label: "Estadísticas", Icon: BarChart3 },
+  // Actividad antes que Estadísticas (pedido de Fedra, 11/08): lo que se mira todos los días
+  // es qué pasó con el clipping de hoy, no la serie histórica.
   { href: "/actividad", label: "Actividad", Icon: Activity },
+  { href: "/estadisticas", label: "Estadísticas", Icon: BarChart3 },
   { href: "/base-datos", label: "Base de Datos", Icon: Database },
+  { href: "/reportes", label: "Reporte de errores", Icon: AlertOctagon },
 ];
 
 // TDD §9: Panel PM es ❌ para cliente (a diferencia de Actividad/Base de Datos, que muestran

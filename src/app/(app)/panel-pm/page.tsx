@@ -9,25 +9,12 @@ import {
   type BaseNote,
 } from "@/lib/pm-diff";
 import PanelPmFilter from "./PanelPmFilter";
-import { ClipboardList, TrendingUp, AlertOctagon, Cpu, Undo2, PlusCircle, Pencil } from "lucide-react";
+import DiffList from "./DiffList";
+import { ClipboardList, TrendingUp, AlertOctagon, Cpu, PlusCircle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 const ORDEN = ["booking", "bms", "msd", "mars"];
-
-const TIPO_LABEL: Record<string, string> = {
-  rojo: "Eliminada",
-  verde: "Agregada — nueva",
-  amarillo_nueva: "Agregada — ya la teníamos",
-  amarillo_editada: "Editada",
-};
-
-const MOTIVO_LABEL: Record<string, string> = {
-  no_aprobado_por_ia: "la IA no la aprobó",
-  filtro_deterministico_quality_guard: "filtro de calidad post-IA",
-};
-
-const FASE_LABEL: Record<string, string> = { ai_filter: "Filtro IA", post_ai: "Post-IA" };
 
 function pct(n: number | null): string {
   return n == null ? "—" : `${Math.round(n * 100)}%`;
@@ -145,10 +132,6 @@ export default async function PanelPmPage({
     actividadPorAccion.set(a.accion, (actividadPorAccion.get(a.accion) ?? 0) + 1);
   }
 
-  const rojas = rows.filter((r) => r.tipo === "rojo");
-  const verdes = rows.filter((r) => r.tipo === "verde");
-  const amarillas = rows.filter((r) => r.tipo === "amarillo_nueva" || r.tipo === "amarillo_editada");
-
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -202,68 +185,7 @@ export default async function PanelPmPage({
             para comparar todavía.
           </p>
         ) : (
-          <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-              <div className="rounded-lg bg-red-50 border border-red-200 p-2 text-center">
-                <p className="text-xs text-red-700">Eliminadas</p>
-                <p className="text-lg font-semibold text-red-700">{rojas.length}</p>
-              </div>
-              <div className="rounded-lg bg-green-50 border border-green-200 p-2 text-center">
-                <p className="text-xs text-green-700">Nuevas (cobertura)</p>
-                <p className="text-lg font-semibold text-green-700">{verdes.length}</p>
-              </div>
-              <div className="rounded-lg bg-amber-50 border border-amber-200 p-2 text-center">
-                <p className="text-xs text-amber-700">Recuperadas + editadas</p>
-                <p className="text-lg font-semibold text-amber-700">{amarillas.length}</p>
-              </div>
-              <div className="rounded-lg bg-muted p-2 text-center">
-                <p className="text-xs text-muted-foreground">Precisión / Cobertura</p>
-                <p className="text-lg font-semibold text-foreground">
-                  {pct(stats.precision)} / {pct(stats.cobertura)}
-                </p>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mb-3">
-              Precisión = qué % de lo que mandamos sirvió. Cobertura = qué % del clipping final
-              salió de nosotros. Rojo = ruido que mandamos, verde = hueco de cobertura (revisar
-              el medio), amarillo-nueva = filtro mal calibrado (ver fase y motivo abajo).
-            </p>
-            {rows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sin diferencias — el cliente no tocó nada.</p>
-            ) : (
-              <ul className="space-y-1.5">
-                {rows.map((r) => {
-                  const d = r.descartada;
-                  const titulo = r.final?.titulo || r.base?.titulo || r.urlNorm;
-                  const medio = r.final?.medio || r.base?.medio;
-                  const Icon =
-                    r.tipo === "rojo"
-                      ? Undo2
-                      : r.tipo === "amarillo_editada"
-                        ? Pencil
-                        : PlusCircle;
-                  const color =
-                    r.tipo === "rojo"
-                      ? "text-red-600"
-                      : r.tipo === "verde"
-                        ? "text-green-600"
-                        : "text-amber-600";
-                  return (
-                    <li key={r.urlNorm} className="flex items-start gap-2 text-sm">
-                      <Icon size={14} className={color + " shrink-0 mt-0.5"} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-foreground/90 truncate">{titulo}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {medio ?? "medio desconocido"} · {TIPO_LABEL[r.tipo]}
-                          {d ? ` · ${FASE_LABEL[d.fase] ?? d.fase}: ${MOTIVO_LABEL[d.motivo] ?? d.motivo}` : ""}
-                        </p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </>
+          <DiffList rows={rows} precision={pct(stats.precision)} cobertura={pct(stats.cobertura)} />
         )}
       </div>
 

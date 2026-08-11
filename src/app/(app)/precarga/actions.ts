@@ -1,6 +1,74 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { tierNorm } from "@/lib/tier";
+
+// ---------- Tier del medio (pedido de Fedra, 11/08) ----------
+//
+// OJO: el tier NO es un dato de la nota, es del MEDIO -- vive en la tabla `tiers` y es lo que
+// n8n resuelve al armar el mail ("Build Tier Lookup"). Por eso Precarga no guarda un tier
+// propio en `notes_precarga`: lo que hace es mostrar el que ya tiene ese medio y dejar
+// cambiarlo ahi mismo, escribiendo en `tiers`. Si se guardara por nota habria dos verdades y
+// el clipping seguiria usando la del medio.
+
+export type TierDeMedio = { tier: number | null; ad_value: number | null };
+
+// Devuelve el tier actual de cada medio, indexado por el nombre tal cual lo escribio el
+// usuario (la normalizacion es interna).
+export async function lookupTiers(
+  clientId: string,
+  medios: string[],
+): Promise<{ ok: boolean; data?: Record<string, TierDeMedio>; error?: string }> {
+  const claves = new Map<string, string>();
+  for (const m of medios) {
+    const k = tierNorm(m);
+    if (k) claves.set(k, m);
+  }
+  if (!claves.size) return { ok: true, data: {} };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tiers")
+    .select("dominio, tier, ad_value")
+    .eq("client_id", clientId)
+    .in("dominio", [...claves.keys()]);
+  if (error) return { ok: false, error: error.message };
+
+  const out: Record<string, TierDeMedio> = {};
+  for (const row of (data ?? []) as { dominio: string; tier: number | null; ad_value: number | null }[]) {
+    const nombreOriginal = claves.get(String(row.dominio).toLowerCase());
+    if (nombreOriginal) out[nombreOriginal] = { tier: row.tier, ad_value: row.ad_value };
+  }
+  return { ok: true, data: out };
+}
+
+// Asigna (o crea) el tier del medio. Mismo camino que Base de Datos: nada de .upsert(), porque
+// el indice unico de `tiers` es sobre (client_id, lower(dominio)) y PostgREST no sabe apuntar
+// a un indice de expresion.
+export async function setTierMedio(
+  clientId: string,
+  nombreMedio: string,
+  tier: number | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const key = tierNorm(nombreMedio);
+  if (!key) return { ok: false, error: "Escribí primero el medio para poder asignarle un tier." };
+  if (tier !== null && (tier < 1 || tier > 4)) return { ok: false, error: "El tier tiene que ser 1, 2, 3 o 4." };
+
+  const supabase = await createClient();
+  const { data: existente, error: findError } = await supabase
+    .from("tiers")
+    .select("id")
+    .eq("client_id", clientId)
+    .ilike("dominio", key)
+    .maybeSingle();
+  if (findError) return { ok: false, error: findError.message };
+
+  const { error } = existente
+    ? await supabase.from("tiers").update({ medio: nombreMedio, tier }).eq("id", existente.id)
+    : await supabase.from("tiers").insert({ client_id: clientId, dominio: key, medio: nombreMedio, tier });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
 
 export type PrecargaNota = {
   medio: string;

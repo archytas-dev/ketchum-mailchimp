@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { Plus, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { tierDotClasses, tierBadgeClasses } from "@/lib/tier";
 import StaffOnlySection from "@/components/StaffOnlySection";
+import EstadoBadge from "@/components/EstadoBadge";
+import { useCachedList, invalidateCached } from "@/lib/use-cached-list";
 import {
   Table,
   TableBody,
@@ -107,27 +109,27 @@ export default function BaseDatosClient({
           )}
         </TabsList>
 
-        <TabsContent value="nicho" className="pt-4">
+        <TabsContent value="nicho" className="pt-6">
           <MediosTab clientId={clientId} tipo="monitoreado" />
         </TabsContent>
-        <TabsContent value="generales" className="pt-4">
+        <TabsContent value="generales" className="pt-6">
           <MediosTab clientId={clientId} tipo="adicional" />
         </TabsContent>
-        <TabsContent value="keywords" className="pt-4">
+        <TabsContent value="keywords" className="pt-6">
           <KeywordsTab clientId={clientId} />
         </TabsContent>
-        <TabsContent value="secciones" className="pt-4">
+        <TabsContent value="secciones" className="pt-6">
           <SeccionesTab clientId={clientId} />
         </TabsContent>
         {isStaff && (
-          <TabsContent value="alerts" className="pt-4">
+          <TabsContent value="alerts" className="pt-6">
             <StaffOnlySection label="Solo staff — el cliente nunca ve esto">
               <GoogleAlertsTab clientId={clientId} />
             </StaffOnlySection>
           </TabsContent>
         )}
         {isStaff && (
-          <TabsContent value="seguimiento" className="pt-4">
+          <TabsContent value="seguimiento" className="pt-6">
             <StaffOnlySection label="Solo staff — el cliente nunca ve esto">
               <SeguimientoTab clientId={clientId} />
             </StaffOnlySection>
@@ -140,32 +142,35 @@ export default function BaseDatosClient({
 
 // ---------------------------------------------------------------------------
 
+// Los dominios se guardan a veces con esquema y a veces sin el; para el href hace falta uno.
+function hrefDeDominio(dominio: string): string {
+  const d = dominio.trim();
+  return /^https?:\/\//i.test(d) ? d : `https://${d}`;
+}
+
+function DominioLink({ dominio }: { dominio: string }) {
+  return (
+    <a
+      href={hrefDeDominio(dominio)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group inline-flex items-center gap-1 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+    >
+      <span className="truncate">{dominio}</span>
+      <ExternalLink className="size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-70" />
+    </a>
+  );
+}
+
 function MediosTab({ clientId, tipo }: { clientId: string; tipo: "monitoreado" | "adicional" }) {
-  const [rows, setRows] = useState<MedioRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = `medios:${clientId}:${tipo}`;
+  const { rows, setRows, loading, refresh } = useCachedList<MedioRow>(cacheKey, () =>
+    listMedios(clientId, tipo),
+  );
   const [open, setOpen] = useState(false);
   const [dominio, setDominio] = useState("");
   const [nombre, setNombre] = useState("");
   const [saving, setSaving] = useState(false);
-
-  async function refresh() {
-    const res = await listMedios(clientId, tipo);
-    if (res.ok) setRows(res.data);
-    else toast.error(res.error);
-  }
-
-  useEffect(() => {
-    let alive = true;
-    listMedios(clientId, tipo).then((res) => {
-      if (!alive) return;
-      if (res.ok) setRows(res.data);
-      else toast.error(res.error);
-      setLoading(false);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [clientId, tipo]);
 
   async function handleAdd() {
     setSaving(true);
@@ -176,6 +181,9 @@ function MediosTab({ clientId, tipo }: { clientId: string; tipo: "monitoreado" |
     setOpen(false);
     setDominio("");
     setNombre("");
+    // El alta puede mover el conteo de la otra pestaña de medios (mismo cliente), asi que se
+    // invalida su cache tambien.
+    invalidateCached(`medios:${clientId}:${tipo === "monitoreado" ? "adicional" : "monitoreado"}`);
     refresh();
   }
 
@@ -247,7 +255,9 @@ function MediosTab({ clientId, tipo }: { clientId: string; tipo: "monitoreado" |
             {rows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell className="font-medium">{r.nombre || "—"}</TableCell>
-                <TableCell className="text-muted-foreground">{r.dominio}</TableCell>
+                <TableCell className="max-w-md">
+                  <DominioLink dominio={r.dominio} />
+                </TableCell>
                 <TableCell>
                   <Select
                     value={r.tier ? String(r.tier) : "none"}
@@ -286,9 +296,7 @@ function MediosTab({ clientId, tipo }: { clientId: string; tipo: "monitoreado" |
                   />
                 </TableCell>
                 <TableCell>
-                  <Button variant={r.activo ? "outline" : "secondary"} size="sm" onClick={() => handleToggle(r)}>
-                    {r.activo ? "Activo" : "Inactivo"}
-                  </Button>
+                  <EstadoBadge activo={r.activo} onClick={() => handleToggle(r)} />
                 </TableCell>
               </TableRow>
             ))}
@@ -302,31 +310,13 @@ function MediosTab({ clientId, tipo }: { clientId: string; tipo: "monitoreado" |
 // ---------------------------------------------------------------------------
 
 function KeywordsTab({ clientId }: { clientId: string }) {
-  const [rows, setRows] = useState<KeywordRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { rows, setRows, loading, refresh } = useCachedList<KeywordRow>(`keywords:${clientId}`, () =>
+    listKeywords(clientId),
+  );
   const [open, setOpen] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [grupo, setGrupo] = useState("");
   const [saving, setSaving] = useState(false);
-
-  async function refresh() {
-    const res = await listKeywords(clientId);
-    if (res.ok) setRows(res.data);
-    else toast.error(res.error);
-  }
-
-  useEffect(() => {
-    let alive = true;
-    listKeywords(clientId).then((res) => {
-      if (!alive) return;
-      if (res.ok) setRows(res.data);
-      else toast.error(res.error);
-      setLoading(false);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [clientId]);
 
   async function handleAdd() {
     setSaving(true);
@@ -337,6 +327,8 @@ function KeywordsTab({ clientId }: { clientId: string }) {
     setOpen(false);
     setKeyword("");
     setGrupo("");
+    // La keyword nueva cambia el contador de keywords de su seccion.
+    invalidateCached(`secciones:${clientId}`);
     refresh();
   }
 
@@ -397,9 +389,12 @@ function KeywordsTab({ clientId }: { clientId: string }) {
                   <Badge variant="secondary">{r.grupo}</Badge>
                 </TableCell>
                 <TableCell>
-                  <Button variant={r.activa ? "outline" : "secondary"} size="sm" onClick={() => handleToggle(r)}>
-                    {r.activa ? "Activa" : "Inactiva"}
-                  </Button>
+                  <EstadoBadge
+                    activo={r.activa}
+                    onClick={() => handleToggle(r)}
+                    labelActivo="Activa"
+                    labelInactivo="Inactiva"
+                  />
                 </TableCell>
               </TableRow>
             ))}
@@ -413,34 +408,18 @@ function KeywordsTab({ clientId }: { clientId: string }) {
 // ---------------------------------------------------------------------------
 
 function SeccionesTab({ clientId }: { clientId: string }) {
-  const [rows, setRows] = useState<SeccionRow[]>([]);
-  const [keywords, setKeywords] = useState<KeywordRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { rows, setRows, loading, refresh } = useCachedList<SeccionRow>(`secciones:${clientId}`, () =>
+    listSecciones(clientId),
+  );
+  // Misma clave que usa KeywordsTab: si ya pasaste por esa pestaña, esto no vuelve al servidor.
+  const { rows: keywords, refresh: refreshKeywords } = useCachedList<KeywordRow>(
+    `keywords:${clientId}`,
+    () => listKeywords(clientId),
+  );
   const [open, setOpen] = useState(false);
   const [nombre, setNombre] = useState("");
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-
-  async function refresh() {
-    const [seccionesRes, keywordsRes] = await Promise.all([listSecciones(clientId), listKeywords(clientId)]);
-    if (seccionesRes.ok) setRows(seccionesRes.data);
-    else toast.error(seccionesRes.error);
-    if (keywordsRes.ok) setKeywords(keywordsRes.data);
-  }
-
-  useEffect(() => {
-    let alive = true;
-    Promise.all([listSecciones(clientId), listKeywords(clientId)]).then(([seccionesRes, keywordsRes]) => {
-      if (!alive) return;
-      if (seccionesRes.ok) setRows(seccionesRes.data);
-      else toast.error(seccionesRes.error);
-      if (keywordsRes.ok) setKeywords(keywordsRes.data);
-      setLoading(false);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [clientId]);
 
   async function handleAdd() {
     setSaving(true);
@@ -451,7 +430,8 @@ function SeccionesTab({ clientId }: { clientId: string }) {
     setOpen(false);
     setNombre("");
     setSelectedKeywords([]);
-    refresh();
+    // Las keywords elegidas cambiaron de sección: la lista de keywords quedó vieja.
+    await Promise.all([refresh(), refreshKeywords()]);
   }
 
   async function handleToggle(row: SeccionRow) {
@@ -554,9 +534,12 @@ function SeccionesTab({ clientId }: { clientId: string }) {
                   )}
                 </TableCell>
                 <TableCell>
-                  <Button variant={r.activa ? "outline" : "secondary"} size="sm" onClick={() => handleToggle(r)}>
-                    {r.activa ? "Activa" : "Inactiva"}
-                  </Button>
+                  <EstadoBadge
+                    activo={r.activa}
+                    onClick={() => handleToggle(r)}
+                    labelActivo="Activa"
+                    labelInactivo="Inactiva"
+                  />
                 </TableCell>
               </TableRow>
             ))}
@@ -571,31 +554,13 @@ function SeccionesTab({ clientId }: { clientId: string }) {
 // Solo staff (dev/pm) llega a ver estas dos — KET-46.
 
 function GoogleAlertsTab({ clientId }: { clientId: string }) {
-  const [rows, setRows] = useState<AlertRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { rows, setRows, loading, refresh } = useCachedList<AlertRow>(`alerts:${clientId}`, () =>
+    listGoogleAlerts(clientId),
+  );
   const [open, setOpen] = useState(false);
   const [tema, setTema] = useState("");
   const [urlRss, setUrlRss] = useState("");
   const [saving, setSaving] = useState(false);
-
-  async function refresh() {
-    const res = await listGoogleAlerts(clientId);
-    if (res.ok) setRows(res.data);
-    else toast.error(res.error);
-  }
-
-  useEffect(() => {
-    let alive = true;
-    listGoogleAlerts(clientId).then((res) => {
-      if (!alive) return;
-      if (res.ok) setRows(res.data);
-      else toast.error(res.error);
-      setLoading(false);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [clientId]);
 
   async function handleAdd() {
     setSaving(true);
@@ -664,11 +629,16 @@ function GoogleAlertsTab({ clientId }: { clientId: string }) {
             {rows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell className="font-medium">{r.tema}</TableCell>
-                <TableCell className="text-muted-foreground max-w-md truncate">{r.url_rss}</TableCell>
+                <TableCell className="max-w-md">
+                  <DominioLink dominio={r.url_rss} />
+                </TableCell>
                 <TableCell>
-                  <Button variant={r.activa ? "outline" : "secondary"} size="sm" onClick={() => handleToggle(r)}>
-                    {r.activa ? "Activa" : "Inactiva"}
-                  </Button>
+                  <EstadoBadge
+                    activo={r.activa}
+                    onClick={() => handleToggle(r)}
+                    labelActivo="Activa"
+                    labelInactivo="Inactiva"
+                  />
                 </TableCell>
               </TableRow>
             ))}
@@ -687,31 +657,14 @@ const ESTADO_LABEL: Record<SeguimientoRow["estado"], string> = {
 };
 
 function SeguimientoTab({ clientId }: { clientId: string }) {
-  const [rows, setRows] = useState<SeguimientoRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { rows, setRows, loading, refresh } = useCachedList<SeguimientoRow>(
+    `seguimiento:${clientId}`,
+    () => listSeguimiento(clientId),
+  );
   const [open, setOpen] = useState(false);
   const [medio, setMedio] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [saving, setSaving] = useState(false);
-
-  async function refresh() {
-    const res = await listSeguimiento(clientId);
-    if (res.ok) setRows(res.data);
-    else toast.error(res.error);
-  }
-
-  useEffect(() => {
-    let alive = true;
-    listSeguimiento(clientId).then((res) => {
-      if (!alive) return;
-      if (res.ok) setRows(res.data);
-      else toast.error(res.error);
-      setLoading(false);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [clientId]);
 
   async function handleAdd() {
     setSaving(true);

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole, isStaffRole } from "@/lib/auth";
-import { Radio, Filter, KeyRound, Undo2, ClipboardList, Cpu, HeartPulse, CheckCircle2, AlertTriangle, Sparkles } from "lucide-react";
+import { Radio, KeyRound, Undo2, ClipboardList, Cpu, HeartPulse, CheckCircle2, AlertTriangle, Sparkles, ShieldAlert, ExternalLink } from "lucide-react";
 import ActividadFilter from "./ActividadFilter";
 import CopyLinkButton from "./CopyLinkButton";
 import RecuperarButton from "./RecuperarButton";
@@ -314,6 +314,90 @@ export default async function ActividadPage({
         <p className="text-sm text-red-600">No se pudo cargar la actividad: {resumenError.message}</p>
       )}
 
+      {/* Casi entraron y Medios que nos rebotaron van PRIMERO (pedido de Fedra, 11/08): es lo
+          accionable del día. Ninguna de las dos depende de que exista una fila en run_stats
+          -- leen notas_descartadas y medios_bloqueados. */}
+
+      {/* Casi entraron */}
+      <div className="bg-card rounded-xl border border-border p-4">
+        <h2 className="text-sm font-medium text-foreground mb-1 flex items-center gap-2">
+          <Undo2 size={15} className="text-muted-foreground" /> Casi entraron
+        </h2>
+        <p className="text-xs text-muted-foreground mb-3">
+          Notas que se descartaron durante el filtrado. Si alguna te parece que debería haber
+          entrado, agregala directo al clipping de hoy (aparece en Principal) o abrila para
+          chequearla.
+        </p>
+        {descartadas.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Sin descartes pendientes.</p>
+        ) : (
+          <ul className="space-y-2">
+            {descartadas.map((d) => (
+              <li key={d.id} className="flex items-start gap-2 text-sm">
+                <RecuperarButton descartadaId={d.id} clientId={clientId} />
+                {d.url ? <CopyLinkButton url={d.url} /> : <span className="w-7 shrink-0" />}
+                <div className="flex-1 min-w-0">
+                  {d.url ? (
+                    <a
+                      href={d.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group flex items-center gap-1 text-foreground/90 underline-offset-4 hover:text-foreground hover:underline"
+                    >
+                      <span className="truncate">{d.titulo}</span>
+                      <ExternalLink className="size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-70" />
+                    </a>
+                  ) : (
+                    <p className="text-foreground/90 truncate">{d.titulo}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {d.medio ?? "medio desconocido"} · {MOTIVO_LABEL[d.motivo] ?? d.motivo}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Medios que nos rebotaron (pedido de Fedra, 11/08) */}
+      <div className="bg-card rounded-xl border border-border p-4">
+        <h2 className="text-sm font-medium text-foreground mb-1 flex items-center gap-2">
+          <ShieldAlert size={15} className="text-muted-foreground" /> Medios que nos rebotaron
+        </h2>
+        <p className="text-xs text-muted-foreground mb-3">
+          Medios que nos rechazaron el acceso (nos detectan como bot o piden suscripción), así
+          que sus notas nunca llegaron a evaluarse. Abrí el medio para chequear si hoy publicó
+          algo que debería haber entrado.
+        </p>
+        {bloqueados.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Ningún medio nos rebotó en las corridas registradas.
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {bloqueados.map((b) => (
+              <li key={b.dominio} className="flex items-center gap-2 text-sm">
+                <ShieldAlert size={13} className="text-amber-600 shrink-0" />
+                <a
+                  href={/^https?:\/\//i.test(b.dominio) ? b.dominio : `https://${b.dominio}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex min-w-0 flex-1 items-center gap-1 text-foreground/90 underline-offset-4 hover:text-foreground hover:underline"
+                >
+                  <span className="truncate">{b.dominio}</span>
+                  <ExternalLink className="size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-70" />
+                </a>
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {b.motivo ?? (b.http_status ? `HTTP ${b.http_status}` : "sin motivo")} · {b.intentos}{" "}
+                  {b.intentos === 1 ? "intento" : "intentos"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {!resumenError && !ultimo && (
         <p className="text-sm text-muted-foreground">
           Todavía no hay corridas registradas para este cliente en los últimos 14 días.
@@ -376,25 +460,6 @@ export default async function ActividadPage({
                 Esta corrida es de antes de instrumentar el detalle por medio — solo quedó el
                 conteo agregado de arriba.
               </p>
-            )}
-            {bloqueados.length > 0 && (
-              <>
-                <p className="text-xs font-medium text-muted-foreground mb-1">
-                  Bloqueados (fallan hace rato, no es solo esta corrida)
-                </p>
-                <ul className="space-y-1.5">
-                  {bloqueados.map((b) => (
-                    <li key={b.dominio} className="flex items-center gap-2 text-sm">
-                      <Filter size={13} className="text-muted-foreground shrink-0" />
-                      <span className="text-foreground/90 flex-1 truncate">{b.dominio}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {b.motivo ?? (b.http_status ? `HTTP ${b.http_status}` : "sin motivo")} · {b.intentos}{" "}
-                        {b.intentos === 1 ? "intento" : "intentos"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </>
             )}
           </div>
 
@@ -464,40 +529,8 @@ export default async function ActividadPage({
         </>
       )}
 
-      {/* De aquí en adelante NO depende de que exista una fila en run_stats -- "Casi
-          entraron" lee notas_descartadas, "Cambios del cliente" lee config_changelog, el
-          Health check son conteos de otras tablas. Un cliente sin corridas de v3 todavía
-          (ej. bms-test antes de la primera ejecución) puede perfectamente tener descartes
-          o cambios de config que sí tiene sentido mostrar. */}
-
-          {/* Casi entraron */}
-          <div className="bg-card rounded-xl border border-border p-4">
-            <h2 className="text-sm font-medium text-foreground mb-1 flex items-center gap-2">
-              <Undo2 size={15} className="text-muted-foreground" /> Casi entraron
-            </h2>
-            <p className="text-xs text-muted-foreground mb-3">
-              Notas que se descartaron durante el filtrado. Si alguna te parece que debería haber
-              entrado, agregala directo al clipping de hoy (aparece en Principal) o copiá el link.
-            </p>
-            {descartadas.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sin descartes pendientes.</p>
-            ) : (
-              <ul className="space-y-2">
-                {descartadas.map((d) => (
-                  <li key={d.id} className="flex items-start gap-2 text-sm">
-                    <RecuperarButton descartadaId={d.id} clientId={clientId} />
-                    {d.url ? <CopyLinkButton url={d.url} /> : <span className="w-7 shrink-0" />}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-foreground/90 truncate">{d.titulo}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {d.medio ?? "medio desconocido"} · {MOTIVO_LABEL[d.motivo] ?? d.motivo}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+      {/* Cambios del cliente y Health check tampoco dependen de run_stats: leen
+          config_changelog y conteos de otras tablas. */}
 
           {/* Descartadas completas (staff-only, TDD §8.3) */}
           {isStaff && (

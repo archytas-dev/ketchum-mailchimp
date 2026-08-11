@@ -1,21 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-
-// Mismo algoritmo que usa n8n (nodo "Build Tier Lookup" de los workflows v3) para pasar de
-// nombre de medio a la clave que usa la tabla `tiers`. Copiado literal desde el Code node,
-// no reinventado: si se reimplementa desde la descripcion de negocio se pierde el ajuste
-// (ver TDD). El Excel de Fedra no tiene columna de dominio, solo nombre de medio.
-function tierNorm(s: string): string {
-  return String(s || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9 ]/g, " ")
-    .replace(/\b(online|web|com|ar|digital|diario|portal|noticias|el|la|los|las)\b/g, " ")
-    .replace(/ +/g, " ")
-    .trim();
-}
+import { tierNorm } from "@/lib/tier";
 
 type Ok<T = undefined> = { ok: true } & (T extends undefined ? unknown : { data: T });
 type Err = { ok: false; error: string };
@@ -106,12 +92,29 @@ export async function updateMedioTier(
     return { ok: false, error: "El tier tiene que ser 1, 2, 3 o 4." };
   }
   const supabase = await createClient();
-  const { error } = await supabase
+
+  // Nada de .upsert() aca: el indice unico de `tiers` es sobre (client_id, lower(dominio)) --
+  // un indice de expresion. PostgREST solo sabe mandar nombres de columna en onConflict, asi
+  // que Postgres no encuentra indice que matchee y devuelve "there is no unique or exclusion
+  // constraint matching the ON CONFLICT specification". Se resuelve buscando primero.
+  // `key` ya viene en minusculas de tierNorm(), y ilike sin comodines compara exacto pero
+  // case-insensitive, igual que el indice.
+  const { data: existente, error: findError } = await supabase
     .from("tiers")
-    .upsert(
-      { client_id: clientId, dominio: key, medio: nombreMedio, tier: input.tier, ad_value: input.ad_value },
-      { onConflict: "client_id,dominio" },
-    );
+    .select("id")
+    .eq("client_id", clientId)
+    .ilike("dominio", key)
+    .maybeSingle();
+  if (findError) return { ok: false, error: findError.message };
+
+  const { error } = existente
+    ? await supabase
+        .from("tiers")
+        .update({ medio: nombreMedio, tier: input.tier, ad_value: input.ad_value })
+        .eq("id", existente.id)
+    : await supabase
+        .from("tiers")
+        .insert({ client_id: clientId, dominio: key, medio: nombreMedio, tier: input.tier, ad_value: input.ad_value });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }

@@ -5,6 +5,23 @@
 
 export type TierValue = 1 | 2 | 3 | 4 | null;
 
+// Mismo algoritmo que usa n8n (nodo "Build Tier Lookup" de los workflows v3) para pasar de
+// nombre de medio a la clave de la tabla `tiers`. Copiado literal desde el Code node: si se
+// reimplementa desde la descripcion de negocio se pierde el ajuste (ver TDD). El Excel de
+// Fedra no tiene columna de dominio, solo nombre de medio.
+// Vive aca -- y no en el actions.ts de una pantalla -- porque lo necesitan Base de Datos y
+// Precarga por igual, y tiene que ser exactamente el mismo en las dos.
+export function tierNorm(s: string): string {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\b(online|web|com|ar|digital|diario|portal|noticias|el|la|los|las)\b/g, " ")
+    .replace(/ +/g, " ")
+    .trim();
+}
+
 export const TIER_LABEL: Record<string, string> = {
   "1": "Tier 1",
   "2": "Tier 2",
