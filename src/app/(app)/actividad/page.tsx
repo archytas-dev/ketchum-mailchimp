@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole, isStaffRole } from "@/lib/auth";
-import { Radio, KeyRound, Undo2, ClipboardList, Cpu, HeartPulse, CheckCircle2, AlertTriangle, Sparkles, ShieldAlert, ExternalLink } from "lucide-react";
+import { ordenarClientes } from "@/lib/clientes";
+import { Radio, KeyRound, Undo2, ClipboardList, Cpu, HeartPulse, CheckCircle2, AlertTriangle, ShieldAlert, ExternalLink } from "lucide-react";
 import ActividadFilter from "./ActividadFilter";
 import CopyLinkButton from "./CopyLinkButton";
 import RecuperarButton from "./RecuperarButton";
@@ -8,7 +9,6 @@ import StaffOnlySection from "@/components/StaffOnlySection";
 
 export const dynamic = "force-dynamic";
 
-const ORDEN = ["booking", "bms", "msd", "mars"];
 
 type MedioDetalle = { dominio: string; ok: boolean };
 type KeywordDetalle = { keyword: string; grupo: string | null; activa: boolean; matches: number };
@@ -143,38 +143,11 @@ export default async function ActividadPage({
   const { effective } = await getEffectiveRole(supabase);
   const isStaff = isStaffRole(effective);
 
-  // Pendiente de decisión de producto (10/08): el TDD §9 marca Actividad como visible para
-  // cliente, pero hoy v3 (que es lo único que instrumenta run_stats/notas_descartadas) todavía
-  // no corrió para ningún cliente real -- mostrarle a Fedra un tab que sólo dice "sin datos"
-  // es más confuso que útil. Mientras tanto, cliente ve un "Próximamente" y listo; volver a
-  // habilitar el contenido real cuando v3 esté activo para clientes reales (Fase 4 del TDD).
-  if (!isStaff) {
-    return (
-      <div className="max-w-5xl mx-auto p-6">
-        <h1 className="text-xl font-semibold text-foreground mb-1">Actividad</h1>
-        <div className="mt-6 flex flex-col items-center text-center gap-3 rounded-xl border border-dashed border-border bg-card p-10">
-          <Sparkles size={22} className="text-brand" />
-          <p className="text-base font-medium text-foreground">Próximamente</p>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            Estamos terminando de armar esta sección para que puedas ver la cobertura de medios,
-            el embudo de notas y las que casi entran. Todavía no hay nada para mostrar acá.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
+  // Hasta el 11/08 el cliente veía un "Próximamente" acá, porque la telemetría solo existía
+  // para los clientes de prueba. Ahora ve la pantalla real: elige entre la versión que recibe
+  // hoy y la nueva, y en la nueva sí hay datos de corridas.
   const { data: clientRows } = await supabase.from("clients").select("id, slug, nombre");
-  const clients = ((clientRows ?? []) as { id: string; slug: string; nombre: string }[])
-    // Mismo criterio que Base de Datos (recién corregido): el cliente no ve *-test, pero
-    // dev/pm sí -- son justamente los que corren los workflows v3 y necesitan ver su
-    // propia actividad de prueba ahí.
-    .filter((c) => isStaff || !c.slug.endsWith("-test"))
-    .sort((a, b) => {
-      const ia = ORDEN.indexOf(a.slug);
-      const ib = ORDEN.indexOf(b.slug);
-      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-    });
+  const clients = ordenarClientes((clientRows ?? []) as { id: string; slug: string; nombre: string }[]);
 
   const clientId = sp.cliente && clients.some((c) => c.id === sp.cliente) ? sp.cliente : clients[0]?.id;
 

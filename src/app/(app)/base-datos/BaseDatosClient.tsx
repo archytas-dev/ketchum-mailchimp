@@ -330,18 +330,15 @@ function MediosTab({ clientId, tipo, readOnly }: { clientId: string; tipo: "moni
                     </SelectContent>
                   </Select>
                 </TableCell>
-                <TableCell>
-                  <Input
-                    className="h-8 w-32"
-                    type="number"
-                    defaultValue={r.ad_value ?? ""}
-                    placeholder="Sin asignar"
-                    onBlur={(e) => {
-                      const v = e.target.value.trim();
-                      const parsed = v ? Number(v) : null;
-                      if (parsed !== r.ad_value) handleTier(r, { ad_value: parsed });
-                    }}
-                  />
+                {/* Ad Value es de solo lectura (pedido de Adrián, 11/08): sale del tier del
+                    medio, no se carga a mano. Se muestra formateado para poder leerlo de un
+                    vistazo -- 41597679 no se lee, 41.597.679 sí. */}
+                <TableCell className="tabular-nums text-foreground/90">
+                  {r.ad_value != null ? (
+                    r.ad_value.toLocaleString("es-AR")
+                  ) : (
+                    <span className="text-muted-foreground">Sin asignar</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   <EstadoBadge activo={r.activo} onClick={() => handleToggle(r)} disabled={readOnly} />

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { getEffectiveRole, isStaffRole } from "@/lib/auth";
+import { ordenarClientes } from "@/lib/clientes";
 import PrincipalClient, { type ClientPayload } from "./PrincipalClient";
 
 export const dynamic = "force-dynamic";
@@ -48,12 +48,9 @@ export default async function HoyPage() {
       .order("fecha", { ascending: false }),
   ]);
 
-  // Un cliente real nunca ve *-test porque RLS filtra su user_client_access. Un dev
-  // simulando "Ver como cliente" SÍ sigue teniendo acceso real a los 8 -- sin este chequeo
-  // extra, la simulación de UX quedaría incompleta (vería clientes que Fedra nunca ve).
-  const { effective } = await getEffectiveRole(supabase);
-  const ocultarTest = !isStaffRole(effective);
-  const clients = ((clientRows ?? []) as ClientRow[]).filter((c) => !ocultarTest || !c.slug.endsWith("-test"));
+  // El cliente ve las dos versiones de cada clipping (decisión de Adrián, 11/08): la que
+  // recibe hoy y la nueva. Quién puede ver qué lo define RLS via user_client_access.
+  const clients = ordenarClientes((clientRows ?? []) as ClientRow[]);
   const clips = (clipRows ?? []) as ClipRow[];
 
   // Último clipping por cliente (el primero que aparece = fecha más nueva).

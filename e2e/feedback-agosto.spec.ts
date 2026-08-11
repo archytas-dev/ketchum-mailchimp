@@ -219,6 +219,42 @@ test.describe("Feedback Fedra — Reporte de errores (KET-49)", () => {
   });
 });
 
+test.describe("Las dos versiones en todas las pantallas", () => {
+  for (const ruta of ["/hoy", "/precarga", "/historial", "/estadisticas", "/actividad", "/reportes"]) {
+    test(`${ruta} ofrece la versión actual y la nueva`, async ({ page }) => {
+      await loginAsDev(page);
+      await page.goto(ruta);
+      // Segun la pantalla el selector es tabs (ya visibles) o un combobox que hay que abrir.
+      const combo = page.getByRole("combobox").first();
+      if (await combo.count()) await combo.click();
+      await expect(page.getByText(/versión nueva/i).first()).toBeVisible({ timeout: 30_000 });
+    });
+  }
+
+  test("Actividad ya no muestra “Próximamente”", async ({ page }) => {
+    await loginAsDev(page);
+    await page.goto("/actividad");
+    await expect(page.getByText("Próximamente")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Actividad" })).toBeVisible();
+  });
+});
+
+test.describe("Reporte de errores — versión vieja vs nueva", () => {
+  test("avisa en rojo cuando el reporte es sobre la versión que se envía hoy", async ({ page }) => {
+    await loginAsDev(page);
+    await page.goto("/reportes");
+    await expect(page.getByText(/versión anterior del clipping/i)).toBeVisible({ timeout: 30_000 });
+  });
+
+  test("sobre la Versión Nueva no aparece el aviso", async ({ page }) => {
+    await loginAsDev(page);
+    await page.goto("/reportes");
+    await page.getByRole("combobox").first().click();
+    await page.getByRole("option", { name: /- Versión Nueva/ }).first().click();
+    await expect(page.getByText(/versión anterior del clipping/i)).toHaveCount(0);
+  });
+});
+
 test.describe("Feedback Fedra — Tier en Precarga", () => {
   test("al escribir el medio muestra su tier y se puede cambiar", async ({ page }) => {
     await loginAsDev(page);

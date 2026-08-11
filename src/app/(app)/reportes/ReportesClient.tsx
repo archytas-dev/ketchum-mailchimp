@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Send, ExternalLink } from "lucide-react";
+import { Send, ExternalLink, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -93,6 +93,9 @@ export default function ReportesClient({
     return <p className="text-sm text-muted-foreground">No hay clientes visibles para tu usuario.</p>;
   }
 
+  const elegido = clients.find((c) => c.id === clientId);
+  const esVersionNueva = !!elegido?.slug.endsWith("-test");
+
   const puedeEnviar = !saving && !!tipo && !!descripcion.trim() && !!fecha;
 
   return (
@@ -104,6 +107,23 @@ export default function ReportesClient({
           Contanos qué salió mal en un clipping y lo revisamos. Si es sobre una nota puntual,
           pegá el link.
         </p>
+
+        {/* Se puede reportar sobre cualquiera de las dos versiones, pero sobre la que se envia
+            hoy el aviso tiene que ser imposible de pasar por alto: esos errores no se corrigen
+            ahi, se tienen en cuenta para la version nueva. */}
+        {!esVersionNueva && (
+          <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-red-300 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/40">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-red-600 dark:text-red-400" />
+            <p className="text-sm text-red-800 dark:text-red-300">
+              <span className="font-semibold">
+                Estás reportando un error sobre la versión anterior del clipping.
+              </span>{" "}
+              Lo vamos a registrar y tener en cuenta, pero las correcciones se aplican sobre la
+              nueva versión. Si el error también pasa ahí, conviene reportarlo eligiendo “
+              {elegido?.nombre} - Versión Nueva”.
+            </p>
+          </div>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">

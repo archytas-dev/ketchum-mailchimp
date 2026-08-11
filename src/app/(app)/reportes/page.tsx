@@ -1,10 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole, isStaffRole } from "@/lib/auth";
+import { ordenarClientes } from "@/lib/clientes";
 import ReportesClient, { type ClientOpt } from "./ReportesClient";
 
 export const dynamic = "force-dynamic";
-
-const ORDEN = ["booking", "bms", "msd", "mars"];
 
 // KET-49. A diferencia de Base de Datos, esta pantalla SI se le muestra al cliente aunque su
 // clipping lo genere todavia v2: reportar un error no depende de que la config viva en estas
@@ -15,13 +14,9 @@ export default async function ReportesPage() {
   const isStaff = isStaffRole(effective);
 
   const { data: clientRows } = await supabase.from("clients").select("id, slug, nombre");
-  const clients = ((clientRows ?? []) as ClientOpt[])
-    .filter((c) => isStaff || !c.slug.endsWith("-test"))
-    .sort((a, b) => {
-      const ia = ORDEN.indexOf(a.slug);
-      const ib = ORDEN.indexOf(b.slug);
-      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-    });
+  // Las dos versiones de cada clipping: se puede reportar un error sobre cualquiera, pero
+  // sobre la que se envía hoy se avisa que ya no se corrige (ver el cartel rojo en el form).
+  const clients = ordenarClientes((clientRows ?? []) as ClientOpt[]);
 
   return (
     <div className="max-w-5xl mx-auto p-6">
