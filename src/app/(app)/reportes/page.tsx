@@ -19,7 +19,9 @@ export default async function ReportesPage() {
   const clients = ordenarClientes((clientRows ?? []) as ClientOpt[]);
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
+    // Ancho completo, mismo criterio que Base de Datos: con max-w quedaba angosto mientras
+    // sobraba viewport a los costados.
+    <div className="w-full p-6">
       <h1 className="text-xl font-semibold mb-1">Reporte de errores</h1>
       <p className="text-sm text-muted-foreground mb-6">
         Si algo salió mal en un clipping, contanoslo acá. Queda registrado con fecha y lo

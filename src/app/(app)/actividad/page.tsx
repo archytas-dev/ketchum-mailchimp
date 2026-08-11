@@ -153,7 +153,7 @@ export default async function ActividadPage({
 
   if (!clientId) {
     return (
-      <div className="max-w-5xl mx-auto p-6">
+      <div className="w-full p-6">
         <h1 className="text-xl font-semibold mb-1">Actividad</h1>
         <p className="text-sm text-muted-foreground">No hay clientes disponibles.</p>
       </div>
@@ -274,7 +274,9 @@ export default async function ActividadPage({
   })();
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
+    // Ancho completo, mismo criterio que Base de Datos: con max-w quedaba angosto mientras
+    // sobraba viewport a los costados.
+    <div className="w-full p-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Actividad</h1>

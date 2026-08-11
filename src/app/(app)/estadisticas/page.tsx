@@ -182,7 +182,9 @@ export default async function EstadisticasPage({
   const totalExportsWindow = exportsByDay.reduce((s, x) => s + x.n, 0);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+    // Ancho completo, mismo criterio que Base de Datos: con max-w quedaba angosto mientras
+    // sobraba viewport a los costados.
+    <div className="w-full px-4 sm:px-6 py-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-foreground">Estadísticas</h1>
         <EstadisticasFilter clients={clients} value={clientId ?? "all"} />

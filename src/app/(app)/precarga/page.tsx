@@ -12,7 +12,9 @@ export default async function PrecargaPage() {
   const clients = ordenarClientes((clientRows ?? []) as ClientOpt[]);
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    // Ancho completo, mismo criterio que Base de Datos: con max-w quedaba angosto mientras
+    // sobraba viewport a los costados.
+    <div className="w-full p-6">
       <h1 className="text-xl font-semibold mb-1">Precargar notas</h1>
       <p className="text-sm text-muted-foreground mb-6">
         Cargá notas para una fecha futura. Cuando el clipping de ese día corra, entran junto a lo que
