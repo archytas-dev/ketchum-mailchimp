@@ -135,9 +135,13 @@ export function mountEditor(root, opts) {
   const logAct = (accion) => { try { if (curClippingId) onActivity(curSlug, curClippingId, accion); } catch (e) {} };
   const confirmFn = opts.confirm || ((m) => Promise.resolve(window.confirm(m)));
   const resumenFn = opts.resumen || (() => Promise.resolve(null));
-  let currentResumen = null; // {exclusivas, competencia} — solo booking/bms
+  let currentResumen = null; // {exclusivas, competencia}
   let state = { theme: "booking", fecha: "", sections: [] };
   const curSlug = payload.slug || "booking";
+  // Resumen IA se busca por el cliente BASE: "bms-test" (la Versión Nueva) usa la misma
+  // config que "bms". Sin esto, RESUMEN_LABELS[curSlug] da undefined para los *-test y el
+  // boton + la caja de resumen desaparecen aunque el resumen exista guardado.
+  const resumenSlug = curSlug.replace(/-test$/, "");
   const curClippingId = payload.clippingId || null;
   let uid = 1;
   const nid = () => "n" + (uid++);
@@ -276,9 +280,9 @@ export function mountEditor(root, opts) {
   // Muestra la caja "Síntesis del día" (editable) en el canvas, solo booking/bms con resumen.
   function renderResumen() {
     const slot = $(".kx-resumen-slot"); if (!slot) return;
-    if (!RESUMEN_LABELS[curSlug] || !tieneResumen()) { slot.innerHTML = ""; return; }
+    if (!RESUMEN_LABELS[resumenSlug] || !tieneResumen()) { slot.innerHTML = ""; return; }
     const T = THEMES[state.theme];
-    const L = RESUMEN_LABELS[curSlug];
+    const L = RESUMEN_LABELS[resumenSlug];
     slot.innerHTML =
       '<div class="kx-resumen-box" style="border-left:4px solid ' + T.colorHeader + '">'
       + '<div class="kx-resumen-head" style="color:' + T.colorHeader + '"><span>✨ Síntesis del día · Resumen IA</span>'
@@ -292,17 +296,17 @@ export function mountEditor(root, opts) {
     if (ex && co) currentResumen = { exclusivas: ex.textContent.trim(), competencia: co.textContent.trim() };
   }
   async function genResumen() {
-    if (!RESUMEN_LABELS[curSlug]) return;
+    if (!RESUMEN_LABELS[resumenSlug]) return;
     const btn = $(".kx-resumen"); if (btn) btn.disabled = true;
     setStatus("Generando resumen IA…");
     syncFromDOM();
     let r = null;
-    try { r = await resumenFn(curSlug, clone(state.sections)); } catch (e) { r = null; }
+    try { r = await resumenFn(resumenSlug, clone(state.sections)); } catch (e) { r = null; }
     if (btn) btn.disabled = false;
     if (r && (String(r.exclusivas || "").trim() || String(r.competencia || "").trim())) {
       currentResumen = r; renderResumen(); scheduleSave(); setStatus("Resumen listo ✓");
     } else {
-      setStatus("No hay notas en " + RESUMEN_LABELS[curSlug][0] + "/" + RESUMEN_LABELS[curSlug][1] + " para resumir");
+      setStatus("No hay notas en " + RESUMEN_LABELS[resumenSlug][0] + "/" + RESUMEN_LABELS[resumenSlug][1] + " para resumir");
     }
   }
   // Header de sección FIJO (portada o barra). No editable, no borrable.
@@ -533,9 +537,9 @@ export function mountEditor(root, opts) {
     + '<span class="kx-status"></span>'
     + '<button class="kx-act kx-paint" title="Pintar lo seleccionado">' + ICON.brush + ' Pintar</button>'
     + '<button class="kx-act kx-unpaint" title="Quitar el pintado">' + ICON.eraser + ' Despintar</button>'
-    + (RESUMEN_LABELS[curSlug] ? '<button class="kx-act kx-resumen" title="Generar la Síntesis del día con IA">' + ICON.sparkles + ' Resumen IA</button>' : "")
-    + (RESUMEN_LABELS[curSlug] ? '<button class="kx-act kx-export-plain" title="Copiar el clipping SIN el resumen IA">' + ICON.clipboard + ' Copiar sin resumen</button>' : "")
-    + '<button class="kx-act kx-primary kx-export" title="Copiar el clipping CON el resumen IA">' + ICON.clipboard + (RESUMEN_LABELS[curSlug] ? ' Copiar con resumen' : ' Copiar para Mail') + '</button>'
+    + (RESUMEN_LABELS[resumenSlug] ? '<button class="kx-act kx-resumen" title="Generar la Síntesis del día con IA">' + ICON.sparkles + ' Resumen IA</button>' : "")
+    + (RESUMEN_LABELS[resumenSlug] ? '<button class="kx-act kx-export-plain" title="Copiar el clipping SIN el resumen IA">' + ICON.clipboard + ' Copiar sin resumen</button>' : "")
+    + '<button class="kx-act kx-primary kx-export" title="Copiar el clipping CON el resumen IA">' + ICON.clipboard + (RESUMEN_LABELS[resumenSlug] ? ' Copiar con resumen' : ' Copiar para Mail') + '</button>'
     + '</div>'
     + '<div class="kx-undo" style="display:none">'
     + '<button data-act="undo" title="Deshacer">' + ICON.undo + '</button>'
@@ -610,11 +614,11 @@ export function mountEditor(root, opts) {
     let builtHtml = "", builtResumen = null, buildPromise = null;
     const build = () => buildPromise || (buildPromise = (async () => {
       syncFromDOM(); syncResumen();
-      if (withResumen && RESUMEN_LABELS[curSlug]) {
+      if (withResumen && RESUMEN_LABELS[resumenSlug]) {
         if (tieneResumen()) { builtResumen = currentResumen; }
         else {
           setStatus("Generando resumen IA…");
-          try { builtResumen = await resumenFn(curSlug, clone(state.sections)); } catch (e) { builtResumen = null; }
+          try { builtResumen = await resumenFn(resumenSlug, clone(state.sections)); } catch (e) { builtResumen = null; }
           if (builtResumen && (String(builtResumen.exclusivas || "").trim() || String(builtResumen.competencia || "").trim())) { currentResumen = builtResumen; renderResumen(); }
         }
       }

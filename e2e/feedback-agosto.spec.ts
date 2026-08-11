@@ -255,6 +255,20 @@ test.describe("Reporte de errores — versión vieja vs nueva", () => {
   });
 });
 
+test.describe("Resumen IA — disponible también en Versión Nueva", () => {
+  // Bug real (11/08): RESUMEN_LABELS/RESUMEN_CFG estaban keyed por slug plano ('bms'), asi que
+  // para 'bms-test' (la Versión Nueva) el boton y la caja de sintesis desaparecian aunque el
+  // resumen ya estuviera guardado en la base. El fix busca por el cliente BASE.
+  test("el botón Resumen IA aparece en BMS - Versión Nueva", async ({ page }) => {
+    await loginAsDev(page);
+    await page.goto("/hoy");
+    await page.getByRole("combobox").first().click();
+    await page.getByRole("option", { name: "BMS - Versión Nueva" }).click();
+    await expect(page.locator(".kx-resumen")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(".kx-export-plain")).toBeVisible();
+  });
+});
+
 test.describe("Feedback Fedra — Tier en Precarga", () => {
   test("al escribir el medio muestra su tier y se puede cambiar", async ({ page }) => {
     await loginAsDev(page);

@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 
 // Resumen IA — MISMO prompt/modelo que el mail de n8n (gpt-4o-mini, temp 0.4, json_object),
-// pero sobre las notas EDITADAS por el cliente en el momento. Solo Booking y BMS.
+// pero sobre las notas EDITADAS por el cliente en el momento. Los 4 clientes.
 type Seccion = { titulo?: string; notas?: { titulo?: string; medio?: string; snippet?: string }[] };
 // exKey/coKey = secciones a sintetizar por cliente; coLabel = nombre del 2º eje en el prompt.
 const RESUMEN_CFG: Record<string, { term: string; exKey: string; coKey: string; coLabel: string }> = {
@@ -18,7 +18,9 @@ export async function generateResumen(
   sections: Seccion[],
 ): Promise<{ exclusivas: string; competencia: string }> {
   const empty = { exclusivas: "", competencia: "" };
-  const cfg = RESUMEN_CFG[slug];
+  // Se acepta tanto el slug del cliente real como el de la Versión Nueva ("bms-test"): la
+  // config del resumen es la misma para las dos, se busca por el cliente base.
+  const cfg = RESUMEN_CFG[slug.replace(/-test$/, "")];
   const key = process.env.OPENAI_API_KEY;
   if (!cfg || !key) return empty;
 
