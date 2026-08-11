@@ -5,6 +5,10 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false, // los tests comparten el mismo usuario dev y la misma base local
+  // ...y por el mismo motivo, un solo worker: `fullyParallel: false` serializa dentro de cada
+  // archivo, pero los archivos entre si seguian corriendo en paralelo contra el mismo dev
+  // server y la misma base, y se pisaban (timeouts intermitentes en los tests de Base de Datos).
+  workers: 1,
   retries: 0,
   reporter: "list",
   use: {

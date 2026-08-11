@@ -28,12 +28,12 @@ test.describe("Base de Datos — vista staff (KET-46)", () => {
     await page.goto("/base-datos");
 
     await expect(page.getByRole("heading", { name: "Base de Datos" })).toBeVisible();
-    // Desde el commit 6488e7e el cliente ve "Proximamente" en vez de las pestañas: v2 (lo que
-    // hoy le arma su clipping real) lee la config de un Google Sheet, no de estas tablas, asi
-    // que editar aca no haria nada. Lo que este test protege sigue siendo lo mismo: que las
-    // pestañas staff-only no aparezcan por ningun lado.
-    await expect(page.getByText("Próximamente")).toBeVisible();
+    // El cliente SI ve y edita su config (es la que lee la version nueva del clipping), con el
+    // aviso de que el envio de hoy todavia no la toma. Lo que no puede ver son las pestañas
+    // staff-only.
+    await expect(page.getByRole("tab", { name: "Medios de nicho" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Google Alerts" })).toHaveCount(0);
     await expect(page.getByRole("tab", { name: "Seguimiento" })).toHaveCount(0);
+    await expect(page.getByText(/nueva versión del clipping/i)).toBeVisible();
   });
 });

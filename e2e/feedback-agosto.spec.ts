@@ -65,14 +65,32 @@ test.describe("Feedback Fede — Base de Datos", () => {
   });
 });
 
+test.describe("Base de Datos — qué cliente se configura", () => {
+  // La version nueva del clipping LEE la config del cliente real (verificado en los 4
+  // workflows v3: get_config_clipping con p_slug 'booking'|'bms'|'mars'|'msd') y ESCRIBE sus
+  // resultados en el *-test. Por eso los "- Versión Nueva" no van en esta pantalla: no tienen
+  // config propia y solo mostraban tablas vacias que parecian un error.
+  test("solo se ofrecen los clientes reales, con el aviso de qué versión los usa", async ({ page }) => {
+    await loginAsDev(page);
+    await page.goto("/base-datos");
+    await expect(page.getByText(/nueva versión del clipping/i)).toBeVisible();
+
+    await page.getByRole("combobox").first().click();
+    const opciones = await page.getByRole("option").allInnerTexts();
+    expect(opciones.length).toBeGreaterThan(0);
+    expect(opciones.some((o) => /versión nueva/i.test(o))).toBe(false);
+    expect(opciones.some((o) => /test/i.test(o))).toBe(false);
+  });
+});
+
 test.describe("Feedback Fede — Panel PM", () => {
   // En la base local el unico cliente con editor_state guardado (o sea, con diff real que
-  // comparar) es BMS (Test Interno). Los clientes reales no bajan a local -- mandamiento #4.
+  // comparar) es BMS - Versión Nueva. Los clientes reales no bajan a local -- mandamiento #4.
   async function abrirPanelConDatos(page: import("@playwright/test").Page) {
     await page.goto("/panel-pm");
     await expect(page.getByRole("heading", { name: "Panel PM" })).toBeVisible();
     await page.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "BMS (Test Interno)" }).click();
+    await page.getByRole("option", { name: "BMS - Versión Nueva" }).click();
     await expect(page.getByText("Diff del clipping")).toBeVisible({ timeout: 30_000 });
   }
 
