@@ -8,7 +8,14 @@ const WEBHOOK_URL = "https://archytasai.app.n8n.cloud/webhook/ketchum-alerta-err
 
 export async function alertarErrorSlack(contexto: string, error: unknown): Promise<void> {
   try {
-    const mensaje = error instanceof Error ? error.message : String(error);
+    // Los errores de Supabase (PostgrestError) son objetos planos con `.message`, no
+    // instancias de Error -- sin este chequeo llegan a Slack como "[object Object]".
+    const mensaje =
+      error instanceof Error
+        ? error.message
+        : typeof error === "object" && error !== null && "message" in error
+          ? String((error as { message: unknown }).message)
+          : String(error);
     const stack = error instanceof Error ? error.stack : undefined;
     const ambiente = process.env.VERCEL_ENV || "local";
 

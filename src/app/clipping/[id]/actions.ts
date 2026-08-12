@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { renderClipping, hasRenderer, type Article } from "@/lib/render";
+import { alertarErrorSlack } from "@/lib/alertar-error";
 
 type NoteRow = {
   id: string;
@@ -61,7 +62,7 @@ export async function exportClipping(
   // Copia para el mail: sin el resumen IA (ese va aparte en la plataforma).
   const html = renderClipping(slug, { articles, resumen: {} }) ?? "";
 
-  await supabase.from("exports").upsert(
+  const { error: errExport } = await supabase.from("exports").upsert(
     {
       clipping_id: clippingId,
       user_id: user.id,
@@ -70,13 +71,18 @@ export async function exportClipping(
     },
     { onConflict: "clipping_id,user_id" },
   );
-  await supabase
+  if (errExport) await alertarErrorSlack("Guardar export (clipping)", errExport);
+
+  const { error: errActivity } = await supabase
     .from("activity")
     .insert({ clipping_id: clippingId, user_id: user.id, accion: "exporta" });
-  await supabase
+  if (errActivity) await alertarErrorSlack("Registrar actividad de export (clipping)", errActivity);
+
+  const { error: errEstado } = await supabase
     .from("clippings")
     .update({ estado: "exportado" })
     .eq("id", clippingId);
+  if (errEstado) await alertarErrorSlack("Marcar clipping como exportado (clipping)", errEstado);
 
   return { ok: true, html };
 }
