@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { alertarErrorSlack } from "@/lib/alertar-error";
 
 // Resumen IA — MISMO prompt/modelo que el mail de n8n (gpt-4o-mini, temp 0.4, json_object),
 // pero sobre las notas EDITADAS por el cliente en el momento. Los 4 clientes.
@@ -57,7 +58,8 @@ export async function generateResumen(
     const raw = data?.choices?.[0]?.message?.content || "{}";
     const obj = JSON.parse(raw);
     return { exclusivas: String(obj.exclusivas || ""), competencia: String(obj.competencia || "") };
-  } catch {
+  } catch (e) {
+    await alertarErrorSlack("Generar resumen IA (hoy)", e);
     return empty;
   }
 }
@@ -74,6 +76,7 @@ export async function logActivity(clippingId: string, accion: string): Promise<{
   const { error } = await supabase
     .from("activity")
     .insert({ clipping_id: clippingId, user_id: user.id, accion });
+  if (error) await alertarErrorSlack("Registrar actividad (hoy)", error);
   return { ok: !error };
 }
 
@@ -95,6 +98,7 @@ export async function saveEditorState(
       { user_id: user.id, clipping_id: clippingId, editor_state: editorState, updated_at: new Date().toISOString() },
       { onConflict: "user_id,clipping_id" },
     );
+  if (error) await alertarErrorSlack("Autosave del editor (hoy)", error);
   return { ok: !error };
 }
 
@@ -111,19 +115,28 @@ export async function exportClip(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "No autenticado" };
 
-  await supabase.from("user_clipping_state").upsert(
+  const { error: errState } = await supabase.from("user_clipping_state").upsert(
     { user_id: user.id, clipping_id: clippingId, editor_state: editorState, updated_at: new Date().toISOString() },
     { onConflict: "user_id,clipping_id" },
   );
+  if (errState) await alertarErrorSlack("Guardar estado del editor al exportar (hoy)", errState);
+
   const { error } = await supabase.from("exports").upsert(
     { clipping_id: clippingId, user_id: user.id, html, updated_at: new Date().toISOString() },
     { onConflict: "clipping_id,user_id" },
   );
   if (error) return { ok: false, error: error.message };
-  await supabase.from("clippings").update({ estado: "exportado" }).eq("id", clippingId);
-  await supabase
+
+  const { error: errEstado } = await supabase
+    .from("clippings")
+    .update({ estado: "exportado" })
+    .eq("id", clippingId);
+  if (errEstado) await alertarErrorSlack("Marcar clipping como exportado (hoy)", errEstado);
+
+  const { error: errActivity } = await supabase
     .from("activity")
     .insert({ clipping_id: clippingId, user_id: user.id, accion: "exporta" });
+  if (errActivity) await alertarErrorSlack("Registrar actividad de export (hoy)", errActivity);
 
   // Resumen IA: guardar versión (historial + stats). texto = JSON {exclusivas, competencia}.
   if (resumen && (resumen.exclusivas?.trim() || resumen.competencia?.trim())) {
@@ -131,14 +144,17 @@ export async function exportClip(
       .from("summaries")
       .select("id", { count: "exact", head: true })
       .eq("clipping_id", clippingId);
-    await supabase.from("summaries").insert({
+    const { error: errSummary } = await supabase.from("summaries").insert({
       clipping_id: clippingId,
       texto: JSON.stringify(resumen),
       version: (count ?? 0) + 1,
     });
-    await supabase
+    if (errSummary) await alertarErrorSlack("Guardar resumen IA al exportar (hoy)", errSummary);
+
+    const { error: errActivity2 } = await supabase
       .from("activity")
       .insert({ clipping_id: clippingId, user_id: user.id, accion: "resumen" });
+    if (errActivity2) await alertarErrorSlack("Registrar actividad de resumen (hoy)", errActivity2);
   }
   return { ok: true };
 }
