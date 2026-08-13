@@ -48,14 +48,45 @@ export async function listMedios(
   return { ok: true, data: rows };
 }
 
+// Ketchum es clipping de medios argentinos: un dominio con ccTLD de otro país no tiene que
+// poder cargarse nunca, ni a mano ni por script -- ver medios "adicionales" .es/.cl/.mx/etc.
+// que se colaron en BMS el 2026-08-06 sin pasar por este flujo.
+const TLDS_BLOQUEADOS = new Set([
+  "es", "mx", "cl", "co", "pe", "uy", "bo", "py", "ve", "ec",
+  "br", "pa", "cr", "gt", "hn", "ni", "sv", "do", "pr", "cu",
+]);
+
+function normalizeDominio(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .split("/")[0]
+    .replace(/\.$/, "")
+    .replace(/^www\./, "");
+}
+
+function tldBloqueado(dominio: string): string | null {
+  const partes = dominio.split(".").filter(Boolean);
+  const ultimo = partes[partes.length - 1];
+  return ultimo && TLDS_BLOQUEADOS.has(ultimo) ? ultimo : null;
+}
+
 export async function addMedio(
   clientId: string,
   tipo: "monitoreado" | "adicional",
   input: { dominio: string; nombre: string; tier?: number | null; ad_value?: number | null; alcance?: number | null },
 ): Promise<Result> {
-  const dominio = input.dominio.trim().toLowerCase();
+  const dominio = normalizeDominio(input.dominio);
   const nombre = input.nombre.trim();
   if (!dominio) return { ok: false, error: "Falta el dominio." };
+  const tld = tldBloqueado(dominio);
+  if (tld) {
+    return {
+      ok: false,
+      error: `"${dominio}" es un dominio .${tld} — la cobertura es de medios argentinos, no se puede sumar.`,
+    };
+  }
 
   const supabase = await createClient();
   // origen='cliente' + activo=true: entra a la lista de scrapeo permanente desde la proxima
