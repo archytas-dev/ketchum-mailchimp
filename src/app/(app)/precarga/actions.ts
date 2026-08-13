@@ -13,6 +13,40 @@ import { tierNorm } from "@/lib/tier";
 
 export type TierDeMedio = { tier: number | null; ad_value: number | null };
 
+export type MedioConocido = { nombre: string; tier: number | null };
+
+// Catálogo de medios ya conocidos por el cliente (tabla `medios`, activos, de nicho o
+// generales) con su tier si lo tienen (tabla `tiers`) — alimenta el autocompletado del campo
+// Medio en "Agregar notas". Se combinan las dos fuentes por dominio normalizado (mismo `key`
+// que usa el resto del código) porque un medio puede tener tier cargado sin estar todavía en
+// el catálogo de `medios` (ej. si se cargó a mano desde Precarga antes de sumarlo en Base de
+// Datos), y viceversa.
+export async function listMediosConTier(clientId: string): Promise<{ ok: boolean; data?: MedioConocido[]; error?: string }> {
+  const supabase = await createClient();
+  const [{ data: medios, error: mediosError }, { data: tiers, error: tiersError }] = await Promise.all([
+    supabase.from("medios").select("nombre, dominio").eq("client_id", clientId).eq("activo", true),
+    supabase.from("tiers").select("dominio, medio, tier").eq("client_id", clientId),
+  ]);
+  if (mediosError) return { ok: false, error: mediosError.message };
+  if (tiersError) return { ok: false, error: tiersError.message };
+
+  const tierByKey = new Map((tiers ?? []).map((t) => [t.dominio, t.tier]));
+  const porKey = new Map<string, MedioConocido>();
+  for (const m of medios ?? []) {
+    const nombre = (m.nombre || m.dominio || "").trim();
+    if (!nombre) continue;
+    const key = tierNorm(nombre);
+    if (!key) continue;
+    porKey.set(key, { nombre, tier: tierByKey.get(key) ?? null });
+  }
+  for (const t of tiers ?? []) {
+    if (!t.medio || porKey.has(t.dominio)) continue;
+    porKey.set(t.dominio, { nombre: t.medio, tier: t.tier });
+  }
+  const data = [...porKey.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  return { ok: true, data };
+}
+
 // Devuelve el tier actual de cada medio, indexado por el nombre tal cual lo escribio el
 // usuario (la normalizacion es interna).
 export async function lookupTiers(
@@ -76,6 +110,9 @@ export type PrecargaNota = {
   url: string;
   snippet: string;
   seccion: string;
+  // Fecha PROPIA de la nota (ej. la publicó ayer/anteayer) -- distinta de `fecha`, que es el
+  // día del clipping donde tiene que aparecer. YYYY-MM-DD o vacío/undefined = sin especificar.
+  pubDate?: string;
 };
 
 export type PrecargaRow = {
@@ -88,6 +125,7 @@ export type PrecargaRow = {
   snippet: string | null;
   orden: number;
   consumed_at: string | null;
+  pub_date: string | null;
 };
 
 // Lista las notas precargadas de un cliente para una fecha (pendientes y ya volcadas).
@@ -98,7 +136,7 @@ export async function listPrecarga(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("notes_precarga")
-    .select("id, fecha, seccion, medio, titulo, url, snippet, orden, consumed_at")
+    .select("id, fecha, seccion, medio, titulo, url, snippet, orden, consumed_at, pub_date")
     .eq("client_id", clientId)
     .eq("fecha", fecha)
     .order("orden", { ascending: true });
@@ -119,6 +157,7 @@ export async function addPrecarga(
       url: String(n.url || "").trim(),
       snippet: String(n.snippet || "").trim(),
       seccion: String(n.seccion || "").trim(),
+      pub_date: n.pubDate ? String(n.pubDate).trim() : null,
       orden: i + 1,
     }))
     .filter((n) => n.titulo && n.url);
@@ -137,14 +176,15 @@ export async function addPrecarga(
 // Edita una nota precargada (solo si todavía no se volcó al clipping).
 export async function updatePrecarga(
   id: string,
-  patch: { medio?: string; titulo?: string; url?: string; snippet?: string; seccion?: string },
+  patch: { medio?: string; titulo?: string; url?: string; snippet?: string; seccion?: string; pubDate?: string },
 ): Promise<{ ok: boolean; error?: string }> {
-  const fields: Record<string, string> = {};
+  const fields: Record<string, string | null> = {};
   if (patch.medio !== undefined) fields.medio = String(patch.medio).trim();
   if (patch.titulo !== undefined) fields.titulo = String(patch.titulo).trim();
   if (patch.url !== undefined) fields.url = String(patch.url).trim();
   if (patch.snippet !== undefined) fields.snippet = String(patch.snippet).trim();
   if (patch.seccion !== undefined) fields.seccion = String(patch.seccion).trim();
+  if (patch.pubDate !== undefined) fields.pub_date = patch.pubDate.trim() || null;
   if (fields.titulo !== undefined && !fields.titulo) return { ok: false, error: "El título no puede quedar vacío." };
   if (fields.url !== undefined && !fields.url) return { ok: false, error: "La URL no puede quedar vacía." };
   if (fields.seccion !== undefined && !fields.seccion) return { ok: false, error: "La sección no puede quedar vacía." };
@@ -173,10 +213,43 @@ export async function delPrecarga(
   return { ok: true };
 }
 
-// Trae título + descripción de una URL (og:tags / meta description) para autocompletar.
+// Hostname pelado para comparar: sin protocolo, sin "www.", sin path/query, sin punto colgado
+// (hay dominios cargados como "voydeviaje.com.ar/." por error de carga).
+function normalizeHost(raw: string): string {
+  return String(raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .split("/")[0]
+    .replace(/\.$/, "")
+    .replace(/^www\./, "");
+}
+
+// Matchea con subdominios de por medio: la URL puede venir de "ftp.dailyweb.com.ar" mientras
+// el medio de nicho está cargado como "dailyweb.com.ar" (o al revés).
+function hostMatches(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  return a === b || a.endsWith("." + b) || b.endsWith("." + a);
+}
+
+// Nombre legible a partir del hostname como último recurso (ej. "dailyweb.com.ar" -> "Dailyweb").
+function nombreDesdeHost(host: string): string {
+  const base = host.split(".")[0] || host;
+  return base
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+// Trae título + descripción de una URL (og:tags / meta description) para autocompletar, y
+// sugiere el Medio: primero busca si el dominio ya está cargado en "medios de nicho" de este
+// cliente y usa ESE nombre (para que quede consistente con lo que ya existe en Base de Datos);
+// si no matchea ninguno, cae al nombre del sitio (og:site_name) o, a falta de eso, al hostname.
 export async function fetchMeta(
+  clientId: string,
   url: string,
-): Promise<{ ok: boolean; titulo?: string; snippet?: string; error?: string }> {
+): Promise<{ ok: boolean; titulo?: string; snippet?: string; medio?: string; error?: string }> {
   const u = String(url || "").trim();
   if (!/^https?:\/\//i.test(u)) return { ok: false, error: "URL inválida" };
   const UA =
@@ -197,12 +270,36 @@ export async function fetchMeta(
     }
     return "";
   };
+  // `Response.text()` siempre decodifica como UTF-8, sin mirar el charset real de la página.
+  // Muchos medios argentinos viejos mandan ISO-8859-1/Windows-1252 sin declararlo bien en el
+  // header Content-Type, o lo declaran mal -- un solo byte de una tilde (ej. 0xF3 de "ó") no es
+  // UTF-8 válido y termina como "�" (U+FFFD). Se lee el charset declarado (header, y si no hay,
+  // el <meta charset> del propio HTML) y se decodifica con eso; si falla, se prueba UTF-8 y por
+  // último Windows-1252 (nunca tira error, cubre los 256 valores de byte).
+  function decodeBody(buf: ArrayBuffer, contentType: string | null): string {
+    const headerMatch = (contentType || "").match(/charset=([^;]+)/i);
+    let charset = headerMatch ? headerMatch[1].trim().toLowerCase().replace(/["']/g, "") : "";
+    if (!charset) {
+      const head = new TextDecoder("windows-1252").decode(buf.slice(0, 2048));
+      const metaMatch = head.match(/<meta[^>]+charset=["']?\s*([a-z0-9_-]+)/i);
+      charset = metaMatch ? metaMatch[1].toLowerCase() : "utf-8";
+    }
+    try {
+      return new TextDecoder(charset, { fatal: true }).decode(buf);
+    } catch {
+      try {
+        return new TextDecoder("utf-8", { fatal: true }).decode(buf);
+      } catch {
+        return new TextDecoder("windows-1252").decode(buf);
+      }
+    }
+  }
   try {
     const ctrl = new AbortController();
     const to = setTimeout(() => ctrl.abort(), 12000);
     const r = await fetch(u, { headers: { "User-Agent": UA }, signal: ctrl.signal, redirect: "follow" });
     clearTimeout(to);
-    const html = await r.text();
+    const html = decodeBody(await r.arrayBuffer(), r.headers.get("content-type"));
     const titulo = pick(html, [
       /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i,
       /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i,
@@ -214,7 +311,26 @@ export async function fetchMeta(
       /<meta[^>]+name=["']description["'][^>]+content=["']([^"']{20,400})["']/i,
       /<meta[^>]+content=["']([^"']{20,400})["'][^>]+name=["']description["']/i,
     ]);
-    return { ok: true, titulo, snippet };
+    const sitioMeta = pick(html, [
+      /<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']+)["']/i,
+      /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:site_name["']/i,
+    ]);
+
+    const urlHost = normalizeHost(u);
+    let medio = "";
+    if (urlHost) {
+      const supabase = await createClient();
+      const { data: nicho } = await supabase
+        .from("medios")
+        .select("dominio, nombre")
+        .eq("client_id", clientId)
+        .eq("tipo", "monitoreado");
+      const match = (nicho ?? []).find((m) => hostMatches(urlHost, normalizeHost(m.dominio || "")));
+      if (match) medio = match.nombre || match.dominio;
+    }
+    if (!medio) medio = sitioMeta || nombreDesdeHost(urlHost);
+
+    return { ok: true, titulo, snippet, medio };
   } catch (e) {
     return { ok: false, error: (e as Error).message || "No se pudo leer la página" };
   }

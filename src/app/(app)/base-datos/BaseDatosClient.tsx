@@ -195,6 +195,45 @@ function hrefDeDominio(dominio: string): string {
   return /^https?:\/\//i.test(d) ? d : `https://${d}`;
 }
 
+// Input numérico editable con guardado a onBlur (no en cada tecla) — mismo patrón que los
+// campos de Precarga. `draft` es texto suelto para poder borrar y volver a escribir sin que el
+// valor "salte" mientras se tipea.
+function NumberCell({
+  value,
+  onCommit,
+  disabled,
+}: {
+  value: number | null;
+  onCommit: (v: number | null) => void;
+  disabled: boolean;
+}) {
+  const [draft, setDraft] = useState(value != null ? String(value) : "");
+  // Ajustar estado durante el render (no en un efecto) cuando cambia `value` desde afuera —
+  // mismo patrón que el reset de filas al cambiar de cliente en Precarga.
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
+    setDraft(value != null ? String(value) : "");
+  }
+  return (
+    <input
+      type="number"
+      min={0}
+      inputMode="numeric"
+      value={draft}
+      disabled={disabled}
+      placeholder="Sin asignar"
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const parsed = draft.trim() === "" ? null : Number(draft);
+        const limpio = parsed !== null && Number.isFinite(parsed) ? parsed : null;
+        if (limpio !== value) onCommit(limpio);
+      }}
+      className="h-8 w-28 border rounded-md px-2 text-sm bg-background tabular-nums disabled:opacity-60 disabled:cursor-not-allowed"
+    />
+  );
+}
+
 function DominioLink({ dominio }: { dominio: string }) {
   return (
     <a
@@ -217,17 +256,29 @@ function MediosTab({ clientId, tipo, readOnly }: { clientId: string; tipo: "moni
   const [open, setOpen] = useState(false);
   const [dominio, setDominio] = useState("");
   const [nombre, setNombre] = useState("");
+  const [tierNuevo, setTierNuevo] = useState("none");
+  const [adValueNuevo, setAdValueNuevo] = useState("");
+  const [alcanceNuevo, setAlcanceNuevo] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function handleAdd() {
     setSaving(true);
-    const res = await addMedio(clientId, tipo, { dominio, nombre });
+    const res = await addMedio(clientId, tipo, {
+      dominio,
+      nombre,
+      tier: tierNuevo === "none" ? null : Number(tierNuevo),
+      ad_value: adValueNuevo.trim() === "" ? null : Number(adValueNuevo),
+      alcance: alcanceNuevo.trim() === "" ? null : Number(alcanceNuevo),
+    });
     setSaving(false);
     if (!res.ok) return toast.error(res.error);
     toast.success("Medio agregado — entra al scrapeo desde la próxima corrida.");
     setOpen(false);
     setDominio("");
     setNombre("");
+    setTierNuevo("none");
+    setAdValueNuevo("");
+    setAlcanceNuevo("");
     // El alta puede mover el conteo de la otra pestaña de medios (mismo cliente), asi que se
     // invalida su cache tambien.
     invalidateCached(`medios:${clientId}:${tipo === "monitoreado" ? "adicional" : "monitoreado"}`);
@@ -240,12 +291,19 @@ function MediosTab({ clientId, tipo, readOnly }: { clientId: string; tipo: "moni
     setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, activo: !r.activo } : r)));
   }
 
-  async function handleTier(row: MedioRow, patch: { tier?: number | null; ad_value?: number | null }) {
+  async function handleTier(row: MedioRow, patch: { tier?: number | null; ad_value?: number | null; alcance?: number | null }) {
     const nuevoTier = patch.tier !== undefined ? patch.tier : row.tier;
     const nuevoAdValue = patch.ad_value !== undefined ? patch.ad_value : row.ad_value;
-    const res = await updateMedioTier(clientId, row.nombre || row.dominio, { tier: nuevoTier, ad_value: nuevoAdValue });
+    const nuevoAlcance = patch.alcance !== undefined ? patch.alcance : row.alcance;
+    const res = await updateMedioTier(clientId, row.nombre || row.dominio, {
+      tier: nuevoTier,
+      ad_value: nuevoAdValue,
+      alcance: nuevoAlcance,
+    });
     if (!res.ok) return toast.error(res.error);
-    setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, tier: nuevoTier, ad_value: nuevoAdValue } : r)));
+    setRows((rs) =>
+      rs.map((r) => (r.id === row.id ? { ...r, tier: nuevoTier, ad_value: nuevoAdValue, alcance: nuevoAlcance } : r)),
+    );
   }
 
   return (
@@ -275,6 +333,45 @@ function MediosTab({ clientId, tipo, readOnly }: { clientId: string; tipo: "moni
                 <label className="text-xs font-medium text-muted-foreground">Nombre</label>
                 <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del medio" />
               </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Tier</label>
+                <Select value={tierNuevo} onValueChange={(v) => v && setTierNuevo(v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {(value: string) => (value === "none" ? "Sin asignar" : `Tier ${value}`)}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin asignar</SelectItem>
+                    <SelectItem value="1">Tier 1</SelectItem>
+                    <SelectItem value="2">Tier 2</SelectItem>
+                    <SelectItem value="3">Tier 3</SelectItem>
+                    <SelectItem value="4">Tier 4</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Ad Value</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={adValueNuevo}
+                    onChange={(e) => setAdValueNuevo(e.target.value)}
+                    placeholder="Sin asignar"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Alcance</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={alcanceNuevo}
+                    onChange={(e) => setAlcanceNuevo(e.target.value)}
+                    placeholder="Sin asignar"
+                  />
+                </div>
+              </div>
             </div>
             <DialogFooter>
               <Button onClick={handleAdd} disabled={saving || !dominio.trim()}>
@@ -295,6 +392,7 @@ function MediosTab({ clientId, tipo, readOnly }: { clientId: string; tipo: "moni
               <TableHead>Dominio</TableHead>
               <TableHead>Tier</TableHead>
               <TableHead>Ad Value</TableHead>
+              <TableHead>Alcance</TableHead>
               <TableHead>Estado</TableHead>
             </TableRow>
           </TableHeader>
@@ -330,15 +428,14 @@ function MediosTab({ clientId, tipo, readOnly }: { clientId: string; tipo: "moni
                     </SelectContent>
                   </Select>
                 </TableCell>
-                {/* Ad Value es de solo lectura (pedido de Adrián, 11/08): sale del tier del
-                    medio, no se carga a mano. Se muestra formateado para poder leerlo de un
-                    vistazo -- 41597679 no se lee, 41.597.679 sí. */}
-                <TableCell className="tabular-nums text-foreground/90">
-                  {r.ad_value != null ? (
-                    r.ad_value.toLocaleString("es-AR")
-                  ) : (
-                    <span className="text-muted-foreground">Sin asignar</span>
-                  )}
+                {/* Editable por medio (revertido 13/08 el "solo lectura" del 11/08 — Fedra
+                    necesita poder cargar el Ad Value real de cada medio, no solo el que le
+                    tocaría por su tier). Guarda a onBlur, no en cada tecla. */}
+                <TableCell>
+                  <NumberCell value={r.ad_value} disabled={readOnly} onCommit={(v) => handleTier(r, { ad_value: v })} />
+                </TableCell>
+                <TableCell>
+                  <NumberCell value={r.alcance} disabled={readOnly} onCommit={(v) => handleTier(r, { alcance: v })} />
                 </TableCell>
                 <TableCell>
                   <EstadoBadge activo={r.activo} onClick={() => handleToggle(r)} disabled={readOnly} />

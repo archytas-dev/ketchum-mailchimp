@@ -20,6 +20,7 @@ export type MedioRow = {
   primer_uso: string | null;
   tier: number | null;
   ad_value: number | null;
+  alcance: number | null;
 };
 
 export async function listMedios(
@@ -34,7 +35,7 @@ export async function listMedios(
       .eq("client_id", clientId)
       .eq("tipo", tipo)
       .order("nombre", { ascending: true }),
-    supabase.from("tiers").select("dominio, tier, ad_value").eq("client_id", clientId),
+    supabase.from("tiers").select("dominio, tier, ad_value, alcance").eq("client_id", clientId),
   ]);
   if (error) return { ok: false, error: error.message };
   if (tiersError) return { ok: false, error: tiersError.message };
@@ -42,7 +43,7 @@ export async function listMedios(
   const tierByKey = new Map((tiers ?? []).map((t) => [t.dominio, t]));
   const rows: MedioRow[] = (medios ?? []).map((m) => {
     const t = tierByKey.get(tierNorm(m.nombre || m.dominio));
-    return { ...m, tier: t?.tier ?? null, ad_value: t?.ad_value ?? null };
+    return { ...m, tier: t?.tier ?? null, ad_value: t?.ad_value ?? null, alcance: t?.alcance ?? null };
   });
   return { ok: true, data: rows };
 }
@@ -50,7 +51,7 @@ export async function listMedios(
 export async function addMedio(
   clientId: string,
   tipo: "monitoreado" | "adicional",
-  input: { dominio: string; nombre: string },
+  input: { dominio: string; nombre: string; tier?: number | null; ad_value?: number | null; alcance?: number | null },
 ): Promise<Result> {
   const dominio = input.dominio.trim().toLowerCase();
   const nombre = input.nombre.trim();
@@ -71,6 +72,18 @@ export async function addMedio(
     if (error.code === "23505") return { ok: false, error: "Ese dominio ya existe para este cliente." };
     return { ok: false, error: error.message };
   }
+
+  // Si se cargó tier/ad_value/alcance al sumar el medio, se guarda de una en `tiers` -- mismo
+  // camino que editarlo despues desde la tabla. El medio ya quedó creado igual si esto falla.
+  const tieneDatosDeTier = input.tier != null || input.ad_value != null || input.alcance != null;
+  if (tieneDatosDeTier) {
+    const res = await updateMedioTier(clientId, nombre || dominio, {
+      tier: input.tier ?? null,
+      ad_value: input.ad_value ?? null,
+      alcance: input.alcance ?? null,
+    });
+    if (!res.ok) return res;
+  }
   return { ok: true };
 }
 
@@ -84,12 +97,18 @@ export async function toggleMedioActivo(id: string, activo: boolean): Promise<Re
 export async function updateMedioTier(
   clientId: string,
   nombreMedio: string,
-  input: { tier: number | null; ad_value: number | null },
+  input: { tier: number | null; ad_value: number | null; alcance?: number | null },
 ): Promise<Result> {
   const key = tierNorm(nombreMedio);
   if (!key) return { ok: false, error: "El medio no tiene nombre, no se puede asignar tier." };
   if (input.tier !== null && (input.tier < 1 || input.tier > 4)) {
     return { ok: false, error: "El tier tiene que ser 1, 2, 3 o 4." };
+  }
+  if (input.ad_value !== null && input.ad_value !== undefined && input.ad_value < 0) {
+    return { ok: false, error: "El Ad Value no puede ser negativo." };
+  }
+  if (input.alcance !== null && input.alcance !== undefined && input.alcance < 0) {
+    return { ok: false, error: "El Alcance no puede ser negativo." };
   }
   const supabase = await createClient();
 
@@ -107,14 +126,16 @@ export async function updateMedioTier(
     .maybeSingle();
   if (findError) return { ok: false, error: findError.message };
 
+  const patch: { medio: string; tier: number | null; ad_value: number | null; alcance?: number | null } = {
+    medio: nombreMedio,
+    tier: input.tier,
+    ad_value: input.ad_value,
+  };
+  if (input.alcance !== undefined) patch.alcance = input.alcance;
+
   const { error } = existente
-    ? await supabase
-        .from("tiers")
-        .update({ medio: nombreMedio, tier: input.tier, ad_value: input.ad_value })
-        .eq("id", existente.id)
-    : await supabase
-        .from("tiers")
-        .insert({ client_id: clientId, dominio: key, medio: nombreMedio, tier: input.tier, ad_value: input.ad_value });
+    ? await supabase.from("tiers").update(patch).eq("id", existente.id)
+    : await supabase.from("tiers").insert({ client_id: clientId, dominio: key, ...patch });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
