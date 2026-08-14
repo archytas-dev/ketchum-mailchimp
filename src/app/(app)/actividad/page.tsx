@@ -10,7 +10,20 @@ import StaffOnlySection from "@/components/StaffOnlySection";
 export const dynamic = "force-dynamic";
 
 
-type MedioDetalle = { dominio: string; ok: boolean };
+type MedioDetalle = {
+  dominio: string;
+  ok: boolean;
+  outcome?: string | null;
+  ms?: number | null;
+  articulos?: number | null;
+};
+
+const MEDIO_OUTCOME_LABEL: Record<string, string> = {
+  timeout: "no respondió a tiempo",
+  empty: "respondió pero sin notas",
+  budget_skip: "no llegamos a intentarlo",
+  exception: "error técnico",
+};
 type KeywordDetalle = { keyword: string; grupo: string | null; activa: boolean; matches: number };
 
 type ResumenRow = {
@@ -425,6 +438,11 @@ export default async function ActividadPage({
                         <li key={m.dominio} className="flex items-center gap-1.5 text-xs">
                           <AlertTriangle size={12} className="text-amber-600 shrink-0" />
                           <span className="text-foreground/80 truncate">{m.dominio}</span>
+                          {m.outcome && MEDIO_OUTCOME_LABEL[m.outcome] && (
+                            <span className="text-muted-foreground shrink-0">
+                              · {MEDIO_OUTCOME_LABEL[m.outcome]}
+                            </span>
+                          )}
                         </li>
                       ))}
                   </ul>
