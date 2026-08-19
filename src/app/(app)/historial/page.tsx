@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { ordenarClientes } from "@/lib/clientes";
+import { ordenarClientesActivos } from "@/lib/clientes";
 import HistorialView, { type ClientTab } from "./HistorialView";
 import { fetchHistory } from "./actions";
 
@@ -11,9 +11,9 @@ export default async function HistorialPage() {
     supabase.from("clients").select("id, slug, nombre").order("nombre"),
     fetchHistory({ limit: 40, offset: 0 }),
   ]);
-  // Las dos versiones de cada clipping, la que se envía hoy y la nueva (decisión de Adrián,
-  // 11/08). Quién ve qué lo define RLS via user_client_access.
-  const clients = ordenarClientes((clientRows ?? []) as ClientTab[]);
+  // [19/08] Cutover: los clientes viejos (v1/v2) quedan full ocultos, también acá -- ya no
+  // interesan en la herramienta, solo siguen corriendo para el mail a Adrián.
+  const clients = ordenarClientesActivos((clientRows ?? []) as ClientTab[]);
   return (
     <HistorialView
       clients={clients}

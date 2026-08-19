@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { renderClipping, type Article } from "@/lib/render";
+import { esVersionNueva } from "@/lib/clientes";
 
 export type HistRow = {
   id: string;
@@ -38,7 +39,17 @@ export async function fetchHistory(opts: {
     .order("fecha", { ascending: false })
     .range(offset, offset + limit); // pido uno de más para saber si hay más
 
-  if (opts.clientId) q = q.eq("client_id", opts.clientId);
+  if (opts.clientId) {
+    q = q.eq("client_id", opts.clientId);
+  } else {
+    // [19/08] "Todos" no puede traer clippings de los clientes viejos (v1/v2) -- quedaron
+    // full ocultos en la herramienta, aunque el workflow les siga mandando mail a Adrián.
+    const { data: clientRows } = await supabase.from("clients").select("id, slug");
+    const idsActivos = ((clientRows ?? []) as { id: string; slug: string }[])
+      .filter((c) => esVersionNueva(c.slug))
+      .map((c) => c.id);
+    q = q.in("client_id", idsActivos.length ? idsActivos : ["00000000-0000-0000-0000-000000000000"]);
+  }
   if (opts.desde) q = q.gte("fecha", opts.desde);
   if (opts.hasta) q = q.lte("fecha", opts.hasta);
 
