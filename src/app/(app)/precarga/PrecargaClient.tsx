@@ -282,9 +282,17 @@ function TierSelect({
 }
 
 export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
-  const [clientId, setClientId] = useState(clients[0]?.id ?? "");
+  // [19/08] Cutover: solo se puede elegir la herramienta real (-test). `clients` sigue
+  // llegando SIN filtrar desde la página porque configClientId necesita poder resolver el
+  // par -- medios/tiers (el catálogo de autocompletado) vive bajo el client_id BASE, no el -test.
+  const seleccionables = clients.filter((c) => c.slug.endsWith("-test"));
+  const [clientId, setClientId] = useState(seleccionables[0]?.id ?? "");
   const [fecha, setFecha] = useState<string>(() => tomorrowAR());
   const clientSlug = clients.find((c) => c.id === clientId)?.slug ?? "";
+  // La configuracion (medios/tiers) vive bajo el cliente base (los 4 workflows v3 la piden
+  // con get_config_clipping(p_slug: 'booking'|'bms'|'mars'|'msd')).
+  const slugBaseCfg = clientSlug.replace(/-test$/, "");
+  const configClientId = clients.find((c) => c.slug === slugBaseCfg)?.id ?? clientId;
   // "Áreas Terapéuticas" (BMS) es solo un separador visual en el mail, nunca lleva notas propias.
   const sections = sectionsFor(clientSlug).filter((s) => s !== "Áreas Terapéuticas");
   const defaultSeccion = defaultSection(clientSlug);
@@ -331,14 +339,14 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
   const [mediosConocidos, setMediosConocidos] = useState<MedioConocido[]>([]);
   useEffect(() => {
     let alive = true;
-    if (!clientId) return;
-    listMediosConTier(clientId).then((res) => {
+    if (!configClientId) return;
+    listMediosConTier(configClientId).then((res) => {
       if (alive && res.ok) setMediosConocidos(res.data ?? []);
     });
     return () => {
       alive = false;
     };
-  }, [clientId]);
+  }, [configClientId]);
 
   // Cambiar de cliente reinicia los dos formularios (las secciones disponibles son otras).
   // Patrón "ajustar estado durante el render" en vez de un efecto (no es una sincronización externa).
@@ -362,7 +370,7 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
   async function individualRefrescarTier() {
     const medio = individual.medio.trim();
     if (!medio) return setIndividualField({ tier: undefined });
-    const res = await lookupTiers(clientId, [medio]);
+    const res = await lookupTiers(configClientId, [medio]);
     if (!res.ok) return;
     setIndividualField({ tier: res.data?.[medio]?.tier ?? null });
   }
@@ -371,7 +379,7 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
   // nota. Es a propósito: es el mismo dato que edita Base de Datos.
   async function individualHandleTier(tier: number | null) {
     const medio = individual.medio.trim();
-    const res = await setTierMedio(clientId, medio, tier);
+    const res = await setTierMedio(configClientId, medio, tier);
     if (!res.ok) return toast.error(res.error);
     setIndividualField({ tier });
     toast.success(tier ? `${medio} quedó como Tier ${tier} para este cliente.` : `${medio} quedó sin tier asignado.`);
@@ -383,7 +391,7 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
     // Si ya hay algo escrito en Medio, no se pisa -- el autocompletado solo llena lo vacío.
     const medioYaEscrito = individual.medio.trim();
     setIndividualField({ loading: true });
-    const res = await fetchMeta(clientId, url);
+    const res = await fetchMeta(configClientId, url);
     setIndividual((d) => ({
       ...d,
       loading: false,
@@ -394,7 +402,7 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
     if (!res.ok) toast.error("No se pudo leer", { description: res.error });
     else if (!res.titulo && !res.snippet) toast.warning("La página no expuso título ni descripción");
     if (!medioYaEscrito && res.medio) {
-      const tRes = await lookupTiers(clientId, [res.medio]);
+      const tRes = await lookupTiers(configClientId, [res.medio]);
       if (tRes.ok) setIndividualField({ tier: tRes.data?.[res.medio]?.tier ?? null });
     }
   }
@@ -470,7 +478,7 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
         }
         // Si la línea ya traía medio (formato "medio | url"), no se pisa.
         const medioYaEscrito = nuevos[idx].medio.trim();
-        const res = await fetchMeta(clientId, url);
+        const res = await fetchMeta(configClientId, url);
         const medioFinal = medioYaEscrito || res.medio || "";
         finalRows[idx] = {
           ...finalRows[idx],
@@ -492,7 +500,7 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
 
     const medios = [...new Set(finalRows.map((n) => n.medio.trim()).filter(Boolean))];
     if (medios.length) {
-      const tiersRes = await lookupTiers(clientId, medios);
+      const tiersRes = await lookupTiers(configClientId, medios);
       if (tiersRes.ok && tiersRes.data) {
         const porMedio = tiersRes.data;
         setBulkPreview((prev) =>
@@ -506,7 +514,7 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
   // Cambiar el tier de una fila de la previsualización escribe en `tiers` (afecta al medio
   // entero) igual que en Individual y en Base de Datos.
   async function bulkPreviewHandleTier(i: number, medio: string, tier: number | null) {
-    const res = await setTierMedio(clientId, medio, tier);
+    const res = await setTierMedio(configClientId, medio, tier);
     if (!res.ok) return toast.error(res.error);
     bulkPreviewSetRow(i, { tier });
   }
@@ -609,7 +617,7 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {clients.map((c) => (
+              {seleccionables.map((c) => (
                 <SelectItem key={c.id} value={c.id} className="text-sm">
                   {c.nombre}
                 </SelectItem>

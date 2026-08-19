@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole, isStaffRole } from "@/lib/auth";
+import { ordenarClientesActivos } from "@/lib/clientes";
 import {
   flattenEditorState,
   computeDiff,
@@ -13,8 +14,6 @@ import DiffList from "./DiffList";
 import { ClipboardList, TrendingUp, AlertOctagon, Cpu, PlusCircle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
-
-const ORDEN = ["booking", "bms", "msd", "mars"];
 
 function pct(n: number | null): string {
   return n == null ? "—" : `${Math.round(n * 100)}%`;
@@ -33,11 +32,9 @@ export default async function PanelPmPage({
   if (!isStaffRole(effective)) redirect("/hoy");
 
   const { data: clientRows } = await supabase.from("clients").select("id, slug, nombre");
-  const clients = ((clientRows ?? []) as { id: string; slug: string; nombre: string }[]).sort((a, b) => {
-    const ia = ORDEN.indexOf(a.slug);
-    const ib = ORDEN.indexOf(b.slug);
-    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-  });
+  // [19/08] Cutover: solo la herramienta real (-test) -- las tablas que usa esta pantalla
+  // (notas_descartadas, reportes, run_stats) ya viven solo bajo el client_id -test.
+  const clients = ordenarClientesActivos((clientRows ?? []) as { id: string; slug: string; nombre: string }[]);
 
   const clientId = sp.cliente && clients.some((c) => c.id === sp.cliente) ? sp.cliente : clients[0]?.id;
 
