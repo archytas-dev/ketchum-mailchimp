@@ -1,22 +1,20 @@
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole, isStaffRole } from "@/lib/auth";
-import { ordenarClientes } from "@/lib/clientes";
+import { ordenarClientesActivos } from "@/lib/clientes";
 import ReportesClient, { type ClientOpt } from "./ReportesClient";
 
 export const dynamic = "force-dynamic";
 
-// KET-49. A diferencia de Base de Datos, esta pantalla SI se le muestra al cliente aunque su
-// clipping lo genere todavia v2: reportar un error no depende de que la config viva en estas
-// tablas -- es texto libre sobre un envio que ya recibio.
+// KET-49.
 export default async function ReportesPage() {
   const supabase = await createClient();
   const { effective } = await getEffectiveRole(supabase);
   const isStaff = isStaffRole(effective);
 
   const { data: clientRows } = await supabase.from("clients").select("id, slug, nombre");
-  // Las dos versiones de cada clipping: se puede reportar un error sobre cualquiera, pero
-  // sobre la que se envía hoy se avisa que ya no se corrige (ver el cartel rojo en el form).
-  const clients = ordenarClientes((clientRows ?? []) as ClientOpt[]);
+  // [19/08] Cutover: solo la herramienta real (-test). Los reportes sobre clippings viejos
+  // (v1/v2) ya no se toman por acá.
+  const clients = ordenarClientesActivos((clientRows ?? []) as ClientOpt[]);
 
   return (
     // Ancho completo, mismo criterio que Base de Datos: con max-w quedaba angosto mientras

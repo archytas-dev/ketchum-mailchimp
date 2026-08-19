@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { ordenarClientes } from "@/lib/clientes";
+import { ordenarClientesActivos } from "@/lib/clientes";
 import {
   FileText,
   Send,
@@ -64,9 +64,9 @@ export default async function EstadisticasPage({
   const supabase = await createClient();
 
   const { data: clientRows } = await supabase.from("clients").select("id, slug, nombre").order("nombre");
-  // Las dos versiones de cada clipping, la que se envía hoy y la nueva (decisión de Adrián,
-  // 11/08). Quién ve qué lo define RLS via user_client_access.
-  const clients = ordenarClientes((clientRows ?? []) as { id: string; slug: string; nombre: string }[]);
+  // [19/08] Cutover: solo la herramienta real (-test) -- las estadísticas viejas (v1/v2) ya
+  // no se muestran acá.
+  const clients = ordenarClientesActivos((clientRows ?? []) as { id: string; slug: string; nombre: string }[]);
 
   let clipQ = supabase.from("clippings").select("id, client_id, fecha, estado, clients(nombre)");
   if (clientId) clipQ = clipQ.eq("client_id", clientId);

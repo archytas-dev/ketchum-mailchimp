@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole, isStaffRole } from "@/lib/auth";
-import { ordenarClientes } from "@/lib/clientes";
+import { ordenarClientesActivos } from "@/lib/clientes";
 import { Radio, KeyRound, Undo2, ClipboardList, Cpu, HeartPulse, CheckCircle2, AlertTriangle, ShieldAlert, ExternalLink } from "lucide-react";
 import ActividadFilter from "./ActividadFilter";
 import CopyLinkButton from "./CopyLinkButton";
@@ -156,11 +156,10 @@ export default async function ActividadPage({
   const { effective } = await getEffectiveRole(supabase);
   const isStaff = isStaffRole(effective);
 
-  // Hasta el 11/08 el cliente veía un "Próximamente" acá, porque la telemetría solo existía
-  // para los clientes de prueba. Ahora ve la pantalla real: elige entre la versión que recibe
-  // hoy y la nueva, y en la nueva sí hay datos de corridas.
+  // [19/08] Cutover: solo la herramienta real (-test) -- la telemetría/actividad vieja
+  // (v1/v2) ya no se consulta desde acá.
   const { data: clientRows } = await supabase.from("clients").select("id, slug, nombre");
-  const clients = ordenarClientes((clientRows ?? []) as { id: string; slug: string; nombre: string }[]);
+  const clients = ordenarClientesActivos((clientRows ?? []) as { id: string; slug: string; nombre: string }[]);
 
   const clientId = sp.cliente && clients.some((c) => c.id === sp.cliente) ? sp.cliente : clients[0]?.id;
 

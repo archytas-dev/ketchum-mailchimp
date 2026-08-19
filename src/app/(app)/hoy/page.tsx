@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { ordenarClientes } from "@/lib/clientes";
+import { ordenarClientesActivos } from "@/lib/clientes";
 import PrincipalClient, { type ClientPayload } from "./PrincipalClient";
 
 export const dynamic = "force-dynamic";
@@ -48,9 +48,9 @@ export default async function HoyPage() {
       .order("fecha", { ascending: false }),
   ]);
 
-  // El cliente ve las dos versiones de cada clipping (decisión de Adrián, 11/08): la que
-  // recibe hoy y la nueva. Quién puede ver qué lo define RLS via user_client_access.
-  const clients = ordenarClientes((clientRows ?? []) as ClientRow[]);
+  // [19/08] Cutover: solo la herramienta real (-test). Los -test viejos (v1/v2) quedaron
+  // obsoletos y solo se consultan desde Historial.
+  const clients = ordenarClientesActivos((clientRows ?? []) as ClientRow[]);
   const clips = (clipRows ?? []) as ClipRow[];
 
   // Último clipping por cliente (el primero que aparece = fecha más nueva).

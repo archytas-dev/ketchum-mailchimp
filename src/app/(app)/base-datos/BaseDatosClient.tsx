@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, ExternalLink, Lock, Info } from "lucide-react";
+import { Plus, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -68,21 +68,22 @@ export default function BaseDatosClient({
   clients: ClientOpt[];
   isStaff: boolean;
 }) {
-  const [clientId, setClientId] = useState(clients[0]?.id ?? "");
+  // [19/08] Cutover: solo se puede elegir/editar la herramienta real (-test). `clients` sigue
+  // llegando SIN filtrar desde la página porque configClientId necesita poder resolver el
+  // par -- la config (medios/tiers/keywords) vive bajo el client_id BASE, no el -test.
+  const seleccionables = clients.filter((c) => c.slug.endsWith("-test"));
+  const [clientId, setClientId] = useState(seleccionables[0]?.id ?? "");
 
-  if (!clients.length) {
+  if (!seleccionables.length) {
     return <p className="text-sm text-muted-foreground">No hay clientes visibles para tu usuario.</p>;
   }
 
   const elegido = clients.find((c) => c.id === clientId);
-  // "<Cliente> - Version Nueva" es la entrada editable. La otra es la version que se envia
-  // hoy, que se muestra solo para consultar.
   const esVersionNueva = !!elegido?.slug.endsWith("-test");
   const readOnly = !esVersionNueva;
 
-  // La configuracion que usa la version nueva vive bajo el cliente base (los 4 workflows v3
-  // la piden con get_config_clipping(p_slug: 'booking'|'bms'|'mars'|'msd')). Por eso las dos
-  // entradas del par leen la MISMA config: cambia si se puede editar, no lo que se ve.
+  // La configuracion vive bajo el cliente base (los 4 workflows v3 la piden con
+  // get_config_clipping(p_slug: 'booking'|'bms'|'mars'|'msd')).
   const slugBase = (elegido?.slug ?? "").replace(/-test$/, "");
   const configClientId = clients.find((c) => c.slug === slugBase)?.id ?? clientId;
 
@@ -96,47 +97,14 @@ export default function BaseDatosClient({
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {clients.map((c) => (
+            {seleccionables.map((c) => (
               <SelectItem key={c.id} value={c.id}>
                 {c.nombre}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <span
-          className={
-            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium " +
-            (esVersionNueva
-              ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-400"
-              : "border-border bg-muted text-muted-foreground")
-          }
-        >
-          {esVersionNueva ? "Se puede editar" : "Solo lectura"}
-        </span>
       </div>
-
-      {readOnly ? (
-        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 p-3">
-          <Lock size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
-          <p className="text-sm text-foreground/80">
-            Esta es la versión del clipping que estás recibiendo hoy. Sus medios, palabras clave
-            y secciones se administran por fuera de esta pantalla, así que acá se ven pero no se
-            editan.{" "}
-            <span className="font-medium">
-              Para preparar cambios, elegí “{elegido?.nombre} - Versión Nueva” en el selector.
-            </span>
-          </p>
-        </div>
-      ) : (
-        <div className="flex items-start gap-2.5 rounded-lg border border-brand/20 bg-brand/5 p-3">
-          <Info size={16} className="mt-0.5 shrink-0 text-brand" />
-          <p className="text-sm text-foreground/80">
-            Estás editando la nueva versión del clipping. Lo que cambies acá queda guardado y se
-            va a aplicar apenas la pongamos en marcha — el clipping que recibís todos los días
-            todavía no lo toma.
-          </p>
-        </div>
-      )}
 
       <Tabs key={clientId} defaultValue="nicho">
         <TabsList>
