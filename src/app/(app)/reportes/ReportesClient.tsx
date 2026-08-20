@@ -94,6 +94,9 @@ export default function ReportesClient({
   }
 
   const puedeEnviar = !saving && !!tipo && !!descripcion.trim() && !!fecha;
+  // KET-49 [20/08]: una vez resuelto/descartado, sale del historial visible -- que quede
+  // solo lo pendiente. El estado sigue en la base para trazabilidad, solo se filtra la vista.
+  const pendientes = rows.filter((r) => r.estado === "abierto" || r.estado === "en_revision");
 
   return (
     <div className="space-y-6">
@@ -193,12 +196,14 @@ export default function ReportesClient({
       <div className="bg-card rounded-xl border border-border p-4">
         <h2 className="text-sm font-medium text-foreground mb-1">Historial de errores</h2>
         <p className="text-xs text-muted-foreground mb-3">
-          Todo lo reportado para este cliente, de lo más nuevo a lo más viejo.
+          Lo pendiente de este cliente, de lo más nuevo a lo más viejo. Lo resuelto sale de esta lista.
         </p>
         {loading ? (
           <p className="text-sm text-muted-foreground">Cargando…</p>
-        ) : rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Todavía no se reportó ningún error.</p>
+        ) : pendientes.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {rows.length === 0 ? "Todavía no se reportó ningún error." : "No hay errores pendientes."}
+          </p>
         ) : (
           <Table>
             <TableHeader>
@@ -210,7 +215,7 @@ export default function ReportesClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((r) => (
+              {pendientes.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="whitespace-nowrap text-muted-foreground">
                     {fechaCorta(r.fecha ?? r.created_at)}
