@@ -29,6 +29,7 @@ import {
   fetchMeta,
   lookupTiers,
   setTierMedio,
+  setAlcanceAdValue,
   listMediosConTier,
   type PrecargaRow,
   type MedioConocido,
@@ -133,9 +134,11 @@ type Draft = {
   // aparecer. YYYY-MM-DD, o "" = sin especificar.
   pubDate: string;
   loading?: boolean;
-  // Tier del MEDIO (tabla `tiers`), no de la nota: se muestra el que ya tiene y se puede
-  // cambiar desde acá. `undefined` = todavía no se consultó.
+  // Tier/Alcance/Ad Value del MEDIO (tabla `tiers`), no de la nota: se muestra lo que ya tiene
+  // y se puede cambiar desde acá. `undefined` = todavía no se consultó.
   tier?: number | null;
+  alcance?: number | null;
+  ad_value?: number | null;
 };
 type EditFields = { medio: string; titulo: string; url: string; snippet: string; seccion: string; pubDate: string };
 
@@ -235,11 +238,13 @@ const HINT_FECHA_NOTA =
   "Cuándo se publicó la noticia -- puede ser de ayer o de otro día. No es la fecha del clipping de arriba: esa es el día en que la nota va a aparecer.";
 const HINT_TIER =
   "El tier es del medio, no de esta nota puntual: se guarda para todas las notas de ese medio, igual que en Base de Datos.";
+const HINT_ALCANCE_ADVALUE =
+  "También del medio, no de esta nota -- igual que Tier. Se guardan por separado: podés cargar uno sin el otro.";
 const HINT_MEDIO =
   "Escribí el nombre del medio. Si ya está cargado en Base de Datos aparece como sugerencia -- elegirlo completa el tier solo.";
-// Versión combinada para el encabezado de la grilla grupal: ahí Tier no tiene columna propia
-// (va debajo de Medio en la misma celda), así que el hint cubre las dos cosas juntas.
-const HINT_MEDIO_TIER = HINT_MEDIO + " " + HINT_TIER;
+// Versión combinada para el encabezado de la grilla grupal: ahí Tier/Alcance/Ad Value no
+// tienen columna propia (van debajo de Medio en la misma celda), así que el hint cubre todo junto.
+const HINT_MEDIO_TIER = HINT_MEDIO + " " + HINT_TIER + " " + HINT_ALCANCE_ADVALUE;
 const HINT_NOTA_COL =
   "URL, título y descripción de la nota. Si el título queda marcado en naranja, no se pudo traer solo -- completalo a mano o quitá la fila.";
 const HINT_SECCION_LOTE =
@@ -278,6 +283,59 @@ function TierSelect({
         <SelectItem value="4">Tier 4</SelectItem>
       </SelectContent>
     </Select>
+  );
+}
+
+// Alcance/Ad Value del MEDIO (misma tabla `tiers` que Tier, independiente de él -- se puede
+// cargar uno sin el otro). Se confirma al perder foco, no en cada tecla, para no pegarle a la
+// base en cada dígito. Reutilizado por Individual y por cada fila de la previsualización grupal.
+function AlcanceAdValueInputs({
+  alcance,
+  adValue,
+  onCommit,
+  disabled,
+}: {
+  alcance: number | null | undefined;
+  adValue: number | null | undefined;
+  onCommit: (patch: { alcance?: number | null; ad_value?: number | null }) => void;
+  disabled: boolean;
+}) {
+  const [alcanceLocal, setAlcanceLocal] = useState(alcance != null ? String(alcance) : "");
+  const [adValueLocal, setAdValueLocal] = useState(adValue != null ? String(adValue) : "");
+  // Sincroniza si el valor llega/cambia desde afuera (ej. al elegir un medio ya conocido).
+  useEffect(() => setAlcanceLocal(alcance != null ? String(alcance) : ""), [alcance]);
+  useEffect(() => setAdValueLocal(adValue != null ? String(adValue) : ""), [adValue]);
+  return (
+    <div className="grid grid-cols-2 gap-1.5">
+      <input
+        type="number"
+        min="0"
+        placeholder="Alcance"
+        title="Alcance del medio — mismo dato que en Base de Datos, se guarda para todas sus notas"
+        disabled={disabled}
+        value={alcanceLocal}
+        onChange={(e) => setAlcanceLocal(e.target.value)}
+        onBlur={() => {
+          const v = alcanceLocal.trim() === "" ? null : Number(alcanceLocal);
+          if (v !== (alcance ?? null) && !Number.isNaN(v)) onCommit({ alcance: v });
+        }}
+        className="border rounded-md px-2 py-1.5 text-xs bg-background w-full"
+      />
+      <input
+        type="number"
+        min="0"
+        placeholder="Ad Value"
+        title="Ad Value del medio — mismo dato que en Base de Datos, se guarda para todas sus notas"
+        disabled={disabled}
+        value={adValueLocal}
+        onChange={(e) => setAdValueLocal(e.target.value)}
+        onBlur={() => {
+          const v = adValueLocal.trim() === "" ? null : Number(adValueLocal);
+          if (v !== (adValue ?? null) && !Number.isNaN(v)) onCommit({ ad_value: v });
+        }}
+        className="border rounded-md px-2 py-1.5 text-xs bg-background w-full"
+      />
+    </div>
   );
 }
 
@@ -366,14 +424,15 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
     setIndividual((d) => ({ ...d, ...patch }));
   }
 
-  // Al terminar de escribir el medio, trae el tier que ya tiene cargado para ese cliente:
-  // muestra lo que va a salir en el mail sin tener que ir a Base de Datos a chequearlo.
+  // Al terminar de escribir el medio, trae el tier/alcance/ad_value que ya tiene cargado para
+  // ese cliente: muestra lo que va a salir en el mail sin tener que ir a Base de Datos.
   async function individualRefrescarTier() {
     const medio = individual.medio.trim();
-    if (!medio) return setIndividualField({ tier: undefined });
+    if (!medio) return setIndividualField({ tier: undefined, alcance: undefined, ad_value: undefined });
     const res = await lookupTiers(configClientId, [medio]);
     if (!res.ok) return;
-    setIndividualField({ tier: res.data?.[medio]?.tier ?? null });
+    const d = res.data?.[medio];
+    setIndividualField({ tier: d?.tier ?? null, alcance: d?.alcance ?? null, ad_value: d?.ad_value ?? null });
   }
 
   // Cambiar el tier acá escribe en `tiers`, o sea que afecta al medio entero, no solo a esta
@@ -384,6 +443,16 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
     if (!res.ok) return toast.error(res.error);
     setIndividualField({ tier });
     toast.success(tier ? `${medio} quedó como Tier ${tier} para este cliente.` : `${medio} quedó sin tier asignado.`);
+  }
+
+  // Igual que individualHandleTier pero para Alcance/Ad Value -- mismo dato (tabla `tiers`),
+  // campo independiente.
+  async function individualHandleAlcanceAdValue(patch: { alcance?: number | null; ad_value?: number | null }) {
+    const medio = individual.medio.trim();
+    const res = await setAlcanceAdValue(configClientId, medio, patch);
+    if (!res.ok) return toast.error(res.error);
+    setIndividualField(patch);
+    toast.success(`${medio} actualizado para este cliente.`);
   }
 
   async function individualTraer() {
@@ -404,7 +473,10 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
     else if (!res.titulo && !res.snippet) toast.warning("La página no expuso título ni descripción");
     if (!medioYaEscrito && res.medio) {
       const tRes = await lookupTiers(configClientId, [res.medio]);
-      if (tRes.ok) setIndividualField({ tier: tRes.data?.[res.medio]?.tier ?? null });
+      if (tRes.ok) {
+        const d = tRes.data?.[res.medio];
+        setIndividualField({ tier: d?.tier ?? null, alcance: d?.alcance ?? null, ad_value: d?.ad_value ?? null });
+      }
     }
   }
 
@@ -505,7 +577,16 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
       if (tiersRes.ok && tiersRes.data) {
         const porMedio = tiersRes.data;
         setBulkPreview((prev) =>
-          prev?.map((x) => (x.medio.trim() && x.tier === undefined ? { ...x, tier: porMedio[x.medio.trim()]?.tier ?? null } : x)) ?? prev,
+          prev?.map((x) =>
+            x.medio.trim() && x.tier === undefined
+              ? {
+                  ...x,
+                  tier: porMedio[x.medio.trim()]?.tier ?? null,
+                  alcance: porMedio[x.medio.trim()]?.alcance ?? null,
+                  ad_value: porMedio[x.medio.trim()]?.ad_value ?? null,
+                }
+              : x,
+          ) ?? prev,
         );
       }
     }
@@ -518,6 +599,13 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
     const res = await setTierMedio(configClientId, medio, tier);
     if (!res.ok) return toast.error(res.error);
     bulkPreviewSetRow(i, { tier });
+  }
+
+  // Igual que bulkPreviewHandleTier pero para Alcance/Ad Value.
+  async function bulkPreviewHandleAlcanceAdValue(i: number, medio: string, patch: { alcance?: number | null; ad_value?: number | null }) {
+    const res = await setAlcanceAdValue(configClientId, medio, patch);
+    if (!res.ok) return toast.error(res.error);
+    bulkPreviewSetRow(i, patch);
   }
 
   function bulkPreviewSetRow(i: number, patch: Partial<Draft>) {
@@ -789,6 +877,13 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
             />
             <FieldLabel hint={HINT_TIER}>Tier</FieldLabel>
             <TierSelect tier={individual.tier} onChange={individualHandleTier} disabled={!individual.medio.trim()} />
+            <FieldLabel hint={HINT_ALCANCE_ADVALUE}>Alcance y Ad Value</FieldLabel>
+            <AlcanceAdValueInputs
+              alcance={individual.alcance}
+              adValue={individual.ad_value}
+              onCommit={individualHandleAlcanceAdValue}
+              disabled={!individual.medio.trim()}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <FieldLabel>Sección</FieldLabel>
@@ -949,6 +1044,12 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
                     <TierSelect
                       tier={r.tier}
                       onChange={(t) => bulkPreviewHandleTier(i, r.medio.trim(), t)}
+                      disabled={!r.medio.trim()}
+                    />
+                    <AlcanceAdValueInputs
+                      alcance={r.alcance}
+                      adValue={r.ad_value}
+                      onCommit={(patch) => bulkPreviewHandleAlcanceAdValue(i, r.medio.trim(), patch)}
                       disabled={!r.medio.trim()}
                     />
                   </div>

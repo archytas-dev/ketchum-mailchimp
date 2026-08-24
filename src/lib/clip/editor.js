@@ -243,7 +243,25 @@ export function mountEditor(root, opts) {
     for (const s of sections) { const k = String(s.titulo || "").trim().toLowerCase(); if (!orderSet.has(k)) out.push(s); }
     return out;
   }
-  function toNota(a) { return { id: nid(), medio: a.medio || a.fuente || a.nombre_medio_origen || "", online: (a.online !== undefined && a.online !== null) ? a.online : "(Online)", fecha: a.fecha || a.pubDate || "", tier: a.tier || "", titulo: a.titulo || a.title || "", url: a.url || a.url_canonica || "", snippet: a.snippet || a.contentSnippet || "", esGacetilla: !!a.esGacetilla }; }
+  // Ad Value ya persistido en la nota (ver Prep Supabase Rows en n8n) -- mismo formato "$X.XXX-"
+  // que usa Build HTML Email para el mail. Autocompleta el campo "tier" (texto libre, se
+  // muestra solo en la sección de Exclusivas) SOLO si todavía no tiene nada escrito a mano.
+  function fmtAdValueTier(n) { return "Ad Value: $" + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "-"; }
+  function toNota(a) {
+    const adValue = (a.ad_value !== undefined && a.ad_value !== null) ? a.ad_value : null;
+    return {
+      id: nid(),
+      medio: a.medio || a.fuente || a.nombre_medio_origen || "",
+      online: (a.online !== undefined && a.online !== null) ? a.online : "(Online)",
+      fecha: a.fecha || a.pubDate || "",
+      ad_value: adValue,
+      tier: a.tier || (adValue ? fmtAdValueTier(adValue) : ""),
+      titulo: a.titulo || a.title || "",
+      url: a.url || a.url_canonica || "",
+      snippet: a.snippet || a.contentSnippet || "",
+      esGacetilla: !!a.esGacetilla
+    };
+  }
 
   const $ = (sel) => root.querySelector(sel);
   const $$ = (sel) => root.querySelectorAll(sel);

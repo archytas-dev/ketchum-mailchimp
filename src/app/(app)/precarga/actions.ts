@@ -11,7 +11,7 @@ import { tierNorm } from "@/lib/tier";
 // cambiarlo ahi mismo, escribiendo en `tiers`. Si se guardara por nota habria dos verdades y
 // el clipping seguiria usando la del medio.
 
-export type TierDeMedio = { tier: number | null; ad_value: number | null };
+export type TierDeMedio = { tier: number | null; ad_value: number | null; alcance: number | null };
 
 export type MedioConocido = { nombre: string; tier: number | null };
 
@@ -63,17 +63,50 @@ export async function lookupTiers(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("tiers")
-    .select("dominio, tier, ad_value")
+    .select("dominio, tier, ad_value, alcance")
     .eq("client_id", clientId)
     .in("dominio", [...claves.keys()]);
   if (error) return { ok: false, error: error.message };
 
   const out: Record<string, TierDeMedio> = {};
-  for (const row of (data ?? []) as { dominio: string; tier: number | null; ad_value: number | null }[]) {
+  for (const row of (data ?? []) as { dominio: string; tier: number | null; ad_value: number | null; alcance: number | null }[]) {
     const nombreOriginal = claves.get(String(row.dominio).toLowerCase());
-    if (nombreOriginal) out[nombreOriginal] = { tier: row.tier, ad_value: row.ad_value };
+    if (nombreOriginal) out[nombreOriginal] = { tier: row.tier, ad_value: row.ad_value, alcance: row.alcance };
   }
   return { ok: true, data: out };
+}
+
+// Asigna (o crea) alcance/ad_value del medio -- mismo dato y misma tabla que Tier (`tiers`),
+// separado de setTierMedio porque son campos independientes (se puede cargar uno sin el otro)
+// y así no hay que tocar los call sites existentes de Tier para sumar esto.
+export async function setAlcanceAdValue(
+  clientId: string,
+  nombreMedio: string,
+  input: { ad_value?: number | null; alcance?: number | null },
+): Promise<{ ok: boolean; error?: string }> {
+  const key = tierNorm(nombreMedio);
+  if (!key) return { ok: false, error: "Escribí primero el medio para poder cargarle alcance/Ad Value." };
+  if (input.ad_value != null && input.ad_value < 0) return { ok: false, error: "El Ad Value no puede ser negativo." };
+  if (input.alcance != null && input.alcance < 0) return { ok: false, error: "El Alcance no puede ser negativo." };
+
+  const supabase = await createClient();
+  const { data: existente, error: findError } = await supabase
+    .from("tiers")
+    .select("id")
+    .eq("client_id", clientId)
+    .ilike("dominio", key)
+    .maybeSingle();
+  if (findError) return { ok: false, error: findError.message };
+
+  const patch: { medio: string; ad_value?: number | null; alcance?: number | null } = { medio: nombreMedio };
+  if (input.ad_value !== undefined) patch.ad_value = input.ad_value;
+  if (input.alcance !== undefined) patch.alcance = input.alcance;
+
+  const { error } = existente
+    ? await supabase.from("tiers").update(patch).eq("id", existente.id)
+    : await supabase.from("tiers").insert({ client_id: clientId, dominio: key, ...patch });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 // Asigna (o crea) el tier del medio. Mismo camino que Base de Datos: nada de .upsert(), porque

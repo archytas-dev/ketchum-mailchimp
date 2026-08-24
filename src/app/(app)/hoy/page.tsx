@@ -32,6 +32,7 @@ type NoteRow = {
   url: string | null;
   pub_date: string | null;
   orden: number;
+  ad_value: number | null;
 };
 type ClipRow = { id: string; client_id: string; fecha: string; resumen_ia: unknown };
 
@@ -75,7 +76,7 @@ export default async function HoyPage() {
   if (clipIds.length) {
     const { data: noteRows } = await supabase
       .from("notes")
-      .select("id, clipping_id, seccion, medio, titulo, snippet, url, pub_date, orden")
+      .select("id, clipping_id, seccion, medio, titulo, snippet, url, pub_date, orden, ad_value")
       .in("clipping_id", clipIds)
       .eq("incluida", true)
       .order("orden", { ascending: true });
@@ -117,6 +118,7 @@ export default async function HoyPage() {
           titulo: n.titulo ?? "",
           url: n.url ?? "",
           snippet: n.snippet ?? "",
+          ad_value: n.ad_value ?? null,
         })),
       };
     }
