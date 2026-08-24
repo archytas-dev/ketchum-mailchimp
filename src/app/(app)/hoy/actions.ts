@@ -19,9 +19,9 @@ export async function generateResumen(
   sections: Seccion[],
 ): Promise<{ exclusivas: string; competencia: string }> {
   const empty = { exclusivas: "", competencia: "" };
-  // Se acepta tanto el slug del cliente real como el de la Versión Nueva ("bms-test"): la
+  // Se acepta tanto el slug del cliente real como el del legado ("bms-legado"): la
   // config del resumen es la misma para las dos, se busca por el cliente base.
-  const cfg = RESUMEN_CFG[slug.replace(/-test$/, "")];
+  const cfg = RESUMEN_CFG[slug.replace(/-legado$/, "")];
   const key = process.env.OPENAI_API_KEY;
   if (!cfg || !key) return empty;
 

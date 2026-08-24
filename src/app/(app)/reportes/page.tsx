@@ -12,8 +12,8 @@ export default async function ReportesPage() {
   const isStaff = isStaffRole(effective);
 
   const { data: clientRows } = await supabase.from("clients").select("id, slug, nombre");
-  // [19/08] Cutover: solo la herramienta real (-test). Los reportes sobre clippings viejos
-  // (v1/v2) ya no se toman por acá.
+  // [19/08] Cutover: solo la herramienta real (no-legado). Los reportes sobre clippings
+  // viejos (v1/v2) ya no se toman por acá.
   const clients = ordenarClientesActivos((clientRows ?? []) as ClientOpt[]);
 
   return (

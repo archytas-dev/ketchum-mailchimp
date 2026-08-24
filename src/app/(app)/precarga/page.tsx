@@ -7,11 +7,12 @@ export const dynamic = "force-dynamic";
 export default async function PrecargaPage() {
   const supabase = await createClient();
   const { data: clientRows } = await supabase.from("clients").select("id, slug, nombre");
-  // [19/08] Cutover: notes_precarga (lo que se guarda) va con client_id -test -- los 4 nodos
-  // "Leer Precarga Pendiente" de n8n ya se corrigieron para leer de ahí. Pero medios/tiers
-  // (el catálogo que autocompleta el campo Medio) sigue viviendo bajo el client_id BASE, así
-  // que acá se pasa la lista SIN filtrar -- PrecargaClient necesita el par completo para
-  // resolver configClientId. El filtro a solo -test se hace en el dropdown.
+  // [19/08] Cutover: notes_precarga (lo que se guarda) va con el client_id real -- los 4
+  // nodos "Leer Precarga Pendiente" de n8n ya se corrigieron para leer de ahí. Pero
+  // medios/tiers (el catálogo que autocompleta el campo Medio) sigue viviendo bajo el
+  // client_id BASE, así que acá se pasa la lista SIN filtrar -- PrecargaClient necesita el
+  // par completo para resolver configClientId. El filtro a solo no-legado se hace en el
+  // dropdown.
   const clients = ordenarClientes((clientRows ?? []) as ClientOpt[]);
 
   return (

@@ -27,12 +27,17 @@ const RENDERERS: Record<string, (input: RenderInput) => string> = {
   msd: renderMsd,
 };
 
+// Clippings del cliente legado (slug `*-legado`) usan el mismo render que el cliente real.
+function baseSlug(slug: string): string {
+  return slug.replace(/-legado$/, "");
+}
+
 export function renderClipping(slug: string, input: RenderInput): string | null {
-  const fn = RENDERERS[slug];
+  const fn = RENDERERS[baseSlug(slug)];
   if (!fn) return null;
   return fn(input);
 }
 
 export function hasRenderer(slug: string): boolean {
-  return slug in RENDERERS;
+  return baseSlug(slug) in RENDERERS;
 }

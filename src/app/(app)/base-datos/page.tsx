@@ -17,7 +17,7 @@ export default async function BaseDatosPage() {
   // [19/08] Cutover: la config (medios/tiers/keywords) sigue viviendo bajo el client_id BASE
   // (los 4 workflows v3 la piden con get_config_clipping(p_slug: 'bms'|'booking'|'mars'|'msd')),
   // así que acá se sigue pasando la lista SIN filtrar -- BaseDatosClient necesita el par
-  // completo para resolver configClientId. El filtro a solo -test se hace en el dropdown,
+  // completo para resolver configClientId. El filtro a solo no-legado se hace en el dropdown,
   // adentro del client component.
   const clients = ordenarClientes((clientRows ?? []) as ClientOpt[]);
 

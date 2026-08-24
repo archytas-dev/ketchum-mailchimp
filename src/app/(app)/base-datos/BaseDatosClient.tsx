@@ -68,10 +68,11 @@ export default function BaseDatosClient({
   clients: ClientOpt[];
   isStaff: boolean;
 }) {
-  // [19/08] Cutover: solo se puede elegir/editar la herramienta real (-test). `clients` sigue
-  // llegando SIN filtrar desde la página porque configClientId necesita poder resolver el
-  // par -- la config (medios/tiers/keywords) vive bajo el client_id BASE, no el -test.
-  const seleccionables = clients.filter((c) => c.slug.endsWith("-test"));
+  // [24/08] Rename: solo se puede elegir/editar la herramienta real (slug limpio, sin
+  // "-legado"). `clients` sigue llegando SIN filtrar desde la página porque configClientId
+  // necesita poder resolver el par -- la config (medios/tiers/keywords) vive bajo el
+  // client_id BASE (el mismo cliente real, no el legado).
+  const seleccionables = clients.filter((c) => !c.slug.endsWith("-legado"));
   const [clientId, setClientId] = useState(seleccionables[0]?.id ?? "");
 
   if (!seleccionables.length) {
@@ -79,12 +80,12 @@ export default function BaseDatosClient({
   }
 
   const elegido = clients.find((c) => c.id === clientId);
-  const esVersionNueva = !!elegido?.slug.endsWith("-test");
+  const esVersionNueva = !elegido?.slug.endsWith("-legado");
   const readOnly = !esVersionNueva;
 
   // La configuracion vive bajo el cliente base (los 4 workflows v3 la piden con
   // get_config_clipping(p_slug: 'booking'|'bms'|'mars'|'msd')).
-  const slugBase = (elegido?.slug ?? "").replace(/-test$/, "");
+  const slugBase = (elegido?.slug ?? "").replace(/-legado$/, "");
   const configClientId = clients.find((c) => c.slug === slugBase)?.id ?? clientId;
 
   return (

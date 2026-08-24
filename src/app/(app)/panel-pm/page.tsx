@@ -32,8 +32,8 @@ export default async function PanelPmPage({
   if (!isStaffRole(effective)) redirect("/hoy");
 
   const { data: clientRows } = await supabase.from("clients").select("id, slug, nombre");
-  // [19/08] Cutover: solo la herramienta real (-test) -- las tablas que usa esta pantalla
-  // (notas_descartadas, reportes, run_stats) ya viven solo bajo el client_id -test.
+  // [19/08] Cutover: solo la herramienta real (no-legado) -- las tablas que usa esta pantalla
+  // (notas_descartadas, reportes, run_stats) ya viven solo bajo el client_id real.
   const clients = ordenarClientesActivos((clientRows ?? []) as { id: string; slug: string; nombre: string }[]);
 
   const clientId = sp.cliente && clients.some((c) => c.id === sp.cliente) ? sp.cliente : clients[0]?.id;

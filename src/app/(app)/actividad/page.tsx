@@ -156,7 +156,7 @@ export default async function ActividadPage({
   const { effective } = await getEffectiveRole(supabase);
   const isStaff = isStaffRole(effective);
 
-  // [19/08] Cutover: solo la herramienta real (-test) -- la telemetría/actividad vieja
+  // [19/08] Cutover: solo la herramienta real (no-legado) -- la telemetría/actividad vieja
   // (v1/v2) ya no se consulta desde acá.
   const { data: clientRows } = await supabase.from("clients").select("id, slug, nombre");
   const clients = ordenarClientesActivos((clientRows ?? []) as { id: string; slug: string; nombre: string }[]);

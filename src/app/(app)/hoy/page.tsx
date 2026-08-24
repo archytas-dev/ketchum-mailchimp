@@ -48,8 +48,8 @@ export default async function HoyPage() {
       .order("fecha", { ascending: false }),
   ]);
 
-  // [19/08] Cutover: solo la herramienta real (-test). Los -test viejos (v1/v2) quedaron
-  // obsoletos y solo se consultan desde Historial.
+  // [19/08] Cutover: solo la herramienta real (no-legado). Los clientes legado (v1/v2)
+  // quedaron obsoletos y solo se consultan desde Historial.
   const clients = ordenarClientesActivos((clientRows ?? []) as ClientRow[]);
   const clips = (clipRows ?? []) as ClipRow[];
 

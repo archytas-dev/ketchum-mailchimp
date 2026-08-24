@@ -1,20 +1,20 @@
-// [19/08] Cutover: la "Versión Nueva" (slug `*-test`) pasó a ser LA herramienta real —
-// los workflows v1/v2 quedaron obsoletos, corriendo en paralelo solo para no perder el
-// historial viejo (ver Historial). Los slugs *-test se mantienen tal cual (romper eso
-// implica tocar n8n/RLS en varios lugares) pero las 5 pantallas de uso diario (Principal,
-// Reportes, Base de Datos, Actividad, Estadísticas) ahora filtran para mostrar SOLO los
-// clientes -test. Historial es la única pantalla que sigue mostrando los 8 (ve
+// [24/08] Rename: el cliente real (antes slug `*-test`) pasó a tener el slug limpio
+// (`booking`, `bms`, `msd`, `mars`) y el cliente viejo (v1/v2, antes el slug base) pasó a
+// `*-legado`. Los workflows v1/v2 quedaron obsoletos, corriendo en paralelo solo para no
+// perder el historial viejo (ver Historial). Las 5 pantallas de uso diario (Principal,
+// Reportes, Base de Datos, Actividad, Estadísticas) filtran para mostrar SOLO los
+// clientes NO-legado. Historial es la única pantalla que sigue mostrando los 8 (ver
 // ordenarClientes sin filtrar), para poder consultar lo viejo si hace falta.
 
 export const ORDEN_CLIENTES = ["booking", "bms", "msd", "mars"];
 
 export function esVersionNueva(slug: string): boolean {
-  return slug.endsWith("-test");
+  return !slug.endsWith("-legado");
 }
 
-/** Slug del cliente base: `booking-test` -> `booking`. */
+/** Slug del cliente base: `booking-legado` -> `booking`. */
 export function slugBase(slug: string): string {
-  return slug.replace(/-test$/, "");
+  return slug.replace(/-legado$/, "");
 }
 
 /** Orden acordado de clientes: Booking, BMS, MSD, Mars. */
@@ -29,7 +29,7 @@ export function ordenarClientes<T extends { slug: string }>(clients: T[]): T[] {
 
 /**
  * Las 5 pantallas de uso diario (Principal, Reportes, Base de Datos, Actividad,
- * Estadísticas): solo la herramienta real (-test) desde el cutover del 19/08.
+ * Estadísticas): solo la herramienta real (no-legado) desde el cutover del 19/08.
  */
 export function ordenarClientesActivos<T extends { slug: string }>(clients: T[]): T[] {
   return ordenarClientes(clients.filter((c) => esVersionNueva(c.slug)));

@@ -282,16 +282,17 @@ function TierSelect({
 }
 
 export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
-  // [19/08] Cutover: solo se puede elegir la herramienta real (-test). `clients` sigue
-  // llegando SIN filtrar desde la página porque configClientId necesita poder resolver el
-  // par -- medios/tiers (el catálogo de autocompletado) vive bajo el client_id BASE, no el -test.
-  const seleccionables = clients.filter((c) => c.slug.endsWith("-test"));
+  // [24/08] Rename: solo se puede elegir la herramienta real (slug limpio, sin "-legado").
+  // `clients` sigue llegando SIN filtrar desde la página porque configClientId necesita
+  // poder resolver el par -- medios/tiers (el catálogo de autocompletado) vive bajo el
+  // client_id BASE (el mismo cliente real, no el legado).
+  const seleccionables = clients.filter((c) => !c.slug.endsWith("-legado"));
   const [clientId, setClientId] = useState(seleccionables[0]?.id ?? "");
   const [fecha, setFecha] = useState<string>(() => tomorrowAR());
   const clientSlug = clients.find((c) => c.id === clientId)?.slug ?? "";
   // La configuracion (medios/tiers) vive bajo el cliente base (los 4 workflows v3 la piden
   // con get_config_clipping(p_slug: 'booking'|'bms'|'mars'|'msd')).
-  const slugBaseCfg = clientSlug.replace(/-test$/, "");
+  const slugBaseCfg = clientSlug.replace(/-legado$/, "");
   const configClientId = clients.find((c) => c.slug === slugBaseCfg)?.id ?? clientId;
   // "Áreas Terapéuticas" (BMS) es solo un separador visual en el mail, nunca lleva notas propias.
   const sections = sectionsFor(clientSlug).filter((s) => s !== "Áreas Terapéuticas");

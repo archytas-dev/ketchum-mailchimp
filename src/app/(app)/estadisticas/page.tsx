@@ -64,8 +64,8 @@ export default async function EstadisticasPage({
   const supabase = await createClient();
 
   const { data: clientRows } = await supabase.from("clients").select("id, slug, nombre").order("nombre");
-  // [19/08] Cutover: solo la herramienta real (-test) -- las estadísticas viejas (v1/v2) ya
-  // no se muestran acá.
+  // [19/08] Cutover: solo la herramienta real (no-legado) -- las estadísticas viejas (v1/v2)
+  // ya no se muestran acá.
   const clients = ordenarClientesActivos((clientRows ?? []) as { id: string; slug: string; nombre: string }[]);
 
   let clipQ = supabase.from("clippings").select("id, client_id, fecha, estado, clients(nombre)");
@@ -73,7 +73,7 @@ export default async function EstadisticasPage({
     clipQ = clipQ.eq("client_id", clientId);
   } else {
     // [19/08] "Todos" no puede traer clippings de los clientes viejos (v1/v2) -- `clients`
-    // ya viene filtrado a -test acá arriba, así que alcanza con restringir a esos ids.
+    // ya viene filtrado a no-legado acá arriba, así que alcanza con restringir a esos ids.
     const idsActivos = clients.map((c) => c.id);
     clipQ = clipQ.in("client_id", idsActivos.length ? idsActivos : ["00000000-0000-0000-0000-000000000000"]);
   }

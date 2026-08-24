@@ -138,10 +138,10 @@ export function mountEditor(root, opts) {
   let currentResumen = null; // {exclusivas, competencia}
   let state = { theme: "booking", fecha: "", sections: [] };
   const curSlug = payload.slug || "booking";
-  // Resumen IA se busca por el cliente BASE: "bms-test" (la Versión Nueva) usa la misma
-  // config que "bms". Sin esto, RESUMEN_LABELS[curSlug] da undefined para los *-test y el
+  // Resumen IA se busca por el cliente BASE: "bms-legado" (el cliente viejo) usa la misma
+  // config que "bms". Sin esto, RESUMEN_LABELS[curSlug] da undefined para los *-legado y el
   // boton + la caja de resumen desaparecen aunque el resumen exista guardado.
-  const resumenSlug = curSlug.replace(/-test$/, "");
+  const resumenSlug = curSlug.replace(/-legado$/, "");
   const curClippingId = payload.clippingId || null;
   let uid = 1;
   const nid = () => "n" + (uid++);
