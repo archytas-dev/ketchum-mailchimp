@@ -36,6 +36,7 @@ import {
 } from "./actions";
 import { sectionsFor, defaultSection } from "@/lib/clip/canon";
 import { tierDotClasses, tierBadgeClasses } from "@/lib/tier";
+import { parseNumeroAr, formatNumeroAr } from "@/lib/numero";
 
 // Sin tildes ni mayúsculas, para que "Diario Popular" matchee con "diario popular" o "popular".
 function normalizar(s: string): string {
@@ -300,38 +301,57 @@ function AlcanceAdValueInputs({
   onCommit: (patch: { alcance?: number | null; ad_value?: number | null }) => void;
   disabled: boolean;
 }) {
-  const [alcanceLocal, setAlcanceLocal] = useState(alcance != null ? String(alcance) : "");
-  const [adValueLocal, setAdValueLocal] = useState(adValue != null ? String(adValue) : "");
+  // [25/08] `type="text"` + parseo propio, no `type="number"`: el cliente carga los importes con
+  // separador de miles ("7.000.000") y el input nativo los rechaza. Ver src/lib/numero.ts.
+  const [alcanceLocal, setAlcanceLocal] = useState(formatNumeroAr(alcance));
+  const [adValueLocal, setAdValueLocal] = useState(formatNumeroAr(adValue));
   // Sincroniza si el valor llega/cambia desde afuera (ej. al elegir un medio ya conocido).
-  useEffect(() => setAlcanceLocal(alcance != null ? String(alcance) : ""), [alcance]);
-  useEffect(() => setAdValueLocal(adValue != null ? String(adValue) : ""), [adValue]);
+  // Se ajusta durante el render y no en un efecto -- mismo patrón que `NumberCell` en Base de
+  // Datos, y evita el re-render en cascada que marca react-hooks/set-state-in-effect.
+  const [prevAlcance, setPrevAlcance] = useState(alcance);
+  if (alcance !== prevAlcance) {
+    setPrevAlcance(alcance);
+    setAlcanceLocal(formatNumeroAr(alcance));
+  }
+  const [prevAdValue, setPrevAdValue] = useState(adValue);
+  if (adValue !== prevAdValue) {
+    setPrevAdValue(adValue);
+    setAdValueLocal(formatNumeroAr(adValue));
+  }
   return (
     <div className="grid grid-cols-2 gap-1.5">
       <input
-        type="number"
-        min="0"
+        type="text"
+        inputMode="numeric"
         placeholder="Alcance"
         title="Alcance del medio — mismo dato que en Base de Datos, se guarda para todas sus notas"
         disabled={disabled}
         value={alcanceLocal}
         onChange={(e) => setAlcanceLocal(e.target.value)}
         onBlur={() => {
-          const v = alcanceLocal.trim() === "" ? null : Number(alcanceLocal);
-          if (v !== (alcance ?? null) && !Number.isNaN(v)) onCommit({ alcance: v });
+          const v = parseNumeroAr(alcanceLocal);
+          // Sólo se borra el valor si el campo quedó vacío a propósito. Si tiene texto pero no
+          // se le pudo sacar ningún dígito, se revierte a lo guardado en vez de pisarlo con null.
+          if (v === null && alcanceLocal.trim() !== "") return setAlcanceLocal(formatNumeroAr(alcance));
+          // Se reescribe con el formato canónico: confirma visualmente qué se entendió.
+          setAlcanceLocal(formatNumeroAr(v));
+          if (v !== (alcance ?? null)) onCommit({ alcance: v });
         }}
         className="border rounded-md px-2 py-1.5 text-xs bg-background w-full"
       />
       <input
-        type="number"
-        min="0"
+        type="text"
+        inputMode="numeric"
         placeholder="Ad Value"
         title="Ad Value del medio — mismo dato que en Base de Datos, se guarda para todas sus notas"
         disabled={disabled}
         value={adValueLocal}
         onChange={(e) => setAdValueLocal(e.target.value)}
         onBlur={() => {
-          const v = adValueLocal.trim() === "" ? null : Number(adValueLocal);
-          if (v !== (adValue ?? null) && !Number.isNaN(v)) onCommit({ ad_value: v });
+          const v = parseNumeroAr(adValueLocal);
+          if (v === null && adValueLocal.trim() !== "") return setAdValueLocal(formatNumeroAr(adValue));
+          setAdValueLocal(formatNumeroAr(v));
+          if (v !== (adValue ?? null)) onCommit({ ad_value: v });
         }}
         className="border rounded-md px-2 py-1.5 text-xs bg-background w-full"
       />

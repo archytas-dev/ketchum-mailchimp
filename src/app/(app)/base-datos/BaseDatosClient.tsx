@@ -18,6 +18,7 @@ import { tierDotClasses, tierBadgeClasses } from "@/lib/tier";
 import StaffOnlySection from "@/components/StaffOnlySection";
 import EstadoBadge from "@/components/EstadoBadge";
 import { useCachedList, invalidateCached } from "@/lib/use-cached-list";
+import { parseNumeroAr, formatNumeroAr } from "@/lib/numero";
 import {
   Table,
   TableBody,
@@ -176,26 +177,33 @@ function NumberCell({
   onCommit: (v: number | null) => void;
   disabled: boolean;
 }) {
-  const [draft, setDraft] = useState(value != null ? String(value) : "");
+  const [draft, setDraft] = useState(formatNumeroAr(value));
   // Ajustar estado durante el render (no en un efecto) cuando cambia `value` desde afuera —
   // mismo patrón que el reset de filas al cambiar de cliente en Precarga.
   const [prevValue, setPrevValue] = useState(value);
   if (value !== prevValue) {
     setPrevValue(value);
-    setDraft(value != null ? String(value) : "");
+    setDraft(formatNumeroAr(value));
   }
   return (
     <input
-      type="number"
-      min={0}
+      // [25/08] `type="text"`, no `number`: con `number` un importe con separador de miles
+      // ("7.000.000") llegaba vacío/NaN y este onBlur lo normalizaba a null, PISANDO el valor
+      // que ya estaba cargado. Ver src/lib/numero.ts.
+      type="text"
       inputMode="numeric"
       value={draft}
       disabled={disabled}
       placeholder="Sin asignar"
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => {
-        const parsed = draft.trim() === "" ? null : Number(draft);
-        const limpio = parsed !== null && Number.isFinite(parsed) ? parsed : null;
+        const limpio = parseNumeroAr(draft);
+        // Sólo se borra el valor si el campo quedó vacío a propósito. Si tiene texto pero no se
+        // le pudo sacar ningún dígito, se revierte a lo guardado en vez de pisarlo con null --
+        // que es exactamente el modo en que este campo perdía datos antes.
+        if (limpio === null && draft.trim() !== "") return setDraft(formatNumeroAr(value));
+        // Se reescribe con el formato canónico: confirma qué se entendió.
+        setDraft(formatNumeroAr(limpio));
         if (limpio !== value) onCommit(limpio);
       }}
       className="h-8 w-28 border rounded-md px-2 text-sm bg-background tabular-nums disabled:opacity-60 disabled:cursor-not-allowed"
@@ -236,8 +244,8 @@ function MediosTab({ clientId, tipo, readOnly }: { clientId: string; tipo: "moni
       dominio,
       nombre,
       tier: tierNuevo === "none" ? null : Number(tierNuevo),
-      ad_value: adValueNuevo.trim() === "" ? null : Number(adValueNuevo),
-      alcance: alcanceNuevo.trim() === "" ? null : Number(alcanceNuevo),
+      ad_value: parseNumeroAr(adValueNuevo),
+      alcance: parseNumeroAr(alcanceNuevo),
     });
     setSaving(false);
     if (!res.ok) return toast.error(res.error);
@@ -323,20 +331,22 @@ function MediosTab({ clientId, tipo, readOnly }: { clientId: string; tipo: "moni
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Ad Value</label>
                   <Input
-                    type="number"
-                    min={0}
+                    type="text"
+                    inputMode="numeric"
                     value={adValueNuevo}
                     onChange={(e) => setAdValueNuevo(e.target.value)}
+                    onBlur={() => setAdValueNuevo(formatNumeroAr(parseNumeroAr(adValueNuevo)))}
                     placeholder="Sin asignar"
                   />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Alcance</label>
                   <Input
-                    type="number"
-                    min={0}
+                    type="text"
+                    inputMode="numeric"
                     value={alcanceNuevo}
                     onChange={(e) => setAlcanceNuevo(e.target.value)}
+                    onBlur={() => setAlcanceNuevo(formatNumeroAr(parseNumeroAr(alcanceNuevo)))}
                     placeholder="Sin asignar"
                   />
                 </div>
