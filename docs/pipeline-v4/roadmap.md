@@ -52,6 +52,10 @@ Los **601 reportes de calidad** del cliente (3 semanas) agrupados por causa raí
 3. **Granularidad híbrida.** La lógica pura (sin entrada/salida) vive en funciones de Postgres: una definición para los cuatro clientes, testeable con el golden. La entrada/salida y la orquestación viven en subworkflows de n8n con contrato de entrada/salida fijo y traza de ejecución propia.
 4. **Trackeo con ledger en Supabase.** `pipeline_runs` + `stage_events` + RPC `log_stage()`, un Error Workflow global, y la tabla de descartes para el detalle nota por nota. Sin tracing externo por ahora: el costo de IA es marginal (≈ USD 6/mes) y no es donde está el problema.
 5. **Rama aislada.** Todo el trabajo de v4 (migraciones, código del dashboard, JSON de workflows) vive en una rama de feature. No se mergea a la rama principal salvo por fase cerrada y revisada por un segundo.
+6. **Un recolector por cliente, no uno compartido.** Cada cliente tiene su propio recorrido de medios (cuatro en total), reusando los mismos subworkflows-ladrillo con parámetros distintos: su lista de medios, sus palabras clave, su horario. Se descartó el recolector único por riesgo de que una corrida de ~1.800 medios agote recursos y se caiga; una corrida por cliente es de unos cientos de medios, más chica y aislable. Los ladrillos y las funciones de decisión **siguen siendo compartidos** — lo que se separa es la orquestación.
+7. **Barrido cada ~3 horas, no tres pasadas nocturnas.** El recolector de cada cliente corre 08:00 · 11:00 · 14:00 · 17:00 · 20:00 · 23:00 · 02:00 · 05:00 y una última a las 06:30, justo antes de los envíos. Motivo: hay medios que rotan sus notas a lo largo del día.
+8. **Deduplicación al guardar.** En cada barrido, una nota cuya URL canónica ya está en el pool del día se ignora — se conserva la que ya estaba. Solo se guardan URLs nuevas. Así no se acumula ruido ni en la base ni en el mail. Es un filtro distinto del que compara contra lo ya enviado al cliente en días anteriores; los dos se aplican.
+9. **Schema de prueba: se reusa y se asegura el que ya existe.** Ya hay un schema de pruebas con las tablas clonadas de producción, y el modo de prueba de la v3 ya le apunta. En vez de crear uno nuevo, se le activa el control de acceso por fila, se le quitan al rol anónimo los permisos peligrosos (borrar / vaciar tablas) y se lo sincroniza con la estructura actual de producción. El pipeline escribe ahí cuando arranca por botón (prueba) y en producción cuando arranca por cron.
 
 ---
 
@@ -63,7 +67,7 @@ Los frentes por donde se puede contaminar producción, y la guarda de cada uno.
 |---|---|---|
 | **Dashboard** (Vercel) | Un cambio de ruta, componente o query rompe la herramienta que el cliente usa todos los días | Todo en la rama de feature. Nada a la rama principal hasta fase cerrada y revisada. Las pantallas nuevas se **agregan**, no reemplazan. Revisión por deploy preview, nunca push directo. |
 | **Supabase `public`** | Un `ALTER` / `DROP` o una función reescrita rompe la v3 que le llega al cliente | Todo lo nuevo se crea **al lado**: tablas nuevas, funciones con nombre nuevo. Las funciones que la v3 usa no se tocan hasta el cutover. Migraciones reversibles. |
-| **Schema de pruebas** | Reusar el schema `test` actual, que no tiene control de acceso por fila y deja al rol anónimo borrar tablas enteras | Schema de ensayo nuevo, con control de acceso desde el día uno y el rol anónimo sin acceso. La Fase 0 cierra el schema viejo. |
+| **Schema de prueba** | El schema `test` actual no tiene control de acceso por fila y deja al rol anónimo borrar tablas enteras | Se reusa ese mismo schema, asegurándolo: control de acceso por fila + revocar los permisos peligrosos del rol anónimo + sincronizarlo con la estructura de producción (Fase 3). Se cierra además el backup congelado, que tiene el mismo problema. |
 | **n8n** | Un workflow nuevo activo pisa la corrida real | La v4 entera en la instancia dedicada, con los clippings v3 importados inactivos. La producción real sigue en la cuenta compartida, intacta. Ningún workflow nuevo se activa sin golden y staging. |
 | **El mail al cliente** | Una corrida de prueba manda un clipping incompleto, o quema las notas del día | El nodo de envío tira excepción si la corrida no es real. En modo ensayo el mail va a una casilla interna con banner, y **no se escribe el historial anti-repetición** → la corrida real trae las mismas notas como si nunca se hubiera probado. |
 | **Métricas del cliente** | Las pruebas inflan promedios y umbrales aprendidos | El modo ensayo no cuenta en `run_stats` ni en los umbrales. |
@@ -81,7 +85,8 @@ Los frentes por donde se puede contaminar producción, y la guarda de cada uno.
 
 | Subworkflow | Entrada | Salida | Lo usa |
 |---|---|---|---|
-| `sub/fetch-source` | `{fuente_id, url, formato, transporte}` | `{items[], diagnostico, http_status, con_fecha, ms}` | ingesta, pasada caliente, descubridor, medición |
+| `sub/fetch-source` | `{fuente_id, url, formato, transporte}` | `{items[], diagnostico, http_status, con_fecha, ms}` | recolector, escalera, descubridor, medición |
+| `sub/fetch-escalera` | `{fuente_id, dominio_norm, url, formato}` | `{transporte_ganador, diagnostico, articulos, items[]}` | recolector, descubridor, medición |
 | `sub/open-article` | `{url, transporte}` | `{html, texto, og, jsonld, status}` | A1 |
 | `sub/llm-call` | `{prompt, schema, modelo, max_tokens, run_id, stage}` | `{data, tokens, costo, ms}` + escribe `stage_events` | A1, A2, A3 |
 | `sub/slack-notify` | `{canal, nivel, titulo, cuerpo, acciones[]}` | `{ok}` | todos |
@@ -95,8 +100,8 @@ Los frentes por donde se puede contaminar producción, y la guarda de cada uno.
 | Workflow | Trigger | Qué hace |
 |---|---|---|
 | `wf/descubridor` (A0) | diario, fuera de la ventana de envío | descubre formato × transporte por dominio → `medios_estrategia` |
-| `wf/ingesta` | 3 pasadas nocturnas | recorre `medios_fuentes`, llama `sub/fetch-source` → `candidatas_raw` |
-| `wf/armado-cliente` | 1 por cliente, unos minutos antes de su corte | caliente → compuertas → A1 → A2 → A3 → armado → nivel → guardar → mail |
+| `wf/recolector-cliente` | 1 por cliente · cada ~3 h (08:00 … 05:00) + última 06:30 | recorre las fuentes de ese cliente, llama `sub/fetch-escalera`, deduplica por URL canónica → `candidatas_raw` |
+| `wf/armado-cliente` | 1 por cliente, unos minutos antes de su corte | compuertas → A1 → A2 → A3 → armado → nivel → guardar → mail |
 | `wf/salud` | post-envío | cobertura, fuentes mudas, volumen esperado por día de la semana |
 | `wf/error-handler` | Error Workflow de todos | consolida el aviso y escribe el fallo en `stage_events` |
 
@@ -147,7 +152,7 @@ Limpia la deuda que, si no, ensucia todo lo que viene, sobre todo la medición d
 | 0.3 | Rotar la API key de scraping expuesta en texto plano en el nodo de configuración de los cuatro clippings. Actualizar los cuatro en la misma sesión. | Credencial expuesta = alguien puede quemar la cuota paga. | Los cuatro flujos fallan en el intervalo entre rotar y actualizar. |
 | 0.4 | Quick win de valorización: función `tier_norm()` aplicada de los dos lados del cruce nombre↔tier. Medido: la cobertura de ad value sube de ~16% a ~36%, sin trabajo del cliente. | Es plata que el cliente deja sobre la mesa todos los días. No depende de la v4. | Único item que toca una función que la v3 usa; es aditivo, va con revisión de un segundo y corrida de TEST. |
 | 0.5 | Limpiar el historial anti-repetición: script único que desenvuelve las URLs de redirector guardadas crudas y colapsa duplicados. Backup de la tabla antes. | Una URL de redirector cruda nunca vuelve a matchear la real → la nota se re-envía para siempre. La Fase 4 hereda este historial. | Bajo — tabla de soporte, no la ve el cliente. |
-| 0.6 | Cerrar los schemas de prueba abiertos (`test` y su backup): sin control de acceso por fila, con el rol anónimo pudiendo borrar tablas enteras, y con datos reales. Antes: verificar que ningún flujo v3 dependa de `test`. | Bug de seguridad real: cualquiera con la clave pública del front puede leerlo o vaciarlo. | Romper el modo TEST de la v3 si no se verifica primero. |
+| 0.6 | Asegurar el schema `test` (control de acceso por fila + revocar del rol anónimo el borrado / vaciado de tablas) **sin romperlo** — la v3 lo usa en modo prueba y la v4 lo va a reusar. Cerrar aparte el backup congelado, que tiene el mismo agujero y no lo usa nadie. Antes: verificar cómo escribe la v3 en `test`. | Bug de seguridad real: cualquiera con la clave pública del front puede leerlo o vaciarlo. | Romper el modo TEST de la v3 si no se verifica primero. |
 | 0.7 | Corregir el `client_id` de escritura de la v3 (cada cliente tiene un par vivo/histórico) y apagar el clipping duplicado de uno de los clientes. | Datos que aterrizan en el identificador equivocado no los ve nadie. | Bajo, previa verificación. |
 
 **Salida:** números limpios para medir la Fase 2, deuda de seguridad cerrada, y la valorización arreglada en producción — sin escribir una línea de v4.
@@ -158,7 +163,7 @@ Limpia la deuda que, si no, ensucia todo lo que viene, sobre todo la medición d
 - **[F0.3]** Rotar la API key de scraping expuesta y actualizar los cuatro clippings.
 - **[F0.4]** `tier_norm()` de los dos lados del cruce de valorización (+revisión +TEST).
 - **[F0.5]** Script de limpieza del historial anti-repetición.
-- **[F0.6]** Cerrar los schemas de prueba abiertos.
+- **[F0.6]** Asegurar el schema `test` (sin romper el modo prueba de la v3) + cerrar el backup congelado.
 - **[F0.7]** Corregir `client_id` de la v3 y apagar el clipping duplicado.
 
 ### Fase 1 · Modelo de datos — nuevo, al lado, vacío
@@ -166,7 +171,6 @@ Limpia la deuda que, si no, ensucia todo lo que viene, sobre todo la medición d
 - Modelo de medios en tres tablas: catálogo (un dominio, global), fuentes (una por sección) y suscripción (una por cliente × fuente), más la estrategia de transporte aprendida. Se pueblan leyendo la tabla actual de medios y se comparan dominio por dominio.
 - Reglas de filtrado como datos, prompts de cliente versionados, log de intentos, pool crudo de candidatas.
 - Ledger: corridas y eventos de etapa, con las RPC que lo alimentan.
-- Schema de ensayo nuevo, con control de acceso desde el día uno.
 - Funciones puras: normalización de nombres de medio (final); URL canónica, cascada de fecha y chequeo de repetida (primera versión, se endurecen en la Fase 4).
 
 **Salida:** todo el modelo listo y vacío. Las tablas viejas siguen siendo la verdad. Reversible.
@@ -179,9 +183,10 @@ Limpia la deuda que, si no, ensucia todo lo que viene, sobre todo la medición d
 - **[F1.5]** Ledger: corridas + eventos de etapa + RPC.
 - **[F1.6]** Funciones puras + tabla de alias de medio.
 - **[F1.7]** Control de acceso por fila + grants de todo lo nuevo.
-- **[F1.8]** Schema de ensayo (creado y cerrado; el clonado de tablas es de la Fase 3).
-- **[F1.9]** Poblar el catálogo desde la tabla actual de medios — comparación dominio a dominio, resolución manual de los dominios con método distinto por cliente, limpieza de filas basura.
-- **[F1.10]** Aplicar las migraciones (branch de Supabase, smoke-test, revisión de advisors, merge).
+- **[F1.8]** Poblar el catálogo desde la tabla actual de medios — comparación dominio a dominio, resolución manual de los dominios con método distinto por cliente, limpieza de filas basura.
+- **[F1.9]** Aplicar las migraciones (smoke-test, revisión de advisors).
+
+*(El schema de prueba ya no es un ticket de la Fase 1: en vez de crear uno nuevo se reusa y asegura el que existe — pasa a la Fase 3.)*
 
 ### Fase 2 · Transporte y cobertura — gate de decisión
 
@@ -197,20 +202,22 @@ Limpia la deuda que, si no, ensucia todo lo que viene, sobre todo la medición d
 - **[F2.3]** Workflow de medición aislado (requiere autorización).
 - **[F2.4]** Decisión de gate con el número de cobertura recuperable en mano.
 
-### Fase 3 · Ingesta compartida
+### Fase 3 · Recolector por cliente + schema de prueba
 
-- Clonar la estructura de `public` en el schema de ensayo (generado, no a mano) y exponerlo en el Data API.
-- `wf/ingesta`: orquestador por fuente, tres pasadas nocturnas, control de concurrencia y de lote.
-- Cierre de cobertura al terminar la última pasada + aviso si baja del umbral.
-- Pasada caliente por cliente unos minutos antes de cada corte + carril expreso (mismas compuertas y mismo juez, solo transporte directo, presupuesto de tiempo duro).
+- **Sincronizar el schema de prueba con producción:** agregarle las tablas nuevas de la v4 para que quede espejo de `public`. (El asegurado —control de acceso, revocar permisos peligrosos— ya se hizo en la Fase 0.)
+- **`wf/recolector-cliente`:** un workflow por cliente. Corre cada ~3 h (08:00 … 05:00) y una última a las 06:30. Recorre las fuentes de *ese* cliente, cada una por `sub/fetch-escalera`, con control de concurrencia y de lote.
+- **Deduplicación al guardar:** una nota cuya URL canónica ya está en el pool del día se ignora; solo entran URLs nuevas. Cada barrido suma lo nuevo, no repite lo que ya tenía.
+- Cierre de cobertura al terminar cada barrido + aviso si baja del umbral.
+- Los cuatro recolectores usan los mismos subworkflows-ladrillo (`sub/fetch-source`, `sub/fetch-escalera`); cambian los parámetros por cliente (medios, palabras clave, horario).
 
-**Salida:** el pool de candidatas se llena cada noche en el schema de ensayo, en paralelo, sin reemplazar nada. Desde acá los cuatro clientes corren en ensayo junto a su v3.
+**Salida:** el pool de candidatas de cada cliente se llena a lo largo del día en el schema de prueba, en paralelo a su v3, sin reemplazar nada.
 
 **Tickets sugeridos:**
-- **[F3.1]** Clonar `public` en el schema de ensayo + exponerlo en el Data API.
-- **[F3.2]** `wf/ingesta` — orquestador de las tres pasadas nocturnas.
-- **[F3.3]** Cierre de cobertura + aviso.
-- **[F3.4]** Pasada caliente por cliente + carril expreso.
+- **[F3.1]** Sincronizar el schema de prueba con la estructura actual de producción (agregarle las tablas nuevas de la v4).
+- **[F3.2]** `wf/recolector-cliente` — plantilla del recolector (parametrizada por cliente).
+- **[F3.3]** Deduplicación al guardar por URL canónica.
+- **[F3.4]** Instanciar el recolector para los cuatro clientes con sus parámetros y horarios.
+- **[F3.5]** Cierre de cobertura + aviso por barrido.
 
 ### Fase 4 · Normalización + compuertas
 
@@ -300,7 +307,7 @@ Puede arrancar en paralelo apenas existan las tablas de descartes y de reglas (f
 
 El piloto es **Booking** porque es el clipping más chico y simple (210 fuentes contra 640, 18 palabras clave contra 106, corre en 5 minutos, 20% de descartes determinísticos contra 7%). El golden es más rápido y el error es el más barato: si la arquitectura tiene una falla, se ve en el contexto más limpio.
 
-**BMS va segundo, no cuarto** — es donde más duele (329 reportes, la mayoría "no entró"). Pero el grueso de ese dolor lo arreglan las Fases 2 a 4, que son **compartidas** y corren en el schema de ensayo para los cuatro clientes a la vez: los números de BMS mejoran en ensayo desde la Fase 3, sin haber cortado nada. Si al terminar la Fase 6 esos números están bien y el golden de Booking sale limpio, los dos cutovers pueden ir casi juntos.
+**BMS va segundo, no cuarto** — es donde más duele (329 reportes, la mayoría "no entró"). Pero el grueso de ese dolor lo arregla la cadena de transporte (Fase 2) y el filtrado (Fase 4), que son **piezas compartidas**, y el recolector de cada cliente se construye en la misma Fase 3. Los números de BMS mejoran en el schema de prueba desde la Fase 3, sin haber cortado nada. Si al terminar la Fase 6 esos números están bien y el golden de Booking sale limpio, los dos cutovers pueden ir casi juntos.
 
 **Tickets sugeridos:**
 - **[F8.1]** Arnés de golden — correr v4 y v3 sobre los mismos datos y diff de salida.
@@ -328,7 +335,7 @@ El piloto es **Booking** porque es el clipping más chico y simple (210 fuentes 
 
 La **Fase 7** (dashboard) corre en paralelo: arranca apenas existan las tablas de descartes y de reglas, y se completa contra las Fases 5 y 6.
 
-Desde la Fase 3, los cuatro clientes corren en el schema de ensayo en paralelo a su v3 — los números mejoran para los cuatro antes de cualquier cutover.
+Desde la Fase 3, el recolector de cada cliente corre en el schema de prueba en paralelo a su v3 — los números mejoran para los cuatro antes de cualquier cutover.
 
 ---
 
@@ -337,7 +344,8 @@ Desde la Fase 3, los cuatro clientes corren en el schema de ensayo en paralelo a
 - **Gate de la Fase 2:** la medición de cobertura recuperable. Si recupera poco, la v4 pierde su justificación principal — hay que saberlo antes de construir la ingesta.
 - **Flujos en vuelo:** nada de la Fase 0 que toque los flujos de la cuenta compartida se ejecuta sin coordinarlo con el responsable de esa cuenta.
 - **Zonas horarias:** se resuelve antes de escribir una línea. Todo se guarda en UTC y se decide en hora local; una fecha sin hora nunca se compara contra un corte horario.
-- **Ingesta compartida:** la Fase 3 asume los cuatro catálogos ya migrados a `medios_fuentes`. Si se quisiera un piloto aislado antes, su ingesta se construye primero y converge después — decisión a tomar al llegar a la Fase 3.
+- **Recolector por cliente:** más workflows para mantener (cuatro recolectores en vez de uno), pero cada corrida es chica y el crash de una no arrastra a las otras. Los ladrillos son compartidos, así que un arreglo sigue valiendo para los cuatro.
+- **Carga de n8n:** cuatro recolectores × ~9 barridos/día. Vigilar memoria y solapamiento; escalonar los horarios entre clientes si hace falta.
 - **Autor ≠ aprobador:** cada fase que promueve a `public` o activa un workflow necesita revisión de un segundo.
 - **Fuera de alcance de la v4 y de este roadmap:** las gacetillas, el editor web y la exportación, y los clientes en formato legado.
 
@@ -351,12 +359,12 @@ Desde la Fase 3, los cuatro clientes corren en el schema de ensayo en paralelo a
 | **Formato vs. transporte** | Formato = qué se le pide a una fuente (feed, sitemap, HTML). Transporte = cómo se llega (directo, proxy propio, renderizador, IP residencial). Son preguntas independientes: una fuente puede tener un feed impecable y ser inalcanzable desde nuestra IP. |
 | **URL canónica** | La forma única de una URL tras desenvolver redirectores, sacar parámetros de tracking (conservando el identificador del artículo), y normalizar host y barra final. Base del dedup. |
 | **Fecha confiable** | Fecha obtenida del feed, de datos estructurados, de metadatos o de la propia URL. Si no hay ninguna, la nota no se descarta por antigüedad y no se le inventa la fecha de hoy. |
-| **Pasada caliente** | Cuarta pasada de ingesta, por cliente, unos minutos antes de su corte, solo sobre fuentes prioritarias y solo por transporte directo. Resuelve frescura, no cobertura. |
-| **Carril expreso** | El paso que corre las mismas compuertas y el mismo juez sobre lo que trajo la pasada caliente, para que no entre sin filtrar. Nunca una regla distinta. |
+| **Barrido** | Una pasada del recolector de un cliente por todas sus fuentes. Corre cada ~3 h (08:00 … 05:00) y una última a las 06:30, justo antes de los envíos. |
+| **Pool del día** | El conjunto de notas que juntaron los barridos de ese día para ese cliente, antes de filtrar. Cada barrido suma solo lo nuevo (URL canónica que no estaba). |
 | **Nivel de salida (0–3)** | Cuánto se degradó el clipping. 0 = completo y auditado. 1 = sin auditor o sin valorización. 2 = sin juez (solo filtro determinístico). 3 = sale el de ayer, marcado como tal. |
 | **Golden** | Antes de reemplazar nada, la v4 tiene que decidir idénticamente sobre los mismos datos que el flujo actual. Cada diferencia se explica antes de avanzar. |
 | **Cutover** | El momento en que un cliente pasa a la v4. Reversible: se desactiva el nuevo y se activa el viejo, que quedó apagado 30 días, no borrado. |
-| **Modo ensayo** | Corrida completa del pipeline que guarda todo en un schema aparte, manda el mail a una casilla interna y no toca el historial anti-repetición ni las métricas. |
+| **Schema de prueba / modo prueba** | El pipeline es el mismo; una perilla al arrancar decide dónde escribe. Cron → schema real, mail al cliente, historial actualizado. Botón → schema de prueba, mail al equipo con cartel, historial intacto. Así probar no quema las notas del día. |
 | **Ledger** | Las tablas `pipeline_runs` y `stage_events`: registran cada corrida y cada etapa al entrar y al salir, para que un día roto no se vea igual que un día tranquilo. |
 
 ---
