@@ -1,0 +1,6 @@
+name = "ketchum-fetch-proxy"
+main = "src/index.js"
+compatibility_date = "2026-09-02"
+
+# La key va como secret, nunca en este archivo:
+#   npx wrangler secret put PROXY_KEY
