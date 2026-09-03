@@ -1,0 +1,48 @@
+{
+  "_nota": "Export de `v4 · sub · fetch-source` (id UUIlvhTv3Rjy9YEP) en la instancia ketchum-n8n. Fuente de verdad = la instancia; este archivo es respaldo versionado.",
+  "name": "v4 · sub · fetch-source",
+  "settings": { "executionOrder": "v1", "saveDataErrorExecution": "all", "saveDataSuccessExecution": "all" },
+  "nodes": [
+    { "id": "trg", "name": "Entrada", "type": "n8n-nodes-base.executeWorkflowTrigger", "typeVersion": 1.1, "position": [0, 300], "parameters": { "inputSource": "passthrough" }, "notes": "Contrato IN: { fuente_id, dominio_norm, url, formato, transporte, pasada }. transporte = UNO solo (directo|cloudflare|aws|brightdata). La escalera (probar el siguiente) la maneja el orquestador, no este subwf." },
+    { "id": "sw", "name": "Switch transporte", "type": "n8n-nodes-base.switch", "typeVersion": 3.2, "position": [240, 300], "parameters": { "rules": { "values": [
+      { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "combinator": "and", "conditions": [ { "leftValue": "={{ $json.transporte }}", "rightValue": "directo", "operator": { "type": "string", "operation": "equals" } } ] }, "renameOutput": true, "outputKey": "directo" },
+      { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "combinator": "and", "conditions": [ { "leftValue": "={{ $json.transporte }}", "rightValue": "cloudflare", "operator": { "type": "string", "operation": "equals" } } ] }, "renameOutput": true, "outputKey": "cloudflare" },
+      { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "combinator": "and", "conditions": [ { "leftValue": "={{ $json.transporte }}", "rightValue": "aws", "operator": { "type": "string", "operation": "equals" } } ] }, "renameOutput": true, "outputKey": "aws" },
+      { "conditions": { "options": { "caseSensitive": true, "typeValidation": "loose" }, "combinator": "and", "conditions": [ { "leftValue": "={{ $json.transporte }}", "rightValue": "brightdata", "operator": { "type": "string", "operation": "equals" } } ] }, "renameOutput": true, "outputKey": "brightdata" }
+    ] }, "options": { "fallbackOutput": "extra", "renameFallbackOutput": "directo_default" } } },
+    { "id": "hd", "name": "HTTP directo", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [540, 120], "onError": "continueRegularOutput", "parameters": { "url": "={{ $json.url }}", "options": { "timeout": 12000, "redirect": { "redirect": { "followRedirects": true, "maxRedirects": 5 } }, "response": { "response": { "fullResponse": true, "neverError": true, "responseFormat": "text" } }, "allowUnauthorizedCerts": true } }, "notes": "Fetch directo. responseFormat text para que n8n NO auto-parsee el XML. neverError: devuelve 4xx/5xx. Con text+fullResponse el body crudo queda en `.data` (no `.body`)." },
+    { "id": "hc", "name": "HTTP Cloudflare", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [540, 280], "onError": "continueRegularOutput", "parameters": { "url": "=https://ketchum-fetch-proxy.hola-e13.workers.dev/?url={{ encodeURIComponent($json.url) }}", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth", "options": { "timeout": 20000, "response": { "response": { "neverError": true } } } }, "credentials": { "httpHeaderAuth": { "id": "odT5yjmKpIORGZjK", "name": "Ketchum — Fetch Proxy (Cloudflare) [FALTA KEY]" } }, "notes": "Proxy Cloudflare. JSON ya parseado. FALTA cargar la X-Api-Key real (hoy placeholder)." },
+    { "id": "ha", "name": "HTTP AWS", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [540, 440], "onError": "continueRegularOutput", "parameters": { "url": "=https://tufgbajqgjkwqwskkcam.supabase.co/functions/v1/fetch-proxy?url={{ encodeURIComponent($json.url) }}", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth", "options": { "timeout": 20000, "response": { "response": { "neverError": true } } } }, "credentials": { "httpHeaderAuth": { "id": "LLdAbQUu6q9ChKPG", "name": "Ketchum — Fetch Proxy (AWS/Supabase)" } }, "notes": "Proxy AWS (Edge Function, hoy en el proyecto de PRUEBA tufgbajqgjkwqwskkcam)." },
+    { "id": "hb", "name": "HTTP Bright Data (TODO)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [540, 600], "disabled": true, "onError": "continueRegularOutput", "parameters": { "url": "={{ $json.url }}", "options": {} }, "notes": "Ultimo escalon. Falta credencial Bright Data. Deshabilitado." },
+    { "id": "norm", "name": "Normalizar → contrato", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [860, 300], "parameters": { "mode": "runOnceForEachItem", "jsCode": "// ver la instancia para el codigo completo (parseo RSS/Atom/sitemap + mapeo de diagnostico)" }, "notes": "Unifica las 4 ramas al contrato. Directo: parsea XML con regex (v1). Proxies: passthrough." },
+    { "id": "log", "name": "Escribir fetch_log", "type": "n8n-nodes-base.supabase", "typeVersion": 1, "position": [1120, 300], "onError": "continueRegularOutput", "parameters": { "resource": "row", "operation": "create", "tableId": "fetch_log", "dataToSend": "defineBelow", "fieldsUi": { "fieldValues": [
+      { "fieldId": "dominio_norm", "fieldValue": "={{ $json.dominio_norm }}" },
+      { "fieldId": "fuente_id", "fieldValue": "={{ $json.fuente_id }}" },
+      { "fieldId": "pasada", "fieldValue": "={{ $json.pasada }}" },
+      { "fieldId": "formato", "fieldValue": "={{ $json.formato }}" },
+      { "fieldId": "transporte", "fieldValue": "={{ $json.transporte }}" },
+      { "fieldId": "http_status", "fieldValue": "={{ $json.http_status }}" },
+      { "fieldId": "diagnostico", "fieldValue": "={{ $json.diagnostico }}" },
+      { "fieldId": "articulos", "fieldValue": "={{ $json.articulos }}" },
+      { "fieldId": "con_fecha", "fieldValue": "={{ $json.con_fecha }}" },
+      { "fieldId": "ms", "fieldValue": "={{ $json.ms }}" }
+    ] } }, "credentials": { "supabaseApi": { "id": "UnEitw6U4SIHjC6X", "name": "Ketchum - Supabase" } }, "notes": "Un renglon por intento, ande o no. onError continue." },
+    { "id": "out", "name": "Salida", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1360, 300], "parameters": { "mode": "runOnceForEachItem", "jsCode": "// devuelve el contrato { fuente_id, dominio_norm, formato, transporte, diagnostico, http_status, items[], articulos, con_fecha, ms }" } }
+  ],
+  "connections": {
+    "Entrada": { "main": [[{ "node": "Switch transporte", "type": "main", "index": 0 }]] },
+    "Switch transporte": { "main": [
+      [{ "node": "HTTP directo", "type": "main", "index": 0 }],
+      [{ "node": "HTTP Cloudflare", "type": "main", "index": 0 }],
+      [{ "node": "HTTP AWS", "type": "main", "index": 0 }],
+      [{ "node": "HTTP Bright Data (TODO)", "type": "main", "index": 0 }],
+      [{ "node": "HTTP directo", "type": "main", "index": 0 }]
+    ] },
+    "HTTP directo": { "main": [[{ "node": "Normalizar → contrato", "type": "main", "index": 0 }]] },
+    "HTTP Cloudflare": { "main": [[{ "node": "Normalizar → contrato", "type": "main", "index": 0 }]] },
+    "HTTP AWS": { "main": [[{ "node": "Normalizar → contrato", "type": "main", "index": 0 }]] },
+    "HTTP Bright Data (TODO)": { "main": [[{ "node": "Normalizar → contrato", "type": "main", "index": 0 }]] },
+    "Normalizar → contrato": { "main": [[{ "node": "Escribir fetch_log", "type": "main", "index": 0 }]] },
+    "Escribir fetch_log": { "main": [[{ "node": "Salida", "type": "main", "index": 0 }]] }
+  }
+}
