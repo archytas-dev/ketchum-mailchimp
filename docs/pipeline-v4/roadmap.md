@@ -13,6 +13,7 @@ El plan de construcción: fases, orden, dependencias y tickets. El **qué y el c
 3. [Las fases](#3-las-fases)
 4. [Camino crítico](#4-camino-crítico)
 5. [Riesgos y gates](#5-riesgos-y-gates)
+6. [Pendiente al cierre del roadmap](#6-pendiente-al-cierre-del-roadmap)
 
 ---
 
@@ -305,7 +306,9 @@ Las 178 `metodo_extraccion='html'` se salteaban bien pero **no aparecían en `fe
 
 `[F3.5]` cierre de cobertura + reporte ✅ (04/09).
 
-**Queda abierto de la fase:** `[F3.1]` (el schema `test` — y ver más arriba que la Fase 0 lo dejó sin RLS) y `[F3.4c]` (Bright Data, con el costo dimensionado antes).
+**Queda abierto de la fase:** `[F3.4c]` (Bright Data, con el costo dimensionado antes).
+
+**`[F3.1]` sincronizar `test` — pospuesto al final del roadmap (decisión del 04/09).** El plan original era que el recolector escribiera ahí "para no tocar datos reales". Hoy pasa lo contrario: el pool vive en las tablas v4 de `public`, que tienen RLS y nadie más consume, y **`test` es el lugar menos protegido de la base**. Mover 52.000 filas por día ahí sería llevarlas a un schema que cualquiera puede vaciar. Ver el ticket de seguridad al final.
 
 #### `[F3.5]` el reporte: tres vistas, cero escrituras — ✅
 
@@ -438,3 +441,34 @@ Desde la Fase 3, el recolector de cada cliente corre en el schema de prueba en p
 - **Drift de migraciones del repo** (preexistente): `supabase db push` no es seguro hasta reconciliar — ticket aparte.
 - **Autor ≠ aprobador:** cada fase que promueve a `public` o activa un workflow necesita revisión de un segundo.
 - **Fuera de alcance:** gacetillas, editor web y exportación, clientes en formato legado.
+
+---
+
+## 6. Pendiente al cierre del roadmap
+
+### `[Z.1]` Asegurar el schema `test` — *pospuesto por decisión del 04/09, se revisa al final*
+
+Era `[F0.6]` y quedó fuera al omitir la Fase 0. **No lo abrió la v4 y no lo cierra la v4**, pero conviene que el número esté escrito y no se pierda.
+
+**Medido el 04/09 con la clave pública del front** (la misma que está en el navegador de cualquiera que abra el dashboard):
+
+| Prueba | Resultado |
+|---|---|
+| `GET test.notes` (solo conteo) | **HTTP 206 · 10.049 filas** |
+| `GET public.notes` (control) | **HTTP 401 Unauthorized** |
+
+`public` está protegido; `test` no. Son tres cosas que se suman y hacen falta las tres: `anon` tiene **USAGE** sobre el schema; tiene **SELECT, INSERT, UPDATE y DELETE** en las 28 tablas; y **ninguna tiene RLS**. En Supabase los permisos de tabla dicen *qué operaciones*, y RLS dice *sobre qué filas* — sin RLS, "podés hacer SELECT" significa todas las filas de todos los clientes. En `public` los permisos son los mismos, pero RLS los filtra: por eso el control da 401.
+
+**Y `test` no contiene datos de prueba:**
+
+| | |
+|---|---|
+| Notas | 10.049 |
+| Filas **idénticas a producción** (mismo id) | **9.359 — el 93%** |
+| Última nota | 03/09 — se mantiene al día |
+| Reportes de calidad del cliente | 439 |
+| Perfiles de usuario · accesos | 2 · 16 |
+
+Es un espejo de producción, no un sandbox. El backup congelado tiene el mismo agujero.
+
+**El arreglo son dos migraciones:** activar RLS en las 28 tablas y revocarle a `anon` el borrado. Antes de tocarlo hay que verificar que no se rompe el modo prueba de la v3, que apunta a este schema.
