@@ -252,9 +252,34 @@ Los 21.674 sin fecha son casi todos de sitemap, que devuelve las últimas N URLs
 
 **El cron está construido y deshabilitado a propósito.** Habilitarlo hace que el recolector escriba en la base nueve veces por día sin que nadie lo dispare: es una decisión, no un default.
 
+#### Un transporte, un nodo — y las 16 fuentes que costó el atajo
+
+La v1 del recolector usaba **un solo nodo HTTP** con la credencial de Cloudflare para todos los transportes. La nota decía *"las fuentes directo y aws ignoran el header X-Api-Key"*. **Era falso, y salió caro:** el proxy AWS es una Edge Function de Supabase y **exige `Authorization: Bearer`** — no ignoraba el header equivocado, rechazaba el pedido. **Las 16 fuentes `aws` fallaban el 100%** con diagnóstico `error`, y se veía como un problema de las fuentes.
+
+Ahora hay un Switch y **tres nodos, uno por credencial**. Verificado: 16 de 16 ok, +310 notas.
+
+Dos consecuencias de partir en ramas que hay que tener presentes:
+
+- **El pareo pedido↔respuesta ya no puede ser por índice global.** El Switch reparte los items y los índices dejan de coincidir. Se aparea **por índice dentro de cada rama**.
+- **Hace falta un Merge antes de normalizar.** Con tres ramas entrando al mismo nodo, n8n lo ejecuta **una vez por rama** — tres veces — y escribiría `fetch_log` y el pool triplicados.
+
+#### `[F3.6]` re-verificación de la estrategia — ✅ construida y corrida
+
+`wf/re-verificar estrategia` (ID `y5UXitrQdQ5UkKL4`). `medios_estrategia` es una foto y envejece sola: un medio que hoy entra por Cloudflare puede dejar de entrar mañana, y sin esto el recolector empieza a fallar en silencio.
+
+Toma las fuentes cuyo **último** intento falló con algo que la escalera puede resolver, y les prueba los transportes **distintos** al que ya falla. **Corrida del 04/09: 17 re-verificadas → 15 recuperadas, 2 siguen mal.** Las 15 pasaron de `cloudflare` a `directo` (138 → 153).
+
+**Qué NO entra a re-verificación, a propósito:** `sin_items` (el feed es válido y está vacío — no es una falla y cambiar de transporte no lo arregla, decisión 11), `no_es_feed` (es trabajo del descubridor) y `no_existe` (404: va a baja).
+
+**El desempate es por posición en la escalera, no por volumen.** Cuando `directo` y `aws` traen los dos, gana `directo`: es gratis y más rápido. La primera versión elegía "el que más notas trae" y mandaba 14 fuentes a `aws` sin necesidad — contradecía la decisión 10, que dice *"corta en el primero que trae notas"*. El volumen solo desempata a igual posición.
+
+**Y no baja fuentes de golpe:** ninguno de los transportes anda → suma un fallo. A los 5 fallos consecutivos pasa a `transporte = NULL` con el motivo, **sin desactivar la fuente** — queda visible para el descubridor y para la pantalla de salud. `brightdata` queda afuera de la escalera de re-verificación: se cobra por request y va solo contra el bloqueo (decisión 11), así que se propone aparte.
+
+**El cron (diario 07:15 ART, después del último barrido) también nace deshabilitado.**
+
 - **El recolector lee `metodo_extraccion`, no solo `transporte`** (decisión 13). Las ~126 fuentes sin feed no van por la escalera de feeds: van por el camino HTML de la Fase 5. Hasta que ese camino exista, el recolector las **saltea explícitamente y lo registra** — nunca las busca por directo con una URL vacía, que es lo que pasa hoy.
 
-**Tickets:** `[F3.1]` sincronizar `test` con `public` · `[F3.2]` `wf/recolector` compartido ✅ (04/09) · `[F3.3]` dedup por URL canónica ✅ (columna generada + índice único) · `[F3.4]` vista de pendientes ✅ · `[F3.4b]` `wf/barrido` (driver) + los 9 cron ✅ construidos (04/09) — **el cron queda deshabilitado hasta que se decida encenderlo** · **`[F3.4c]` conectar el nodo de Bright Data** — las 32 fuentes se registran `no_visitado` y se saltean; la credencial está cargada, pero **antes hay que dimensionar el costo**: se cobra por request y son ~9.250 fetches/día · `[F3.5]` cierre de cobertura + aviso · `[F3.6]` re-verificación periódica de la estrategia (un transporte que hoy anda puede dejar de andar; hay que refrescar `medios_estrategia` sin re-medir todo) · `[F3.7]` saltear y registrar las fuentes con `metodo_extraccion='html'` hasta que exista `sub/open-article`.
+**Tickets:** `[F3.1]` sincronizar `test` con `public` · `[F3.2]` `wf/recolector` compartido ✅ (04/09) · `[F3.3]` dedup por URL canónica ✅ (columna generada + índice único) · `[F3.4]` vista de pendientes ✅ · `[F3.4b]` `wf/barrido` (driver) + los 9 cron ✅ construidos (04/09) — **el cron queda deshabilitado hasta que se decida encenderlo** · **`[F3.4c]` conectar el nodo de Bright Data** — las 32 fuentes se registran `no_visitado` y se saltean; la credencial está cargada, pero **antes hay que dimensionar el costo**: se cobra por request y son ~9.250 fetches/día · `[F3.5]` cierre de cobertura + reporte · `[F3.6]` re-verificación de la estrategia ✅ (04/09) · **`[F3.7]` 🟡 a medias** — las 178 `html` se saltean bien (la vista de pendientes las excluye), pero **no quedan registradas**: se van en silencio, que es justo lo que la v4 quiere evitar. Falta esa mitad.
 
 ### Fase 4 · Normalización + compuertas — `pendiente`
 
