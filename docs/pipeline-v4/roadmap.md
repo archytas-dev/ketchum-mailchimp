@@ -36,8 +36,9 @@ En 3 semanas el cliente cargó **601 reportes de calidad** sobre los clippings. 
 8. **Deduplicación al guardar.** En cada barrido, una nota cuya URL canónica ya está en el pool del día se ignora; solo entran URLs nuevas. Es un filtro distinto del que compara contra lo ya enviado en días anteriores; los dos van.
 9. **Schema de prueba: se reusa y se asegura el que ya existe** (`test`). Se le activa el control de acceso por fila, se le revocan al rol anónimo los permisos de borrado, y se lo sincroniza con producción. El pipeline escribe ahí cuando arranca por botón, y en producción cuando arranca por cron.
 10. **El proxy no es el plan B, es el camino principal.** Medido: el transporte directo resuelve el 11% de las fuentes; Cloudflare, el 61%. La escalera no es una red de contención para casos raros — es por donde entra la mayoría. Cualquier diseño que asuma "directo salvo excepción" está mal calibrado.
-11. **El cuarto escalón (Bright Data, residencial y pago) va solo contra el bloqueo, nunca contra el timeout.** Medido: recupera 31 de 45 bloqueadas (69%) y apenas 3 de 20 con timeout (15%). Y 15 de esas 20 vuelven con error de servidor: son fuentes rotas de verdad, no bloqueadas. Pagar por reintentarlas es tirar plata; van a revisión o baja.
+11. **El cuarto escalón (Bright Data, residencial y pago) va solo contra el bloqueo, nunca contra el timeout.** Medido: recupera 31 de 45 bloqueadas (69%) y apenas 3 de 20 con timeout (15%). Y 15 de esas 20 vuelven con error de servidor: son fuentes rotas de verdad, no bloqueadas. Pagar por reintentarlas es tirar plata; van a revisión o baja. *(Medida la escalera completa, el bloqueo casi desaparece como problema: queda **una** fuente bloqueada en 1.260.)*
 12. **Las corridas masivas se disparan por webhook, nunca con el botón de n8n.** En ejecución manual n8n retiene todo el set en memoria para mostrarlo en pantalla y el proceso muere con volumen alto; por webhook el mismo trabajo pasa sin problema. Además se corre **por tandas contra una vista de pendientes** (`v4_medicion_pendientes`), que devuelve solo lo que falta medir: si una tanda se corta, lo no medido sigue pendiente y la siguiente lo toma. Nada de "todo o nada".
+13. **Al consolidar, el veredicto que vale es el del último escalón, no el del primero.** Cuando ningún transporte funciona, es fácil que la consulta se quede con lo que dijo el intento inicial e ignore lo que dijeron los proxies después. Pasó dos veces el 03/09: una escribió "usá directo" en 270 fuentes que no funcionan, y otra reportó 270 timeouts que en realidad eran fuentes que responden bien. **Regla: ninguna consolidación puede caer por descarte en el primer valor disponible; si no hay respuesta buena, se escribe `NULL` y el motivo.** Aplica a toda la Fase 4 en adelante, no solo a la medición.
 
 ---
 
@@ -94,16 +95,34 @@ Limpia la deuda que, si no, ensucia todo lo que viene (sobre todo la medición d
 
 **El gate pasa con holgura:** sin escalera entrarían 138 fuentes; con escalera, 960. Multiplica por 7 lo recuperable, así que la capa de transporte de la v4 se justifica sola.
 
+**Y las 300 que no entran no están bloqueadas: en su mayoría responden bien.** Mirando el veredicto del *último* escalón probado (no el del primero):
+
+| Veredicto final | Dominios | ¿Se arregla con transporte? |
+|---|---|---|
+| Responde, pero el feed viene vacío | 178 | No — hay que encontrar el feed real |
+| Responde, pero no es un feed (es HTML) | 76 | No — la URL apunta a otra cosa |
+| Servidor caído | 20 | No — está roto |
+| No existe (404) | 15 | No — la URL murió |
+| Timeout real | 8 | Quizás |
+| Rate limit / bloqueado | 3 | Quizás |
+
+**254 de las 300 (85%) responden.** Se entra perfecto; lo que no hay es un feed usable en la URL que tenemos cargada. Genuinamente inalcanzables quedan **46 (4% del total)**, y **bloqueadas de verdad, una sola**.
+
+**Conclusión que reordena las prioridades: el problema de fondo no es el bloqueo, es la configuración de las fuentes.** Sumando estas 254 a las 177 sin URL, hay **~430 fuentes (34%) que dependen del descubridor y de ningún proxy**. Si el descubridor les encuentra el recurso correcto, el techo pasa de 76% a **~96%**, sin comprar nada ni agregar transportes.
+
 **Lo aprendido quedó guardado, no solo medido:** `medios_estrategia` tiene, por dominio, el transporte que funciona + fecha de verificación. El recolector de la Fase 3 va derecho al que anda en vez de subir la escalera entera en cada barrido (era el riesgo de recursos que motivó un recolector por cliente). **Convención:** si `transporte` está en `NULL`, no se conoce forma de traer esa fuente — el motivo queda en `ultimo_diagnostico`. Nunca se escribe un transporte que no se verificó.
 
-**Dos hallazgos que corren el foco del problema:**
+**Tres hallazgos que corren el foco del problema:**
 
-1. **177 fuentes activas (12%) no tienen URL de feed usable** (143 en `NULL`, 32 en cadena vacía, 2 sin esquema). No es un problema de transporte: a esas no les pega ningún proxy porque no hay adónde pegar. Es trabajo del descubridor (A0), y probablemente explica más reportes de "no entró una nota" que el bloqueo. *(Ojo: el filtro `url_feed is not null` no alcanza — las 32 vacías lo pasan, fallan al instante y se cuentan como timeout falso. Hay que filtrar por `url_feed like 'http%'`.)*
-2. **Varias de las recuperadas traen un índice del sitio sin fechas.** Miles de URLs y casi ninguna fecha: sirve para saber que el medio responde, no para armar un clipping del día. Necesitan que se les encuentre el feed real o que se abra la nota para resolver la fecha — también A0 y Fase 4.
+1. **177 fuentes activas (12%) no tienen URL de feed usable** (143 en `NULL`, 32 en cadena vacía, 2 sin esquema). No es un problema de transporte: a esas no les pega ningún proxy porque no hay adónde pegar. *(Ojo: el filtro `url_feed is not null` no alcanza — las 32 vacías lo pasan, fallan al instante y se cuentan como timeout falso. Hay que filtrar por `url_feed like 'http%'`.)*
+2. **254 más responden bien pero su URL no tiene un feed usable** (vacío o directamente HTML). Mismo problema de fondo que el punto 1: la fuente está mal apuntada.
+3. **Varias de las recuperadas traen un índice del sitio sin fechas.** Miles de URLs y casi ninguna fecha: sirve para saber que el medio responde, no para armar un clipping del día. Necesitan que se les encuentre el feed real o que se abra la nota para resolver la fecha — A0 y Fase 4.
+
+Los tres apuntan al mismo lado: **la deuda está en cómo están cargadas las fuentes, no en la capa de red.** El descubridor (A0) deja de ser un ítem más de la Fase 2 y pasa a ser la palanca de mayor impacto de todo el roadmap.
 
 **Pendiente de la fase:** decidir dónde vive el proxy AWS en producción (hoy corre en un proyecto de prueba).
 
-**Tickets:** `[F2.1]` `sub/fetch-source` ✅ · `[F2.1b]` `sub/fetch-escalera` ✅ · `[F2.3]` medición de cobertura ✅ · `[F2.4]` decisión de gate ✅ (pasa) · `[F2.2]` `wf/descubridor` (A0) — **prioridad alta** · `[F2.5]` dónde vive el proxy AWS en producción · `[F2.6]` revisar y dar de baja las fuentes que responden con error de servidor de forma persistente.
+**Tickets:** `[F2.1]` `sub/fetch-source` ✅ · `[F2.1b]` `sub/fetch-escalera` ✅ · `[F2.3]` medición de cobertura ✅ · `[F2.4]` decisión de gate ✅ (pasa) · `[F2.2]` **`wf/descubridor` (A0) — máxima prioridad del roadmap: destraba ~430 fuentes** · `[F2.5]` dónde vive el proxy AWS en producción · `[F2.6]` dar de baja las 46 fuentes genuinamente inalcanzables (caídas, 404, timeout persistente).
 
 ### Fase 3 · Recolector por cliente + schema de prueba — `pendiente`
 
@@ -202,7 +221,7 @@ Desde la Fase 3, el recolector de cada cliente corre en el schema de prueba en p
 
 ## 5. Riesgos y gates
 
-- ~~**Gate de la Fase 2:** la medición de cobertura recuperable.~~ **Resuelto el 03/09: 76% recuperable.** La capa de transporte se justifica; el riesgo que queda no es de cobertura sino de *calidad de fuente* (las que no tienen URL y las que traen índice sin fechas).
+- ~~**Gate de la Fase 2:** la medición de cobertura recuperable.~~ **Resuelto el 03/09: 76% entra hoy, con techo de ~96% vía descubridor.** La capa de transporte se justifica y el bloqueo prácticamente desaparece como problema (queda 1 fuente bloqueada en 1.260). **El riesgo se corrió de lugar:** no es de red, es de *calidad de la configuración de fuentes* — ~430 fuentes dependen de que el descubridor les encuentre el recurso correcto. Si A0 no funciona bien, la v4 hereda el mismo agujero que la v3.
 - **Dependencia de un proveedor pago:** el 3% de las fuentes solo entra por Bright Data, que se cobra por request y hoy corre en plan de prueba. Antes de producción hay que dimensionar el costo del volumen real (nueve barridos diarios × cuatro clientes) y decidir si ese 3% lo vale.
 - **La estrategia de transporte se desactualiza sola.** Un medio que hoy entra por un proxy puede cambiar mañana. `medios_estrategia` es una foto del 03/09: sin re-verificación periódica (`[F3.6]`) envejece en silencio y el recolector empieza a fallar sin que se note.
 - **Configuración del proveedor de proxy:** una de las zonas de la cuenta tiene la IP del servidor de n8n en su lista de bloqueo, y por eso rechazaba todo con 401 aunque la credencial fuera válida. Se resolvió usando otra zona de la misma cuenta, sin tocar la configuración. Queda pendiente entender por qué está ese bloqueo (probablemente explica por qué el nodo equivalente de la v3 quedó apagado y marcado como pendiente).
