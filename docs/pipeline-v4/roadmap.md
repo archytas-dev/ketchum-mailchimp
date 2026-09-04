@@ -192,10 +192,45 @@ Son **178 y no 130**: a las 130 de `jina` se sumaron 48 que tienen URL cargada p
 
 **Tickets:** `[F2.1]` `sub/fetch-source` ✅ · `[F2.1b]` `sub/fetch-escalera` ✅ · `[F2.3]` medición de cobertura ✅ · `[F2.4]` decisión de gate ✅ (pasa) · `[F2.2]` `wf/descubridor` (A0) ✅ construido y medido · `[F2.2b]` aplicar al catálogo ✅ (152 fuentes, 04/09) · `[F2.2c]` re-correr las 107 "feed válido pero vacío" otro día: un feed vacío hoy puede tener notas mañana · `[F2.5]` dónde vive el proxy AWS en producción · `[F2.6]` dar de baja las 46 fuentes genuinamente inalcanzables (caídas, 404, timeout persistente) · `[F2.7]` separar `transporte` de `metodo_extraccion` ✅ (04/09).
 
-### Fase 3 · Recolector por cliente + schema de prueba — `pendiente`
+### Fase 3 · Recolector compartido + schema de prueba — `en curso`
+
+**El recolector está construido y corrió un barrido completo (04/09).** `v4 · wf · recolector (compartido)` — ID `tzcHSIUdMGXVRFIo`, webhook `POST /v4-recolector`, body `{limite, offset, modo}`.
+
+| | |
+|---|---|
+| Fuentes intentadas | **1.112** (todas, 0 pendientes al cierre) |
+| Con notas (`ok`) | **1.039 · 93%** |
+| Notas al pool | **52.019**, todas con URL canónica distinta |
+| Dominios que aportaron | 944 |
+| Tandas | 19 de 60 · ~17 s cada una |
+
+**El dedup vive en la base, no en n8n.** `candidatas_raw.url_canonica` es **columna generada** por `url_canonica(url)` (la función es `IMMUTABLE`), más un **índice único `(fecha, url_canonica)`**. El recolector inserta la URL cruda y la base decide. Así el dedup es una propiedad de la tabla: atómico, sin leer el pool en memoria, e idéntico para los cuatro clientes y los nueve barridos. Probado: `https://www.Test.com/nota-1?utm_source=x` y `https://test.com/nota-1` colisionan.
+
+**Antigüedad de lo que trae un barrido** — el pool es crudo, las compuertas de la Fase 4 son las que filtran:
+
+| | Notas |
+|---|---|
+| Hoy | 12.422 |
+| Ayer | 7.120 |
+| Última semana | 4.047 |
+| Último mes | 3.986 |
+| Más viejo | 2.770 |
+| **Sin fecha confiable** | **21.674** |
+
+Los 21.674 sin fecha son casi todos de sitemap, que devuelve las últimas N URLs sin `lastmod`. **Es el volumen que justifica `resolver_fecha()` de la Fase 4**: sin resolverles la fecha, o se descarta el 42% del pool o entran notas viejas — que es exactamente el reporte "nota vieja o repetida" de la v3.
+
+**Cuatro bugs que costó encontrar y que aplican a toda la Fase 4 en adelante:**
+
+1. **Al nodo HTTP le faltaba `fullResponse`.** Sin él no hay `statusCode`, así que la rama de fetch directo caía siempre en `timeout`: **las 138 fuentes `directo` se reportaban como caídas con `http_status` en `NULL`**. Se veía como un problema de red y era un campo que no pedí.
+2. **`fetch_log.pasada` tenía el enum del diseño viejo** (`nocturna_1/2/3 · caliente · diurna`), del esquema de tres pasadas que la decisión 7 reemplazó. Rechazaba el identificador de barrido. Ahora es un patrón: `barrido_YYYY-MM-DD_HH`.
+3. **El proxy inventa diagnósticos que no están en el CHECK** (`http_202`, `error_red`). Como el insert es en bulk, **una fila inválida mata las 60** — y sin `fetch_log` el barrido pierde la reentrancia, porque la vista de pendientes no puede excluir lo que no ve hecho. Cuatro tandas seguidas trajeron las mismas fuentes. Se agregó un clamp al enum.
+4. **`Prefer: resolution=ignore-duplicates` resuelve sobre la primary key, no sobre cualquier índice único.** Hay que decirle cuál: `?on_conflict=fecha,url_canonica`. Sin eso el POST devuelve **409 y se pierde el lote entero** — pasó con 2.260 notas.
+
+**Y un error de diseño propio:** la vista de pendientes excluía solo las `ok`, así que las ~26 que fallan por tanda quedaban pendientes dentro de la ventana, se reintentaban en cada tanda y tapaban el avance — el barrido no convergía. **Regla correcta: en un barrido cada fuente se intenta una vez**; lo que falla lo toma el barrido siguiente (hay 9 por día). Efecto lateral bueno: la vista se vacía sola, así que el recolector se llama siempre con `offset=0` y no hay que llevar la cuenta.
 
 - **Sincronizar el schema `test` con producción** (agregarle las tablas nuevas de la v4).
-- **`wf/recolector`** — **uno solo, compartido** (decisión 6). Barrido cada ~3 h + 06:30, **disparado por webhook y por tandas**. Recorre los 1.028 dominios con transporte **leyendo `medios_estrategia`: va directo al transporte que ya se sabe que funciona**, y solo sube la escalera si ese falla (y ahí actualiza la estrategia). Lee `metodo_extraccion`: las 178 `html` se saltean y se registran hasta que exista `sub/open-article`.
+- **`wf/recolector`** ✅ — **uno solo, compartido** (decisión 6). Barrido cada ~3 h + 06:30, **disparado por webhook y por tandas de 60**. Recorre las 1.112 fuentes con transporte **leyendo `medios_estrategia`: va directo al que ya se sabe que funciona**. Lee `metodo_extraccion`: las 178 `html` no entran a la vista de pendientes hasta que exista `sub/open-article`.
+  *Pendiente de la fase:* que suba la escalera cuando el transporte conocido falla (hoy solo registra el diagnóstico) — va junto con `[F3.6]`.
 - **Deduplicación al guardar** por URL canónica: cada barrido suma solo lo nuevo.
 - Cierre de cobertura + aviso por barrido.
 - Los cuatro recolectores usan los mismos ladrillos; cambian los parámetros por cliente.
@@ -204,7 +239,7 @@ Son **178 y no 130**: a las 130 de `jina` se sumaron 48 que tienen URL cargada p
 
 - **El recolector lee `metodo_extraccion`, no solo `transporte`** (decisión 13). Las ~126 fuentes sin feed no van por la escalera de feeds: van por el camino HTML de la Fase 5. Hasta que ese camino exista, el recolector las **saltea explícitamente y lo registra** — nunca las busca por directo con una URL vacía, que es lo que pasa hoy.
 
-**Tickets:** `[F3.1]` sincronizar `test` con `public` · `[F3.2]` `wf/recolector` compartido, por tandas, leyendo `medios_estrategia` · `[F3.3]` dedup al guardar por URL canónica · `[F3.4]` vista de pendientes del barrido + horarios del cron · `[F3.5]` cierre de cobertura + aviso · `[F3.6]` re-verificación periódica de la estrategia (un transporte que hoy anda puede dejar de andar; hay que refrescar `medios_estrategia` sin re-medir todo) · `[F3.7]` saltear y registrar las fuentes con `metodo_extraccion='html'` hasta que exista `sub/open-article`.
+**Tickets:** `[F3.1]` sincronizar `test` con `public` · `[F3.2]` `wf/recolector` compartido ✅ (04/09) · `[F3.3]` dedup por URL canónica ✅ (columna generada + índice único) · `[F3.4]` vista de pendientes ✅ · **`[F3.4b]` encadenar las 19 tandas solas + los 9 cron** (hoy se disparan a mano, una por una) · **`[F3.4c]` conectar el nodo de Bright Data** — las 32 fuentes se registran `no_visitado` y se saltean; la credencial está cargada · `[F3.5]` cierre de cobertura + aviso · `[F3.6]` re-verificación periódica de la estrategia (un transporte que hoy anda puede dejar de andar; hay que refrescar `medios_estrategia` sin re-medir todo) · `[F3.7]` saltear y registrar las fuentes con `metodo_extraccion='html'` hasta que exista `sub/open-article`.
 
 ### Fase 4 · Normalización + compuertas — `pendiente`
 
@@ -281,7 +316,7 @@ Son **178 y no 130**: a las 130 de `jina` se sumaron 48 que tienen URL cargada p
 
 ## 4. Camino crítico
 
-~~`Fase 0`~~ *(omitida por decisión del 04/09 — ver abajo)* → `Fase 1` ✅ → `Fase 2` ✅ (gate · descubridor · catálogo aplicado · `metodo_extraccion`) → **`Fase 3`** ← acá estamos → `Fase 4` → `Fase 5` → `Fase 6` → `Fase 8` (piloto) → `Fase 9`
+~~`Fase 0`~~ *(omitida por decisión del 04/09 — ver abajo)* → `Fase 1` ✅ → `Fase 2` ✅ (gate · descubridor · catálogo aplicado · `metodo_extraccion`) → **`Fase 3`** ← acá estamos (recolector ✅ y dedup ✅; falta automatizar tandas/cron y sincronizar `test`) → `Fase 4` → `Fase 5` → `Fase 6` → `Fase 8` (piloto) → `Fase 9`
 
 **Por qué la Fase 2 se cerró antes de arrancar la 3:** el descubridor reescribe `url_feed` y `medios_estrategia`, que es exactamente lo que el recolector de la Fase 3 lee. Construir el recolector contra un catálogo que está por moverse obliga a re-verificar todo después. Se aplicó primero lo encontrado y se separó `metodo_extraccion`, así el recolector se escribe una sola vez contra un modelo que no se va a mover.
 
