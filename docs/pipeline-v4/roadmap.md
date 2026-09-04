@@ -331,7 +331,48 @@ Son **vistas, no un flujo**: `fetch_log` ya tiene un renglón por intento, así 
 
 **Pendiente que destraba el aviso de verdad:** `medios_catalogo.ritmo_publicacion_semanal` está **sin poblar** (todo `NULL`), así que el orden por ritmo de `v4_fuentes_mudas` todavía no prioriza nada. Poblarlo es lo que convierte la lista en una alerta útil: un medio que publica 50 notas por semana y está mudo es un problema; uno que publica una cada tanto, no.
 
-### Fase 4 · Normalización + compuertas — `pendiente`
+### Fase 4 · Normalización + compuertas — `en curso`
+
+#### Lo primero no era resolver fechas: era sacar la basura de ingesta
+
+El 04/09 el pool tenía **21.674 notas sin fecha confiable (42%)** y lo reporté como *"el volumen que justifica `resolver_fecha()`"*. **Estaba mal leído.** El desglose:
+
+| Origen | Dominios | Notas sin fecha |
+|---|---|---|
+| **Índices históricos completos** | **5** | **16.084 — el 74%** |
+| Feeds mixtos | 29 | 3.826 |
+| Volumen normal sin fecha | 39 | 1.860 |
+
+**Un solo medio, `maracodigital.net`, aportaba 12.001 notas — el 23% del pool entero.** Su sitemap tiene 12.003 URLs y **cero `<lastmod>`**: es el archivo histórico del sitio, no las noticias del día. Es el riesgo *"fecha fresca-falsa"* del design doc en su forma más pura — un medio capaz de empujar 12.000 notas viejas al filtro, todas pareciendo nuevas, y **ninguna compuerta de fecha las puede filtrar porque no tienen fecha**.
+
+Y no se arreglaba resolviendo: **RSS trae fecha el 98%**, el problema es solo sitemap; esos medios **no tienen feed alternativo** (probados `/feed/`, `/sitemap-news.xml`, `/news-sitemap.xml` → 404 en los tres); y **la URL tampoco la trae** (42 de 21.770 con patrón de fecha). La única salida habría sido abrir cada nota: 16.000 por barrido, nueve veces por día.
+
+**La regla de detección es volumen SIN FECHAS, nunca volumen solo.** `v4_indices_historicos` marca ≥300 notas con ≤2% fechadas. El matiz importa: **`elmonterizo.com` trae 3.841 notas y las 3.841 tienen fecha**, 3.658 de las últimas 48 h — es una fuente legítima y prolífica, y marcarla por volumen habría sido un error caro.
+
+#### Cuatro de los seis tenían el feed real declarado y nunca se lo buscamos
+
+`news_sitemap.xml` — con guion **bajo** — estaba en su `robots.txt`, y no estaba en la lista del descubridor:
+
+| Dominio | Antes | Después |
+|---|---|---|
+| `infotecrealico.com.ar` | 1.026 sin fecha | **39 con fecha y título** |
+| `rumoresdepehuajo.com.ar` | 1.025 sin fecha | **10 con fecha y título** |
+| `elurbanodesancarlos.com` | 1.018 sin fecha | **12 con fecha y título** |
+| `radiocapital913.com.ar` | 1.014 sin fecha | **10 con fecha y título** |
+
+Se les corrigió la URL y **se agregó el patrón al descubridor** (`news_sitemap.xml` y `sitemap_news.xml`), que es donde tenía que estar desde el principio.
+
+Los otros dos (`maracodigital.net`, `novaclima.com.ar`) no declaran ninguno y no se les encontró alternativa: se les quitó el transporte con el motivo `indice_historico_sin_fechas`. **No se desactiva la fuente** — salen del recolector pero siguen visibles para el descubridor y para la pantalla de salud, y vuelven solas el día que se les encuentre un feed real.
+
+**Resultado sobre el pool del día:**
+
+| | Antes | Ahora |
+|---|---|---|
+| Pool | 52.464 | 39.613 |
+| **Con fecha confiable** | 30.694 · **58%** | 36.635 · **92%** |
+| Notas de las últimas 24 h | 15.059 | **18.328** |
+
+Se fue el ruido y **subieron** las notas útiles. La lección para el resto de la fase: *antes de construir maquinaria para procesar un volumen, mirar de dónde sale ese volumen.*
 
 - Completar `url_canonica` con el decode de los redirectores del agregador.
 - `normalizar_y_compuertas()`: normaliza → resuelve fecha (cascada, nunca inventa) → deduplica (una regla) → tres compuertas.
