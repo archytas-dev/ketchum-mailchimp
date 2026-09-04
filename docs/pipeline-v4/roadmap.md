@@ -120,9 +120,20 @@ Limpia la deuda que, si no, ensucia todo lo que viene (sobre todo la medición d
 
 Los tres apuntan al mismo lado: **la deuda está en cómo están cargadas las fuentes, no en la capa de red.** El descubridor (A0) deja de ser un ítem más de la Fase 2 y pasa a ser la palanca de mayor impacto de todo el roadmap.
 
+**La cobertura no es pareja entre clientes.** Las 1.260 fuentes son el catálogo compartido; cada cliente está suscripto a un subconjunto y su recolector solo recorre el suyo (por eso las suscripciones suman más que el catálogo: muchos medios los comparten varios clientes).
+
+| Cliente | Fuentes propias | Funcionan hoy | Recuperables (mal apuntadas) | Sin URL | Techo estimado |
+|---|---|---|---|---|---|
+| BMS | 641 | 400 (62%) | 135 | 82 | ~83% |
+| MSD | 598 | 397 (66%) | 87 | 98 | ~97% |
+| Mars | 465 | 325 (70%) | 89 | 44 | ~99% |
+| Booking | 208 | 155 (75%) | 33 | 12 | ~96% |
+
+**Esto explica un patrón que veníamos arrastrando sin datos: el cliente con peor cobertura es el que más reportes de "no entró una nota" genera.** No es casualidad ni un problema de sus filtros — arrastra 217 fuentes entre rotas y sin dirección. **Consecuencia operativa: el descubridor se corre primero sobre las fuentes de ese cliente**, aunque el piloto de cutover siga siendo el más chico. Son dos órdenes distintos y no hay que confundirlos: el piloto se elige por riesgo bajo, el orden del descubridor por dolor alto.
+
 **Pendiente de la fase:** decidir dónde vive el proxy AWS en producción (hoy corre en un proyecto de prueba).
 
-**Tickets:** `[F2.1]` `sub/fetch-source` ✅ · `[F2.1b]` `sub/fetch-escalera` ✅ · `[F2.3]` medición de cobertura ✅ · `[F2.4]` decisión de gate ✅ (pasa) · `[F2.2]` **`wf/descubridor` (A0) — máxima prioridad del roadmap: destraba ~430 fuentes** · `[F2.5]` dónde vive el proxy AWS en producción · `[F2.6]` dar de baja las 46 fuentes genuinamente inalcanzables (caídas, 404, timeout persistente).
+**Tickets:** `[F2.1]` `sub/fetch-source` ✅ · `[F2.1b]` `sub/fetch-escalera` ✅ · `[F2.3]` medición de cobertura ✅ · `[F2.4]` decisión de gate ✅ (pasa) · `[F2.2]` **`wf/descubridor` (A0) — máxima prioridad del roadmap: destraba ~430 fuentes** · `[F2.2b]` correr el descubridor por cliente, **empezando por el de peor cobertura** · `[F2.5]` dónde vive el proxy AWS en producción · `[F2.6]` dar de baja las 46 fuentes genuinamente inalcanzables (caídas, 404, timeout persistente).
 
 ### Fase 3 · Recolector por cliente + schema de prueba — `pendiente`
 
@@ -195,7 +206,7 @@ Los tres apuntan al mismo lado: **la deuda está en cómo están cargadas las fu
 - **Rollback definido antes de arrancar:** dos días fuera de banda, o una queja del cliente = volver (dos clicks).
 
 **Piloto = Booking** (más chico y simple: 210 fuentes vs 640, 18 keywords vs 106, corre en 5 min). El error es el más barato: si la arquitectura falla, se ve en el contexto más limpio.
-**BMS va segundo, no cuarto** — es donde más duele, pero ese dolor lo arreglan las Fases 2–4 (compartidas) y su recolector se construye en la Fase 3: BMS mejora en el schema de prueba desde la Fase 3, sin cortar nada.
+**BMS va segundo, no cuarto** — es donde más duele, pero ese dolor lo arreglan las Fases 2–4 (compartidas) y su recolector se construye en la Fase 3: BMS mejora en el schema de prueba desde la Fase 3, sin cortar nada. *(La medición del 03/09 lo confirma con datos: es el de peor cobertura, 62%, con 217 fuentes rotas o sin dirección. Por eso el descubridor arranca por él aunque el cutover arranque por el piloto.)*
 
 **Tickets:** `[F8.1]` arnés de golden · `[F8.2]` staging del piloto · `[F8.3]` cutover de Booking · `[F8.4]` disparador de rollback + monitoreo.
 
