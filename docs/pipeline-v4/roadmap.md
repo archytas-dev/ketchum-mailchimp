@@ -206,6 +206,8 @@ Son **178 y no 130**: a las 130 de `jina` se sumaron 48 que tienen URL cargada p
 
 **El dedup vive en la base, no en n8n.** `candidatas_raw.url_canonica` es **columna generada** por `url_canonica(url)` (la función es `IMMUTABLE`), más un **índice único `(fecha, url_canonica)`**. El recolector inserta la URL cruda y la base decide. Así el dedup es una propiedad de la tabla: atómico, sin leer el pool en memoria, e idéntico para los cuatro clientes y los nueve barridos. Probado: `https://www.Test.com/nota-1?utm_source=x` y `https://test.com/nota-1` colisionan.
 
+**Y probado entre barridos, que es el caso que importa:** el segundo barrido del día re-trajo 1.036 fuentes y ~37.700 notas, y el pool creció **445 filas** (52.019 → 52.464). El 99% eran las mismas notas y se ignoraron solas. Ese es el número que dice que la decisión 8 funciona.
+
 **Antigüedad de lo que trae un barrido** — el pool es crudo, las compuertas de la Fase 4 son las que filtran:
 
 | | Notas |
@@ -232,14 +234,27 @@ Los 21.674 sin fecha son casi todos de sitemap, que devuelve las últimas N URLs
 - **`wf/recolector`** ✅ — **uno solo, compartido** (decisión 6). Barrido cada ~3 h + 06:30, **disparado por webhook y por tandas de 60**. Recorre las 1.112 fuentes con transporte **leyendo `medios_estrategia`: va directo al que ya se sabe que funciona**. Lee `metodo_extraccion`: las 178 `html` no entran a la vista de pendientes hasta que exista `sub/open-article`.
   *Pendiente de la fase:* que suba la escalera cuando el transporte conocido falla (hoy solo registra el diagnóstico) — va junto con `[F3.6]`.
 - **Deduplicación al guardar** por URL canónica: cada barrido suma solo lo nuevo.
-- Cierre de cobertura + aviso por barrido.
-- Los cuatro recolectores usan los mismos ladrillos; cambian los parámetros por cliente.
+- **`wf/barrido`** ✅ — el driver que drena el barrido entero: itera tandas y espera cada una. **Corrió completo: 13 tandas, 671 fuentes, 624 ok, 2m16s.** Un barrido desde cero (1.112 fuentes) son ~19 tandas ≈ 3,5 min.
+- Cierre de cobertura + reporte por barrido.
 
-**Salida:** el pool de cada cliente se llena a lo largo del día en `test`, en paralelo a su v3.
+**Salida:** el pool compartido se llena a lo largo del día con nueve barridos, en paralelo a las v3 que siguen intactas. *(No en `test`: el pool vive en las tablas v4 de `public`, que nadie más consume — ver `[F3.1]`.)*
+
+#### El encadenado (`[F3.4b]`), y por qué son dos workflows
+
+`wf/barrido` (driver, ID `wEuM4z6hIuLGwQFF`) itera; `wf/recolector` hace una tanda. **La división no es estética, es la única que funciona:**
+
+- **El recolector no puede auto-encadenarse.** Probado el 04/09: n8n **cancela la ejecución hija si el que la disparó corta la conexión**, así que "disparar y no esperar" no existe con un webhook de `responseMode=responseNode`. Y si espera, las 19 tandas quedan anidadas: la primera cuelga hasta que termina la última, y el primer timeout se lleva la cadena entera.
+- **Tampoco sirven dos webhooks en el mismo workflow** (uno que responda al instante para la cadena): n8n rechaza la ejecución con *"Unused Respond to Webhook node found"* si entra por un webhook `onReceived` habiendo un nodo de respuesta en el flujo.
+- **El driver itera, no recurre.** En cada vuelta hay una sola ejecución de recolector abierta, y el driver solo retiene los resúmenes (unos KB). Los cuerpos HTTP quedan en la ejecución del recolector — que es lo que respeta el techo de 21 MB por tanda.
+- **`batchSize=1`, en serie.** Dos tandas simultáneas se pisarían: las dos leerían los mismos pendientes antes de que ninguna escriba `fetch_log`.
+
+**Un gotcha de n8n que costó una corrida:** `$('nodo').all()` devuelve **solo la última vuelta del loop**, no todas. Hay que pedir cada corrida por índice — `.all(0, runIndex)`. El driver corrió 3 tandas y el resumen reportó 1.
+
+**El cron está construido y deshabilitado a propósito.** Habilitarlo hace que el recolector escriba en la base nueve veces por día sin que nadie lo dispare: es una decisión, no un default.
 
 - **El recolector lee `metodo_extraccion`, no solo `transporte`** (decisión 13). Las ~126 fuentes sin feed no van por la escalera de feeds: van por el camino HTML de la Fase 5. Hasta que ese camino exista, el recolector las **saltea explícitamente y lo registra** — nunca las busca por directo con una URL vacía, que es lo que pasa hoy.
 
-**Tickets:** `[F3.1]` sincronizar `test` con `public` · `[F3.2]` `wf/recolector` compartido ✅ (04/09) · `[F3.3]` dedup por URL canónica ✅ (columna generada + índice único) · `[F3.4]` vista de pendientes ✅ · **`[F3.4b]` encadenar las 19 tandas solas + los 9 cron** (hoy se disparan a mano, una por una) · **`[F3.4c]` conectar el nodo de Bright Data** — las 32 fuentes se registran `no_visitado` y se saltean; la credencial está cargada · `[F3.5]` cierre de cobertura + aviso · `[F3.6]` re-verificación periódica de la estrategia (un transporte que hoy anda puede dejar de andar; hay que refrescar `medios_estrategia` sin re-medir todo) · `[F3.7]` saltear y registrar las fuentes con `metodo_extraccion='html'` hasta que exista `sub/open-article`.
+**Tickets:** `[F3.1]` sincronizar `test` con `public` · `[F3.2]` `wf/recolector` compartido ✅ (04/09) · `[F3.3]` dedup por URL canónica ✅ (columna generada + índice único) · `[F3.4]` vista de pendientes ✅ · `[F3.4b]` `wf/barrido` (driver) + los 9 cron ✅ construidos (04/09) — **el cron queda deshabilitado hasta que se decida encenderlo** · **`[F3.4c]` conectar el nodo de Bright Data** — las 32 fuentes se registran `no_visitado` y se saltean; la credencial está cargada, pero **antes hay que dimensionar el costo**: se cobra por request y son ~9.250 fetches/día · `[F3.5]` cierre de cobertura + aviso · `[F3.6]` re-verificación periódica de la estrategia (un transporte que hoy anda puede dejar de andar; hay que refrescar `medios_estrategia` sin re-medir todo) · `[F3.7]` saltear y registrar las fuentes con `metodo_extraccion='html'` hasta que exista `sub/open-article`.
 
 ### Fase 4 · Normalización + compuertas — `pendiente`
 
