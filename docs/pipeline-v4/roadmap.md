@@ -277,9 +277,33 @@ Toma las fuentes cuyo **último** intento falló con algo que la escalera puede 
 
 **El cron (diario 07:15 ART, después del último barrido) también nace deshabilitado.**
 
+#### `[F3.7]` nada se saltea en silencio — ✅
+
+Las 178 `metodo_extraccion='html'` se salteaban bien pero **no aparecían en `fetch_log`**: un día roto y un día sin esas fuentes se veían igual, que es justo lo que la v4 existe para evitar. Ahora entran a la vista de pendientes y el recolector las registra como `no_visitado` sin salir a buscarlas — mismo camino que las 32 de `brightdata`.
+
+**A las `html` se les deja `transporte` en `NULL` a propósito.** Poner `'html'` ahí volvería a mezclar los dos ejes que `[F2.7]` separó; para saber por qué no se visitaron se cruza con `medios_estrategia.metodo_extraccion`. Y **no se les exige URL**: a las 130 que vienen de la v3 no se les conoce ninguna, y justamente por eso hay que verlas.
+
+**Un barrido completo, ahora visible entero** (1.290 fuentes, ninguna en silencio):
+
+| Método | Transporte | Diagnóstico | Fuentes |
+|---|---|---|---|
+| feed | cloudflare | ok | 901 |
+| feed | directo | ok | **135** |
+| feed | aws | ok | **16** |
+| feed | brightdata | `no_visitado` | 32 |
+| feed | cloudflare | caído · sin_items · timeout · bloqueado | 25 |
+| feed | directo | sin_items | 3 |
+| html | — | `no_visitado` | **178** |
+
+**1.052 ok de 1.112 con feed (95%)** — arriba de los 1.036 de la primera corrida, por el arreglo del nodo AWS y la re-verificación.
+
+**Y un tercer efecto del Switch por transporte que casi cuesta caro:** las `html` tienen `transporte` en `NULL`, así que **no matcheaban ninguna rama y desaparecían en el Switch** — el Merge no recibía nada, `Normalizar` nunca corría y el barrido reportaba **0 fuentes**. Antes funcionaba de casualidad: las de `brightdata` viajaban de pasajeras con las que sí tenían transporte. Hizo falta una **cuarta salida de fallback** en el Switch, cableada al Merge. Regla: un Switch sin fallback tira los items que no matchean, sin avisar.
+
 - **El recolector lee `metodo_extraccion`, no solo `transporte`** (decisión 13). Las ~126 fuentes sin feed no van por la escalera de feeds: van por el camino HTML de la Fase 5. Hasta que ese camino exista, el recolector las **saltea explícitamente y lo registra** — nunca las busca por directo con una URL vacía, que es lo que pasa hoy.
 
-**Tickets:** `[F3.1]` sincronizar `test` con `public` · `[F3.2]` `wf/recolector` compartido ✅ (04/09) · `[F3.3]` dedup por URL canónica ✅ (columna generada + índice único) · `[F3.4]` vista de pendientes ✅ · `[F3.4b]` `wf/barrido` (driver) + los 9 cron ✅ construidos (04/09) — **el cron queda deshabilitado hasta que se decida encenderlo** · **`[F3.4c]` conectar el nodo de Bright Data** — las 32 fuentes se registran `no_visitado` y se saltean; la credencial está cargada, pero **antes hay que dimensionar el costo**: se cobra por request y son ~9.250 fetches/día · `[F3.5]` cierre de cobertura + reporte · `[F3.6]` re-verificación de la estrategia ✅ (04/09) · **`[F3.7]` 🟡 a medias** — las 178 `html` se saltean bien (la vista de pendientes las excluye), pero **no quedan registradas**: se van en silencio, que es justo lo que la v4 quiere evitar. Falta esa mitad.
+**Tickets:** `[F3.1]` sincronizar `test` con `public` · `[F3.2]` `wf/recolector` compartido ✅ (04/09) · `[F3.3]` dedup por URL canónica ✅ (columna generada + índice único) · `[F3.4]` vista de pendientes ✅ · `[F3.4b]` `wf/barrido` (driver) + los 9 cron ✅ construidos (04/09) — **el cron queda deshabilitado hasta que se decida encenderlo** · **`[F3.4c]` conectar el nodo de Bright Data** — las 32 fuentes se registran `no_visitado` y se saltean; la credencial está cargada, pero **antes hay que dimensionar el costo**: se cobra por request y son ~9.250 fetches/día · `[F3.5]` cierre de cobertura + reporte · `[F3.6]` re-verificación de la estrategia ✅ (04/09) · `[F3.7]` registrar las fuentes sin feed ✅ (04/09).
+
+**Queda abierto de la fase:** `[F3.1]` (el schema `test` — y ver más arriba que la Fase 0 lo dejó sin RLS), `[F3.4c]` (Bright Data, con el costo dimensionado antes) y `[F3.5]` (el reporte por barrido). *El "aviso" que decía el ticket original de `[F3.5]` era a Slack; con la regla de no mandar nada hacia afuera, queda como consulta.*
 
 ### Fase 4 · Normalización + compuertas — `pendiente`
 
