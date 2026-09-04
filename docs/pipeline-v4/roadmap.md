@@ -374,6 +374,50 @@ Los otros dos (`maracodigital.net`, `novaclima.com.ar`) no declaran ninguno y no
 
 Se fue el ruido y **subieron** las notas útiles. La lección para el resto de la fase: *antes de construir maquinaria para procesar un volumen, mirar de dónde sale ese volumen.*
 
+#### `[F4.3]` las reglas, como datos — ✅ (globales + Booking)
+
+`reglas_filtro` tiene **9 reglas** traducidas leyendo el nodo `Normalize + Dedup + Pre-filter` de la v3 de Booking — ~300 líneas de JavaScript, repetidas en 4 workflows. Cada fila lleva **el motivo escrito**, que es lo que va a leer el dashboard.
+
+Las globales: markdown roto en el título · ruido financiero · TLD extranjero · antigüedad 24 h · título corto sin copete. Las de Booking: URL del propio cliente · el medio publicador *es* el cliente · **menciona la marca → `entra_si_o_si`** · nota sobre otro mercado.
+
+Dos hallazgos de la traducción:
+
+- **`titulo_corto` no existía en el CHECK de `tipo`.** La Fase 1 no previó ese tipo de regla y la v3 sí la aplica. Se agregó.
+- **El flujo de Booking filtra ruido financiero** (`vende acciones|holdings|shares`) que parece copiado del de BMS. Es exactamente el arrastre que esta tabla viene a hacer visible: en JavaScript nadie lo ve, como fila con motivo sí.
+
+#### `[F4.2]` `normalizar_y_compuertas()` — ✅
+
+Del pool compartido a las candidatas de un cliente. **Determinística y en SQL**: una definición para los cuatro, y dos corridas del mismo día dan lo mismo — es un test del golden.
+
+Orden: **suscripción → fecha → compuertas → dedup**. La dedup va última a propósito: si una nota se cae por regla, ese descarte dice más que *"era repetida"*.
+
+Tres reglas de comportamiento que quedaron en la función y no en la tabla, porque no se expresan en un regex:
+
+- **`entra_si_o_si` gana sobre todo.** Se evalúa primero y ninguna otra regla puede sacar esa nota. Y **una nota prioritaria nunca se deduplica cross-medio**: cada medio que la publica es un placement distinto.
+- **La antigüedad solo descarta con fecha confiable.** No se descarta por vieja algo de lo que no se sabe cuándo se publicó — es la regla del design doc, ahora aplicada.
+- **La excepción argentina:** una nota sobre otro mercado que además dice "argentin" no se descarta.
+
+**El embudo de Booking, medido:**
+
+| | Notas |
+|---|---|
+| Pool compartido | 39.613 |
+| Suscritas a Booking | 5.574 |
+| − viejas (>24 h, con fecha confiable) | −2.170 |
+| − título pobre | −1.388 |
+| **Candidatas** | **2.173** · 109 medios · 2.099 de las últimas 24 h |
+
+**Los cuatro clientes corren con la misma función**, que era el punto de ponerla en SQL:
+
+| Cliente | Candidatas |
+|---|---|
+| MSD | 7.701 |
+| Mars | 6.784 |
+| BMS | 6.717 |
+| **Booking** | **2.173** |
+
+**Y esa diferencia es el trabajo que falta, no un error:** Booking baja a 2.173 porque tiene sus reglas propias cargadas; los otros tres quedan en ~7.000 porque **solo se les aplican las globales**. Sus reglas específicas —keywords por grupo terapéutico, marcas del cliente, geo— siguen en el JavaScript de sus workflows. `[F4.3b]`: repetir la traducción para BMS, MSD y Mars. Es el mismo trabajo, tres veces, y sin él esos clientes no tienen filtro real.
+
 - Completar `url_canonica` con el decode de los redirectores del agregador.
 - `normalizar_y_compuertas()`: normaliza → resuelve fecha (cascada, nunca inventa) → deduplica (una regla) → tres compuertas.
 - Poblar `reglas_filtro` traduciendo el JavaScript de los cuatro workflows, una sola vez.
@@ -382,7 +426,7 @@ Se fue el ruido y **subieron** las notas útiles. La lección para el resto de l
 
 **Cierra:** el grueso de "fuente extranjera", "vieja / repetida", la mitad de "no relevante", y "exclusiva que no entró".
 
-**Tickets:** `[F4.1]` `url_canonica` decode de redirectores · `[F4.2]` `normalizar_y_compuertas()` · `[F4.3]` poblar `reglas_filtro` desde el JS actual · `[F4.4]` escritura de descartes con regla + valor · `[F4.5]` reconstruir el historial con URL canónica.
+**Tickets:** `[F4.1]` `url_canonica` decode de redirectores · `[F4.2]` `normalizar_y_compuertas()` ✅ (04/09) · `[F4.3]` poblar `reglas_filtro` ✅ globales + Booking · **`[F4.3b]` traducir las reglas de BMS, MSD y Mars** (hoy solo tienen las globales) · `[F4.4]` escritura de descartes con regla + valor · `[F4.5]` reconstruir el historial con URL canónica.
 
 ### Fase 5 · Los agentes — `pendiente`
 
