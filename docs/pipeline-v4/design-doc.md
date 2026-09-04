@@ -15,7 +15,7 @@
 | **Proyecto** | Ketchum · módulo Clipping · Pipeline **v4** (rediseño de ingesta y filtrado) |
 | **Autor** | Archytas |
 | **Fecha de creación** | 2026-09-03 |
-| **Última actualización** | 2026-09-03 |
+| **Última actualización** | 2026-09-04 — Fase 2 cerrada; **el recolector pasa a ser compartido** (revierte una decisión, ver §6); `transporte` y `metodo_extraccion` separados |
 | **Estado** | `borrador` |
 | **Aprobado por** | — *(pendiente; autor ≠ aprobador)* |
 | **PRD / funcional** | [`pipeline-v4.md`](./pipeline-v4.md) — especificación técnica de ejecución, con el diagnóstico medido |
@@ -76,7 +76,7 @@ Más: sin fecha confiable las notas viejas pasan el filtro de 24 h para siempre;
 - Los clientes en formato legado.
 - Cambiar la capa de datos de la v3 (`import_clipping`, `get_config_clipping`, `log_run_stats`).
 - Terminar de migrar la v3 a la instancia dedicada — la v4 la **reemplaza** cliente por cliente (leapfrog), la v3 sigue corriendo en la cuenta compartida hasta el cutover.
-- Un recolector único compartido por los cuatro clientes (ver §6).
+- ~~Un recolector único compartido por los cuatro clientes~~ — **revertido el 04/09: el recolector sí es compartido.** La medición mostró que uno por cliente cuesta 44% más de requests y golpea 299 dominios 2–4 veces por barrido. Ver §6.
 
 ---
 
@@ -86,18 +86,19 @@ Más: sin fecha confiable las notas viejas pasan el filtro de 24 h para siempre;
 
 ```mermaid
 flowchart TB
-  subgraph DIA["Durante el día · por cliente"]
-    CRON["cron cada ~3 h<br/>08:00 … 05:00 + 06:30"] --> REC["wf/recolector-cliente"]
-    REC -->|por fuente| ESC["sub/fetch-escalera<br/>directo → cloudflare → aws"]
+  subgraph DIA["Durante el día · UNO para los cuatro clientes"]
+    CRON["cron cada ~3 h<br/>08:00 … 05:00 + 06:30"] --> REC["wf/recolector<br/>por tandas · 1.028 dominios"]
+    REC -->|1 fetch por dominio| EST[("medios_estrategia<br/>va directo al transporte que anda")]
+    EST --> ESC["sub/fetch-escalera<br/>solo si el conocido falla"]
     ESC --> FS["sub/fetch-source<br/>1 fuente · 1 transporte"]
     FS -->|cada intento| FL[("fetch_log")]
     FS -->|items| DEDUP{"URL canónica<br/>¿ya en el pool?"}
-    DEDUP -->|nueva| CR[("candidatas_raw")]
+    DEDUP -->|nueva| CR[("candidatas_raw<br/>pool compartido, sin client_id")]
     DEDUP -->|repetida| X["se descarta"]
   end
 
-  subgraph ARM["10 min antes del corte · por cliente"]
-    CR --> NORM["normalizar_y_compuertas()<br/>fecha · dedup · 3 compuertas"]
+  subgraph ARM["10 min antes del corte · por cliente (×4)"]
+    CR -->|filtra por medios_suscripcion| NORM["normalizar_y_compuertas()<br/>fecha · dedup · 3 compuertas"]
     NORM -->|~150| A1["A1 · completador"]
     A1 -->|~150| A2["A2 · juez"]
     A2 -->|~55| A3["A3 · auditor"]
@@ -118,6 +119,8 @@ flowchart TB
 ```
 
 **Los dos principios:** (1) a la hora del corte no se sale a buscar nada — el clipping ya está decidido; (2) el envío puede salir peor, nunca puede no salir.
+
+**Dónde entra "el cliente":** en el armado, no en la recolección. El catálogo de medios es compartido y el pool del día también (`candidatas_raw` no tiene `client_id`, a propósito). Una nota se trae **una vez** y sirve a los cuatro clientes que estén suscriptos a esa fuente; cada armado filtra el pool por `medios_suscripcion`. Recolectar por cliente significaría traer la misma nota hasta cuatro veces para guardar una sola fila — ver §6.
 
 ### 3.2 Tecnologías y por qué
 
@@ -171,8 +174,10 @@ erDiagram
   medios_estrategia {
     text dominio_norm PK
     text formato
-    text transporte "directo|cloudflare|aws|jina|brightdata"
+    text transporte "directo|cloudflare|aws|brightdata"
+    text metodo_extraccion "feed|html"
     text url_recurso
+    date funciona_desde
     int  fallos_consecutivos
     text ultimo_diagnostico
   }
@@ -263,7 +268,7 @@ erDiagram
 | Tabla | Índice | Consulta que acelera |
 |---|---|---|
 | `medios_fuentes` | `uk (dominio_norm, lower(seccion))` | una fuente por dominio×sección, sin duplicados |
-| `medios_suscripcion` | `uk (client_id, fuente_id)` · `(client_id) where not bloqueado` | "las fuentes activas de este cliente" (lo que recorre el recolector) |
+| `medios_suscripcion` | `uk (client_id, fuente_id)` · `(client_id) where not bloqueado` | "las fuentes activas de este cliente" — lo que usa **el armado** para filtrar el pool (el recolector recorre el catálogo completo) |
 | `reglas_filtro` | `(tipo) where activa` · `(client_id) where activa` | cargar las reglas al normalizar |
 | `client_prompts` | `uk (client_id) where vigente` | el prompt vigente del juez |
 | `fetch_log` | `(fecha, dominio_norm)` · `(fecha, diagnostico)` | resumen de cobertura del día |
@@ -289,6 +294,8 @@ erDiagram
 | descarte → regla | **`regla_id`** (uuid) | Para el contador de errores por regla en el dashboard. |
 
 **Regla dura:** nunca cruzar por nombre si hay un id o un dominio. El bug del ad value es exactamente eso.
+
+**Segunda regla dura, aprendida el 04/09:** `transporte` y `metodo_extraccion` son **ejes independientes** y no van en la misma columna. `transporte` dice *por dónde salgo a internet*; `metodo_extraccion` dice *cómo convierto la fuente en notas*. La v3 los tenía juntos en `medios.metodo` (donde `jina` significaba "no tiene feed, se lee la página") y la Fase 1 copió eso tal cual. La consecuencia fue concreta: el Switch de `sub/fetch-source` no tiene rama para `jina`, así que 130 fuentes caían en el fallback y se buscaban por directo, sin URL. Se separó en `[F2.7]`. **El camino `html` no es un quinto transporte** — lo sirve `sub/open-article` (§3.6).
 
 ### 3.5 APIs / contratos externos
 
@@ -348,25 +355,29 @@ Upsert de `pipeline_runs` por `(client_id, fecha, modo)` + insert de `stage_even
 **Escalera de transporte** (la arma `sub/fetch-escalera`, no `sub/fetch-source`):
 
 ```
-formato rss | wordpress | sitemap        formato html
-  1. directo                               1. directo
-  2. cloudflare                            2. jina        (pendiente)
-  3. aws                                   3. brightdata  (pendiente)
-  4. brightdata  (pendiente)
+metodo_extraccion = feed              metodo_extraccion = html
+  1. directo                            no va por la escalera de feeds:
+  2. cloudflare                         lo sirve sub/open-article (Fase 5)
+  3. aws                                sobre la misma escalera de transporte
+  4. brightdata   (solo vs. bloqueo)
 ```
 
 Corta en el primero con `articulos > 0`. Escala **solo** con `diagnostico ∈ (bloqueado, caido, timeout)` — nunca con `sin_items`. Guarda el transporte ganador en `medios_estrategia`.
 
-#### Orquestadores (uno por responsabilidad; los "por cliente" se instancian ×4 con parámetros)
+**Medido el 03/09 sobre las 1.260 fuentes con URL usable:** cloudflare resuelve 774, directo 138, brightdata 32, aws 16. **El proxy no es el plan B, es el camino principal** — cualquier diseño que asuma "directo salvo excepción" está mal calibrado. Y el cuarto escalón (Bright Data, pago) va **solo contra el bloqueo, nunca contra el timeout**: recupera 31 de 45 bloqueadas (69%) y apenas 3 de 20 con timeout (15%), porque 15 de esas 20 son fuentes rotas de verdad.
+
+**A partir de la Fase 3 el recolector no sube la escalera en cada barrido:** lee `medios_estrategia` y va derecho al transporte que ya se sabe que funciona. Solo si ese falla sube la escalera, y ahí actualiza la estrategia.
+
+#### Orquestadores (uno por responsabilidad; solo el armado se instancia ×4)
 
 | Workflow | Trigger | Qué hace | Estado |
 |---|---|---|---|
-| `wf/recolector-cliente` ×4 | cron cada ~3 h (08:00 · 11 · 14 · 17 · 20 · 23 · 02 · 05) + **06:30** | recorre las fuentes de *ese* cliente por `sub/fetch-escalera`; **dedup por `url_canonica`** contra el pool del día → solo entran URLs nuevas a `candidatas_raw` | pendiente |
-| `wf/armado-cliente` ×4 | ~10 min antes del corte del cliente | `normalizar_y_compuertas` → A1 → A2 → A3 → `armar_clipping` → `decidir_nivel` → guardar → `sub/send-email` | pendiente |
-| `wf/descubridor` (A0) | diario, fuera de la ventana de envío | agarra las fuentes que fallan o no tienen url y prueba formas de entrar (RSS declarado, `/feed`, `/wp-json/wp/v2/posts`, sitemap, patrones por CMS); escribe `medios_estrategia` | pendiente |
+| `wf/recolector` **×1, compartido** | cron cada ~3 h (08:00 · 11 · 14 · 17 · 20 · 23 · 02 · 05) + **06:30**, disparado por webhook | recorre **el catálogo compartido por tandas** (1.028 dominios con transporte que funciona), leyendo `medios_estrategia` para ir derecho al que anda; **dedup por `url_canonica`** contra el pool del día → solo entran URLs nuevas a `candidatas_raw` | pendiente |
+| `wf/armado-cliente` ×4 | ~10 min antes del corte del cliente | filtra el pool por `medios_suscripcion` de ese cliente → `normalizar_y_compuertas` → A1 → A2 → A3 → `armar_clipping` → `decidir_nivel` → guardar → `sub/send-email` | pendiente |
+| `wf/descubridor` (A0) | webhook, por tandas, fuera de la ventana de envío | agarra las fuentes sin transporte y prueba ~17 rutas por dominio **saliendo por Cloudflare**, más una segunda vuelta leyendo lo que declaran la home (`<link rel="alternate">`) y el `robots.txt` (`Sitemap:`). Escribe `medios_fuentes.url_feed` + `medios_estrategia` solo con lo verificado | ✅ **construido y corrido** (04/09): 152 fuentes recuperadas de 442 |
 | `wf/salud` | post-envío | cobertura del día, fuentes mudas (N × ritmo de publicación), volumen esperado **por día de la semana** | pendiente |
 | `wf/error-handler` | Error Workflow de todos los workflows nuevos | consolida a Slack (1 aviso/corrida) + escribe el fallo en `stage_events` | pendiente |
-| `v4 · medición · cobertura` | manual, one-shot | recorre las ~1.262 fuentes por la escalera → `fetch_log` (`pasada='medicion'`). No manda mails ni toca tablas de cliente. **El número que decide si la v4 vale la pena.** | **construido, sin disparar** |
+| `v4 · medición · cobertura` | webhook, por tandas | recorrió las 1.260 fuentes con URL usable por la escalera → `fetch_log` (`pasada='medicion'`). No manda mails ni toca tablas de cliente. | ✅ **corrido (03/09)** — dio el gate. Ya cumplió su función |
 
 #### Los tres agentes
 
@@ -423,9 +434,9 @@ Cada nota candidata: `{ url, titulo, snippet, fecha_pub, fecha_origen, fecha_con
 ### Accesos y seguridad
 
 - **RLS en toda tabla nueva**, desde el día uno. Patrón: staff-only (`is_staff()`) para la infra del pipeline; `has_client_access(client_id)` para `medios_suscripcion`; el cliente lee `tier_alias`.
-- **Secretos en Credentials de n8n**, nunca en un nodo Set. Las keys de los proxies ya están en credenciales. *(La v3 tiene 3 API keys hardcodeadas en un nodo `GSID` — se rota la de Bright Data en la higiene previa; migrarlas todas a Credentials es parte del reemplazo.)*
+- **Secretos en Credentials de n8n**, nunca en un nodo Set. Las tres keys de proxy de la v4 ya están en credenciales. **⚠️ La v3 sigue con 3 API keys en texto plano en un nodo `GSID`** — la rotación era `[F0.3]` y la Fase 0 se omitió, así que **siguen expuestas**; una es de un servicio que se cobra por uso. Migrarlas a Credentials es parte del reemplazo.
 - Funciones nuevas con `set search_path` fijo. Las `security definer` (`log_stage`, `es_repetida`) siguen el mismo patrón que `log_run_stats` ya en producción — el bypass de RLS es intencional (n8n escribe a tablas con RLS de staff vía PostgREST).
-- **Schema de prueba:** se reusa el `test` que ya existe (28 tablas clonadas, la v3 lo usa en modo prueba). Se le activa RLS y se le revocan al rol anónimo los permisos de borrado/vaciado. Se cierra aparte el backup congelado, que tiene el mismo agujero.
+- **Schema de prueba:** se reusa el `test` que ya existe (28 tablas clonadas, la v3 lo usa en modo prueba). **⚠️ Asegurarlo era `[F0.6]` y la Fase 0 se omitió:** `get_advisors` (04/09) reporta **las 28 tablas sin RLS**, legibles y vaciables con la clave pública del front, y el backup congelado tiene el mismo agujero. **La Fase 3 va a escribir ahí tal como está.** Es la deuda de seguridad abierta más grande del proyecto.
 
 ### Manejo de errores / alertas
 
@@ -461,7 +472,7 @@ Ver §3.6. Es un test del golden, no una promesa.
 
 | Alternativa | Por qué se descartó |
 |---|---|
-| **Recolector único compartido por los 4 clientes** (lo que decía el PRD) | Riesgo de que una corrida de ~1.800 medios agote recursos y se caiga (la v3 ya tarda 20 min en algunas corridas). Un recolector por cliente es de unos cientos de medios, más chico y aislable; el crash de uno no arrastra a los otros. Los ladrillos y las funciones siguen compartidos. |
+| ~~**Recolector único compartido por los 4 clientes**~~ → **se descartó el 03/09 y se volvió a adoptar el 04/09.** Es lo que se construye. | El motivo original para descartarlo era el riesgo de que "una corrida de ~1.800 medios agote recursos y se caiga". **Ese número no era real:** con transporte que funciona son **1.028 dominios**, no 1.800. Y medido, uno por cliente cuesta **44% más de requests** (1.480 vs 1.028 por barrido; 13.320 vs 9.252 por día) y golpea **299 dominios 2–4 veces en la misma ventana desde la misma IP** — el patrón de bloqueo autoinfligido que la higiene previa quería justamente eliminar. Peor: `candidatas_raw` **no tiene `client_id`**, el pool ya es compartido por diseño, así que las copias 2ª–4ª se descartan por dedup — se paga el fetch cuatro veces para guardar una fila. El riesgo de recursos se resuelve como se resolvió en el descubridor: **por webhook y en tandas**, no partiendo por cliente. El "por cliente" se mueve al armado, que es donde el cliente de verdad importa. |
 | **Tres pasadas nocturnas (00:00 / 03:00 / 05:30) + pasada caliente** (PRD) | Se simplificó a un barrido cada ~3 h con la última a las 06:30. Cubre el mismo objetivo (frescura + cobertura) con un solo esquema, y hay medios que rotan sus notas a lo largo del día, no solo de madrugada. |
 | **Servicios gratuitos de terceros para el fetch** (feed2json, rss2json, allorigins…) | Probados todos el 02/09: feed2json 50/hora y deprecado ("no usar en producción"); rss2json 77/90 → 429; allorigins/codetabs caídos. El valor no es convertir XML a JSON (20 líneas), es la IP y el ancho de banda — eso cuesta plata. Un transporte del que dependemos tiene que ser nuestro o tener contrato. |
 | **Jina Reader para feeds** | Devuelve markdown, se pierde la fecha del feed (el dato que arregla las notas viejas). Probadas 5 formas de pedirle el crudo, ninguna funciona. Jina sí sirve para **páginas HTML** (A1). |
@@ -480,7 +491,7 @@ Ver §3.6. Es un test del golden, no una promesa.
 |---|---|---|
 | Local | los 38 feeds del benchmark + curl a los proxies | que los proxies traen lo que dicen (hecho) |
 | n8n aislado | `sub/fetch-source` / `sub/fetch-escalera` contra feeds reales | contrato, parseo, escritura a `fetch_log` (hecho) |
-| Medición | `v4 · medición · cobertura` sobre las ~1.262 fuentes | **cuántas fuentes se recuperan y por qué transporte** — decide el alcance |
+| Medición | `v4 · medición · cobertura` sobre las 1.260 con URL usable, después `wf/descubridor` sobre las 442 rotas | ✅ **hecho (03–04/09).** 960 entraban por transporte; el descubridor sumó 152 → **1.112 de 1.437 (77%)** |
 | Schema de prueba | modo `ensayo` → schema `test`, mail al equipo | que el pipeline decide igual sin tocar datos de cliente |
 | Golden | copia de un día real del cliente piloto | que la v4 decide **idéntico** a la v3; cada diferencia se explica antes de avanzar |
 | Producción | un cliente (Booking), con la v3 prendida en paralelo | que el mail sale y es el mismo |
@@ -497,9 +508,13 @@ Ver §3.6. Es un test del golden, no una promesa.
 
 | # | Riesgo / pendiente | Impacto |
 |---|---|---|
-| 1 | **Gate de la medición.** No sabemos todavía cuántas fuentes se recuperan de verdad. En el smoke-test, medios que el PRD daba por bloqueados (grandes diarios) **entran por directo** — el problema de transporte puede ser bastante más chico de lo estimado. | Si se recupera poco, la v4 pierde su justificación principal. |
-| 2 | **Carga de n8n:** 4 recolectores × ~9 barridos/día en la instancia dedicada. | Memoria / solapamiento. Mitigación: escalonar horarios entre clientes; el barrido usa "un intento y reintentos" (directo primero, proxy solo para los que fallan). |
-| 3 | **Credencial de Bright Data** (4º escalón) sin configurar. | El nodo está deshabilitado; la escalera hoy llega hasta AWS. En la prueba de 38 feeds no hizo falta ninguno. |
+| 1 | ~~**Gate de la medición.**~~ **Resuelto (03–04/09).** Entran 1.112 de 1.437 fuentes activas (77%). El bloqueo prácticamente no era el problema: queda **1 fuente bloqueada en 1.260**. | El riesgo se corrió de lugar: no es de red, es de **calidad de la configuración de fuentes**. |
+| 1b | **El techo es 77–85%, no ~96%.** El descubridor recupera el 35% de lo roto, no casi todo. Quedan **178 fuentes sin feed** que dependen del camino HTML (§3.6) y ~147 con feed a las que no se llega. | Cualquier promesa de cobertura al cliente se hace sobre 77–85%. La v4 hereda un agujero más chico que la v3, pero lo hereda. |
+| 2 | **Carga de n8n:** 1 recolector × ~9 barridos/día × 1.028 dominios = ~9.252 fetches/día. | Memoria y duración del barrido. Mitigación: **por tandas y por webhook** — medido, la ejecución manual muere con volumen alto porque n8n retiene el set en memoria para mostrarlo. Y el barrido va derecho al transporte conocido, no sube la escalera entera. |
+| 2b | **Techo de memoria por tanda, medido:** 35 dominios × ~17 candidatas retienen **21 MB** en el nodo HTTP; 70 matan el proceso. | Aplica a todo flujo que retenga cuerpos HTML. Tandas chicas y no pedir dos veces la misma página. |
+| 2c | **PostgREST corta las lecturas en 1.000 filas y no avisa.** Pedir `limit=2000` sobre 1.437 fuentes devuelve 1.000 y el flujo calcula sobre un universo truncado sin fallar. | Todo flujo que lea `medios_fuentes` (1.437) o `medios_suscripcion` (2.102) por REST tiene que **paginar** y fallar ruidosamente si la última página viene llena. |
+| 2d | **Un PATCH que no matchea ninguna fila devuelve 204, igual que uno exitoso.** | Los nodos de escritura van **en paralelo**, no encadenados (con `Prefer: return=minimal` el primero devuelve `{}` y deja al segundo sin campos), y las escrituras **se cuentan por `statusCode`, nunca por cantidad de items** — con `onError: continue` un fallo también produce item. |
+| 3 | ~~**Credencial de Bright Data** sin configurar.~~ **Cargada** (`Jg1RLQ26OX2pQgzE`). | 32 fuentes entran solo por ahí. Se cobra por request y hoy corre en plan de prueba: **falta dimensionar el costo del volumen real** (~9.252 fetches/día) y decidir si ese 3% lo vale. |
 | 4 | **Dónde vive la Edge Function AWS en producción** (hoy en un proyecto de prueba). | Decisión pendiente. Recomendado: proyecto Supabase aparte compartido. |
 | 5 | **Drift de migraciones del repo** (preexistente): ~5 migraciones locales sin par remoto, ~12 remotas sin archivo. `supabase db push` no es seguro hasta reconciliar. | Ticket aparte. Las migraciones de la v4 se aplican por MCP con la versión exacta = archivo, así que esas sí alinean. |
 | 6 | **Zonas horarias.** Todo se guarda en UTC, se decide en `America/Argentina/Buenos_Aires`; los cron de n8n en UTC con el equivalente ART en el nombre del nodo. Resolver antes de escribir el recolector. | Una nota publicada 23:30 ART del lunes llega como 02:30 UTC del martes — si el corte se compara mal, entra dos veces o ninguna. |
@@ -509,14 +524,14 @@ Ver §3.6. Es un test del golden, no una promesa.
 
 ## 9. Estado de implementación
 
-*(2026-09-03. `feat/pipeline-v4`.)*
+*(2026-09-04. `feat/pipeline-v4`.)*
 
 | Fase | Alcance | Estado |
 |---|---|---|
-| **0 · Higiene** | apagar corridas duplicadas · re-medir bloqueo · rotar key Bright Data · quick-win ad value (`tier_norm` de los 2 lados) · limpiar historial de URLs de redirector · asegurar schema `test` · arreglar `client_id` v3 | **pendiente** (varios ítems tocan la cuenta compartida → con el responsable de esa cuenta) |
+| **0 · Higiene** | apagar corridas duplicadas · rotar 3 API keys expuestas · quick-win ad value (`tier_norm` de los 2 lados) · limpiar historial de URLs de redirector · asegurar schema `test` · arreglar `client_id` v3 | ⛔ **OMITIDA** (decisión del 04/09). Sigue siendo deuda real: **las 28 tablas de `test` sin RLS** — que la Fase 3 va a usar tal como están —, las 3 API keys en texto plano, la valorización al 16% en vez del 36% medido, y el historial sucio que hereda la Fase 4. |
 | **1 · Modelo de datos** | 11 tablas nuevas + 6 columnas en `notas_descartadas` + 6 funciones + ledger + poblado del catálogo | ✅ **aplicado a producción.** Migraciones `20260903174914` → `20260903190200`. Verificado: 11 tablas con RLS, `get_advisors` sin hallazgos nuevos en `public`. Catálogo: 1.542 dominios · 1.542 fuentes · 2.102 suscripciones. |
-| **2 · Transporte** | `sub/fetch-source` · `sub/fetch-escalera` · workflow de medición · credenciales de proxy | ✅ **construido y probado.** `sub/fetch-source` y `sub/fetch-escalera` validados end-to-end (directo/cloudflare/aws → `ok` contra feeds reales; 404 → `no_existe`; `fetch_log` escribe). Medición **construida, sin disparar** — necesita OK y decisión sobre el proxy AWS. |
-| **3 · Recolector + schema prueba** | sincronizar `test` con `public` · `wf/recolector-cliente` (plantilla + ×4) · dedup por URL canónica · cierre de cobertura | pendiente |
+| **2 · Transporte** | `sub/fetch-source` · `sub/fetch-escalera` · medición de cobertura · `wf/descubridor` · separar `metodo_extraccion` | ✅ **cerrada (04/09).** Los dos subworkflows validados end-to-end. Medición corrida sobre las 1.260 con URL: **960 entraban**. Descubridor construido y corrido sobre las 442 rotas: **+152 fuentes → 1.112 (77%)**. `[F2.7]` separó `transporte` de `metodo_extraccion`. Abierto: `[F2.5]` dónde vive el proxy AWS en producción · `[F2.6]` baja de las 46 inalcanzables · `[F2.2c]` re-correr otro día las 107 con feed vacío. |
+| **3 · Recolector + schema prueba** | sincronizar `test` con `public` · **`wf/recolector` ×1 compartido, por tandas** · dedup por URL canónica · cierre de cobertura · saltear y registrar las 178 `metodo_extraccion='html'` hasta que exista `sub/open-article` | **en curso** ← acá estamos |
 | **4 · Normalización + compuertas** | `url_canonica` v2 (base64) · `normalizar_y_compuertas()` · poblar `reglas_filtro` desde el JS de la v3 · reconstruir el historial con `url_canonica` | pendiente |
 | **5 · Agentes** | `sub/llm-call` · `sub/open-article` · `sub/agent-A1/A2/A3` | pendiente |
 | **6 · Armado + degradación** | `armar_clipping()` · `decidir_nivel()` · `sub/send-email` (guarda dura) · `sub/slack-notify` · `wf/salud` · `wf/error-handler` | pendiente |
@@ -528,11 +543,17 @@ Ver §3.6. Es un test del golden, no una promesa.
 
 | Objeto | ID | Estado |
 |---|---|---|
-| `v4 · sub · fetch-source` | `UUIlvhTv3Rjy9YEP` | inactivo (se publica cuando un orquestador lo llame) |
-| `v4 · sub · fetch-escalera` | `TyXVALaeUzfPlgv8` | inactivo |
-| `v4 · medición · cobertura (aislado, manual)` | `XpeIOEJg92H1hrrJ` | inactivo, Manual Trigger |
+| `v4 · sub · fetch-source` | `UUIlvhTv3Rjy9YEP` | activo (lo llama un orquestador) |
+| `v4 · sub · fetch-escalera` | `TyXVALaeUzfPlgv8` | activo |
+| `v4 · wf · descubridor (A0)` | `nvShglwLuHqgF5cp` | **inactivo** — se activa a mano para correrlo. Webhook `POST /v4-descubridor`, body `{cliente, grupo, limite, offset, modo}`; `modo=test` (default) no escribe nada |
+| `v4 · medición · cobertura FINAL (por tandas)` | `lVRHLZaL5VCmfWFK` | activo, webhook — **ya cumplió su función**, candidato a archivar |
+| `v4 · medición · escalera pendiente` | `2yemtvcIABA0KB34` | activo, webhook — ya cumplió, candidato a archivar |
+| `ZZ · OBSOLETO · medición cobertura` | `XpeIOEJg92H1hrrJ` | inactivo, roto — **borrar** |
 | cred `Ketchum — Fetch Proxy (Cloudflare)` | `odT5yjmKpIORGZjK` | cargada |
 | cred `Ketchum — Fetch Proxy (AWS/Supabase)` | `LLdAbQUu6q9ChKPG` | cargada (key del proyecto de prueba) |
+| cred `Ketchum — Fetch Proxy (Brightdata)` | `Jg1RLQ26OX2pQgzE` | cargada |
+
+> **Ninguno de los workflows v4 puede notificar hacia afuera.** No tienen nodos de Slack ni de mail, y el `Ketchum — Error Handler (puente al Global)` está **desactivado** (posteaba a Slack `customer-ketchum`). Decisión operativa del 04/09.
 
 ---
 
@@ -559,8 +580,9 @@ Ver §3.6. Es un test del golden, no una promesa.
 | **Fuente** | Una puerta de entrada a un medio: dominio × sección. La ingesta recorre fuentes, no dominios. |
 | **Formato vs. transporte** | Formato = qué se le pide (feed, sitemap, HTML). Transporte = cómo se llega (directo, proxy propio, renderizador, IP residencial). Independientes: una fuente puede tener un feed impecable y ser inalcanzable desde nuestra IP. |
 | **Escalera** | Probar los transportes en orden hasta el primero que trae notas. La arma `sub/fetch-escalera`. |
-| **Barrido** | Una pasada del recolector de un cliente por todas sus fuentes. Cada ~3 h + una última a las 06:30. |
-| **Pool del día** | Las notas que juntaron los barridos del día para ese cliente, antes de filtrar. Cada barrido suma solo lo nuevo (URL canónica que no estaba). |
+| **Barrido** | Una pasada del recolector **compartido** por el catálogo entero. Cada ~3 h + una última a las 06:30. |
+| **Pool del día** | Las notas que juntaron los barridos del día, **compartidas por los cuatro clientes** (`candidatas_raw` no tiene `client_id`). Cada barrido suma solo lo nuevo (URL canónica que no estaba); cada armado lo filtra por las suscripciones de su cliente. |
+| **Transporte vs. método de extracción** | Dos ejes independientes. `transporte` = por dónde salgo a internet (directo, proxy, IP residencial). `metodo_extraccion` = cómo convierto la fuente en notas (`feed` o `html`). Mezclarlos en una columna fue un bug del modelo, corregido en `[F2.7]`. |
 | **URL canónica** | Forma única de una URL tras desenvolver redirectores, sacar tracking (conservando el id del artículo) y normalizar host y barra. Base del dedup. |
 | **Fecha confiable** | Fecha del feed / datos estructurados / metadatos / URL. Si no hay ninguna: la nota no se descarta por antigüedad y **no se le inventa la de hoy**. |
 | **Compuerta** | Regla determinística: entra sí o sí / no entra nunca / puntúa. Los descartes duros son sobre la fuente y los hechos (dominio, fecha, idioma), nunca sobre el tema. |

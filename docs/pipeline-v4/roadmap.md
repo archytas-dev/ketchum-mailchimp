@@ -31,7 +31,7 @@ En 3 semanas el cliente cargó **601 reportes de calidad** sobre los clippings. 
 3. **Granularidad híbrida.** Lógica pura → funciones de Postgres (una definición, cuatro clientes). Entrada/salida y orquestación → subworkflows de n8n con contrato fijo y traza propia.
 4. **Trackeo con ledger en Supabase** (`pipeline_runs` + `stage_events` + `log_stage()`) + un Error Workflow global + la tabla de descartes para el detalle nota por nota.
 5. **Rama aislada.** Todo el trabajo de v4 vive en `feat/pipeline-v4`; nada a `main` sin fase cerrada + revisión de un segundo.
-6. **Un recolector por cliente, no uno compartido.** Cuatro recolectores que reusan los mismos ladrillos con parámetros distintos. Se descartó el recolector único por riesgo de que una corrida de ~1.800 medios agote recursos y se caiga.
+6. **Un recolector compartido, no uno por cliente** *(revertido el 04/09 — antes decía lo contrario)*. El motivo para partirlo por cliente era el riesgo de que "una corrida de ~1.800 medios agote recursos y se caiga". **Ese número no era real:** con transporte que funciona son **1.028 dominios**. Y medido, uno por cliente cuesta **44% más de requests** (1.480 vs 1.028 por barrido) y golpea **299 dominios 2–4 veces en la misma ventana desde la misma IP** — el bloqueo autoinfligido que `[F0.1]` quería eliminar, y la Fase 0 se omitió. Además `candidatas_raw` **no tiene `client_id`**: el pool ya es compartido, así que las copias 2ª–4ª se descartan por dedup y se paga el fetch cuatro veces para guardar una fila. El riesgo de recursos se resuelve **por webhook y en tandas** (como el descubridor), no partiendo por cliente. **El "por cliente" se mueve al armado**, que es donde el cliente importa.
 7. **Barrido cada ~3 h**, no tres pasadas nocturnas: 08:00 · 11:00 · 14:00 · 17:00 · 20:00 · 23:00 · 02:00 · 05:00 y una última a las **06:30**. Hay medios que rotan sus notas a lo largo del día.
 8. **Deduplicación al guardar.** En cada barrido, una nota cuya URL canónica ya está en el pool del día se ignora; solo entran URLs nuevas. Es un filtro distinto del que compara contra lo ya enviado en días anteriores; los dos van.
 9. **Schema de prueba: se reusa y se asegura el que ya existe** (`test`). Se le activa el control de acceso por fila, se le revocan al rol anónimo los permisos de borrado, y se lo sincroniza con producción. El pipeline escribe ahí cuando arranca por botón, y en producción cuando arranca por cron.
@@ -195,7 +195,7 @@ Son **178 y no 130**: a las 130 de `jina` se sumaron 48 que tienen URL cargada p
 ### Fase 3 · Recolector por cliente + schema de prueba — `pendiente`
 
 - **Sincronizar el schema `test` con producción** (agregarle las tablas nuevas de la v4).
-- **`wf/recolector-cliente`** — un workflow por cliente. Barrido cada ~3 h + 06:30. Recorre las fuentes de *ese* cliente **leyendo `medios_estrategia`: va directo al transporte que ya se sabe que funciona**, y solo sube la escalera si ese transporte falla (y ahí actualiza la estrategia). Con control de concurrencia y lote.
+- **`wf/recolector`** — **uno solo, compartido** (decisión 6). Barrido cada ~3 h + 06:30, **disparado por webhook y por tandas**. Recorre los 1.028 dominios con transporte **leyendo `medios_estrategia`: va directo al transporte que ya se sabe que funciona**, y solo sube la escalera si ese falla (y ahí actualiza la estrategia). Lee `metodo_extraccion`: las 178 `html` se saltean y se registran hasta que exista `sub/open-article`.
 - **Deduplicación al guardar** por URL canónica: cada barrido suma solo lo nuevo.
 - Cierre de cobertura + aviso por barrido.
 - Los cuatro recolectores usan los mismos ladrillos; cambian los parámetros por cliente.
@@ -204,7 +204,7 @@ Son **178 y no 130**: a las 130 de `jina` se sumaron 48 que tienen URL cargada p
 
 - **El recolector lee `metodo_extraccion`, no solo `transporte`** (decisión 13). Las ~126 fuentes sin feed no van por la escalera de feeds: van por el camino HTML de la Fase 5. Hasta que ese camino exista, el recolector las **saltea explícitamente y lo registra** — nunca las busca por directo con una URL vacía, que es lo que pasa hoy.
 
-**Tickets:** `[F3.1]` sincronizar `test` con `public` · `[F3.2]` `wf/recolector-cliente` (plantilla, leyendo `medios_estrategia`) · `[F3.3]` dedup al guardar por URL canónica · `[F3.4]` instanciar el recolector ×4 con sus parámetros y horarios · `[F3.5]` cierre de cobertura + aviso · `[F3.6]` re-verificación periódica de la estrategia (un transporte que hoy anda puede dejar de andar; hay que refrescar `medios_estrategia` sin re-medir todo) · `[F3.7]` saltear y registrar las fuentes con `metodo_extraccion='html'` hasta que exista `sub/open-article`.
+**Tickets:** `[F3.1]` sincronizar `test` con `public` · `[F3.2]` `wf/recolector` compartido, por tandas, leyendo `medios_estrategia` · `[F3.3]` dedup al guardar por URL canónica · `[F3.4]` vista de pendientes del barrido + horarios del cron · `[F3.5]` cierre de cobertura + aviso · `[F3.6]` re-verificación periódica de la estrategia (un transporte que hoy anda puede dejar de andar; hay que refrescar `medios_estrategia` sin re-medir todo) · `[F3.7]` saltear y registrar las fuentes con `metodo_extraccion='html'` hasta que exista `sub/open-article`.
 
 ### Fase 4 · Normalización + compuertas — `pendiente`
 
