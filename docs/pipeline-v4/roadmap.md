@@ -2,7 +2,7 @@
 
 El plan de construcción: fases, orden, dependencias y tickets. El **qué y el cómo** (arquitectura, modelo de datos, decisiones, alternativas) están en [`design-doc.md`](./design-doc.md) — este doc no los repite.
 
-**Estado:** en construcción · **Rama:** `feat/pipeline-v4` (fuente de verdad de la v4) · **Última actualización:** 2026-09-04 (descubridor A0 construido y corrido sobre las 442 fuentes rotas; el techo del ~96% no se sostuvo)
+**Estado:** en construcción · **Rama:** `feat/pipeline-v4` (fuente de verdad de la v4) · **Última actualización:** 2026-09-04 (Fase 2 cerrada: descubridor aplicado, +152 fuentes, `metodo_extraccion` separado · Fase 0 omitida · el techo del ~96% no se sostuvo, es 77–85%)
 
 ---
 
@@ -47,7 +47,9 @@ En 3 semanas el cliente cargó **601 reportes de calidad** sobre los clippings. 
 
 En orden de dependencia. Cada una es reversible y no toca lo que el cliente usa hoy hasta la Fase 8.
 
-### Fase 0 · Higiene y base — `pendiente`
+### Fase 0 · Higiene y base — `OMITIDA (decisión del 04/09)`
+
+> **No se ejecuta.** Los ítems quedan acá documentados porque siguen siendo deuda real — ver el detalle de qué se arrastra en [Camino crítico](#4-camino-crítico). `[F0.2]` además se cerró por quedar sin objeto.
 
 Limpia la deuda que, si no, ensucia todo lo que viene (sobre todo la medición del gate de la Fase 2). Varios ítems tocan la cuenta compartida → se coordinan con el responsable de esa cuenta.
 
@@ -77,7 +79,7 @@ Limpia la deuda que, si no, ensucia todo lo que viene (sobre todo la medición d
 **Tickets:** `[F1.1]`–`[F1.7]` migraciones + RLS ✅ · `[F1.8]` poblar el catálogo ✅ · `[F1.9]` aplicar + advisors ✅.
 *(El schema de prueba salió de esta fase — se reusa `test`, se asegura en la Fase 0 y se sincroniza en la Fase 3.)*
 
-### Fase 2 · Transporte y cobertura — `✅ gate pasado (03/09)`
+### Fase 2 · Transporte y cobertura — `✅ cerrada (04/09)`
 
 - **`sub/fetch-source`** ✅ — una fuente, un transporte → contrato + `fetch_log`. Probado contra feeds reales.
 - **`sub/fetch-escalera`** ✅ — la escalera `directo → cloudflare → aws`, corta en el primero con notas. Probado.
@@ -170,13 +172,25 @@ El detalle de las 152, **con la URL previa de cada una**, queda en [`mediciones/
 
 Se creyó que eran filas sembradas sin verificar. **No.** Salieron de la v3: esos mismos 168 dominios tienen `metodo='jina'` en `medios`, y la Fase 1 copió `metodo → transporte` tal cual. En la v3, `metodo='jina'` significa *este medio no tiene feed, se lee la página con Jina Reader* — por eso tienen `formato='html'` y ninguna URL de feed, ni acá ni en `medios`. **La migración no perdió nada; el modelo v4 mezcló dos ejes** (ver decisión 13).
 
-El descubridor les encontró feed a **38 de las 168** — sí lo tenían y la v3 nunca se enteró. Quedan **130 fuentes (9% del catálogo) que genuinamente no van por feed** y necesitan el camino HTML. Ese camino ya existe en el plan con otro nombre: `sub/open-article` + el agente A1, en la Fase 5. Siguen marcadas `transporte='jina'` a propósito: es el registro de que la v3 sí sabe leerlas, y se convierten a `metodo_extraccion='html'` cuando se aplique `[F2.7]`.
+El descubridor les encontró feed a **38 de las 168** — sí lo tenían y la v3 nunca se enteró. Quedan **130 fuentes que genuinamente no van por feed** y necesitan el camino HTML. Ese camino ya existe en el plan con otro nombre: `sub/open-article` + el agente A1, en la Fase 5.
+
+#### `[F2.7]` aplicada (04/09): los dos ejes, separados
+
+`medios_estrategia` ahora tiene **`transporte`** (red: `directo|cloudflare|aws|brightdata`) y **`metodo_extraccion`** (`feed|html`), y `jina` salió del dominio de `transporte` — no era una red. El método se derivó de `formato`, que ya distinguía los dos casos bien. Estado verificado:
+
+| Método | Transporte | Fuentes | Qué significa |
+|---|---|---|---|
+| `feed` | cloudflare · directo · brightdata · aws | **1.112** | entran hoy |
+| `feed` | — | 147 | tienen feed, no se llega o el feed no sirve |
+| `html` | — | **178** | no hay feed: dependen de `sub/open-article` (Fase 5) |
+
+Son **178 y no 130**: a las 130 de `jina` se sumaron 48 que tienen URL cargada pero apuntan a HTML, no a un feed (`no_es_feed`). Mismo problema de fondo, mismo camino de salida. `get_advisors` sin hallazgos nuevos sobre la tabla.
 
 **Por qué se pudo aplicar sin ceremonia:** el descubridor escribe en `medios_fuentes` y `medios_estrategia`, las dos creadas en la Fase 1. Verificado el 04/09: el dashboard no las referencia en ningún lado (usa `medios`, `medios_seguimiento`, `medios_bloqueados`), los clippings v3 leen `medios`, no hay triggers sobre ellas, ninguna función las usa y la única vista que depende es `v4_medicion_pendientes`, también v4. **Radio de daño sobre lo que el cliente usa hoy: cero.** El contracara es que estas 152 fuentes **no le sirven al cliente hasta el cutover** — el clipping de mañana sigue sin ellas. Llevarlas también a `medios` (la tabla de la v3) sería otra decisión, y esa sí toca producción.
 
 **Pendiente de la fase:** decidir dónde vive el proxy AWS en producción (hoy corre en un proyecto de prueba).
 
-**Tickets:** `[F2.1]` `sub/fetch-source` ✅ · `[F2.1b]` `sub/fetch-escalera` ✅ · `[F2.3]` medición de cobertura ✅ · `[F2.4]` decisión de gate ✅ (pasa) · `[F2.2]` `wf/descubridor` (A0) ✅ construido y medido · `[F2.2b]` aplicar al catálogo ✅ (152 fuentes, 04/09) · `[F2.2c]` re-correr las 107 "feed válido pero vacío" otro día: un feed vacío hoy puede tener notas mañana · `[F2.5]` dónde vive el proxy AWS en producción · `[F2.6]` dar de baja las 46 fuentes genuinamente inalcanzables (caídas, 404, timeout persistente) · `[F2.7]` separar `transporte` de `metodo_extraccion` en `medios_estrategia` (decisión 13).
+**Tickets:** `[F2.1]` `sub/fetch-source` ✅ · `[F2.1b]` `sub/fetch-escalera` ✅ · `[F2.3]` medición de cobertura ✅ · `[F2.4]` decisión de gate ✅ (pasa) · `[F2.2]` `wf/descubridor` (A0) ✅ construido y medido · `[F2.2b]` aplicar al catálogo ✅ (152 fuentes, 04/09) · `[F2.2c]` re-correr las 107 "feed válido pero vacío" otro día: un feed vacío hoy puede tener notas mañana · `[F2.5]` dónde vive el proxy AWS en producción · `[F2.6]` dar de baja las 46 fuentes genuinamente inalcanzables (caídas, 404, timeout persistente) · `[F2.7]` separar `transporte` de `metodo_extraccion` ✅ (04/09).
 
 ### Fase 3 · Recolector por cliente + schema de prueba — `pendiente`
 
@@ -267,9 +281,16 @@ El descubridor les encontró feed a **38 de las 168** — sí lo tenían y la v3
 
 ## 4. Camino crítico
 
-`Fase 0` → `Fase 1` ✅ → `Fase 2` (gate ✅, descubridor ✅, catálogo aplicado ✅) → **cerrar Fase 2: `[F2.7]` separar `metodo_extraccion`** ← acá estamos → `Fase 3` → `Fase 4` → `Fase 5` → `Fase 6` → `Fase 8` (piloto) → `Fase 9`
+~~`Fase 0`~~ *(omitida por decisión del 04/09 — ver abajo)* → `Fase 1` ✅ → `Fase 2` ✅ (gate · descubridor · catálogo aplicado · `metodo_extraccion`) → **`Fase 3`** ← acá estamos → `Fase 4` → `Fase 5` → `Fase 6` → `Fase 8` (piloto) → `Fase 9`
 
-**Por qué no se saltó directo a la Fase 3:** el descubridor reescribe `url_feed` y `medios_estrategia`, que es exactamente lo que el recolector de la Fase 3 lee. Construir el recolector contra un catálogo que está por moverse obliga a re-verificar todo después. Por eso se aplicó primero lo encontrado (04/09) y recién después se construye encima. Falta `[F2.7]` por el mismo motivo: el recolector tiene que leer `metodo_extraccion`, no un `transporte` que mezcla dos cosas.
+**Por qué la Fase 2 se cerró antes de arrancar la 3:** el descubridor reescribe `url_feed` y `medios_estrategia`, que es exactamente lo que el recolector de la Fase 3 lee. Construir el recolector contra un catálogo que está por moverse obliga a re-verificar todo después. Se aplicó primero lo encontrado y se separó `metodo_extraccion`, así el recolector se escribe una sola vez contra un modelo que no se va a mover.
+
+**La Fase 0 se omite** (decisión del 04/09). Consecuencias que quedan abiertas y hay que tener presentes, no son gratis:
+
+- **`[F0.6]` estaba acoplado a la Fase 3.** El recolector escribe en el schema `test` y `[F3.1]` es sincronizarlo. Al omitir la Fase 0, la Fase 3 trabaja sobre ese schema **tal como está**: `get_advisors` (04/09) reporta **28 tablas de `test` sin RLS**, legibles y vaciables con la clave pública del front.
+- **`[F0.3]`** — las tres API keys en texto plano en el nodo de config de la v3 siguen expuestas, una de un servicio que se cobra por uso.
+- **`[F0.4]`** — la valorización sigue al 16% en vez del 36% medido. Es plata que el cliente deja sobre la mesa todos los días y no depende de la v4.
+- **`[F0.5]`** — la Fase 4 va a heredar el historial anti-repetición con URLs de redirector crudas.
 
 La **Fase 7** (dashboard) corre en paralelo: arranca apenas existan las tablas de descartes y de reglas, se completa contra las Fases 5 y 6.
 
