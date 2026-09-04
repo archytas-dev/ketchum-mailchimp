@@ -303,7 +303,30 @@ Las 178 `metodo_extraccion='html'` se salteaban bien pero **no aparecían en `fe
 
 **Tickets:** `[F3.1]` sincronizar `test` con `public` · `[F3.2]` `wf/recolector` compartido ✅ (04/09) · `[F3.3]` dedup por URL canónica ✅ (columna generada + índice único) · `[F3.4]` vista de pendientes ✅ · `[F3.4b]` `wf/barrido` (driver) + los 9 cron ✅ construidos (04/09) — **el cron queda deshabilitado hasta que se decida encenderlo** · **`[F3.4c]` conectar el nodo de Bright Data** — las 32 fuentes se registran `no_visitado` y se saltean; la credencial está cargada, pero **antes hay que dimensionar el costo**: se cobra por request y son ~9.250 fetches/día · `[F3.5]` cierre de cobertura + reporte · `[F3.6]` re-verificación de la estrategia ✅ (04/09) · `[F3.7]` registrar las fuentes sin feed ✅ (04/09).
 
-**Queda abierto de la fase:** `[F3.1]` (el schema `test` — y ver más arriba que la Fase 0 lo dejó sin RLS), `[F3.4c]` (Bright Data, con el costo dimensionado antes) y `[F3.5]` (el reporte por barrido). *El "aviso" que decía el ticket original de `[F3.5]` era a Slack; con la regla de no mandar nada hacia afuera, queda como consulta.*
+`[F3.5]` cierre de cobertura + reporte ✅ (04/09).
+
+**Queda abierto de la fase:** `[F3.1]` (el schema `test` — y ver más arriba que la Fase 0 lo dejó sin RLS) y `[F3.4c]` (Bright Data, con el costo dimensionado antes).
+
+#### `[F3.5]` el reporte: tres vistas, cero escrituras — ✅
+
+Son **vistas, no un flujo**: `fetch_log` ya tiene un renglón por intento, así que el reporte es una consulta y no un dato nuevo que haya que mantener sincronizado. Y son **vistas y no avisos**: el ticket original decía "+ aviso a Slack"; con la regla de que nada salga hacia afuera, el reporte se consulta.
+
+| Vista | Qué contesta |
+|---|---|
+| `v4_barrido_resumen` | cómo salió cada ventana: duración, ok, notas, fallas por tipo |
+| `v4_cobertura_dia` | el rollup del día y el pool |
+| `v4_fuentes_mudas` | las que se supone que andan y hace 14 días no traen nada |
+
+**El día 04/09, con dos barridos:** 1.290 fuentes tocadas · 1.055 con notas · 210 no visitadas · **25 visitadas sin dar nada** · 98% de cobertura de las visitadas · pool de 52.464 (30.694 con fecha).
+
+**Dos decisiones de cómo se cuenta, que son la mitad del valor de esto:**
+
+- **`no_visitado` sale del denominador.** Las 178 `html` y las 32 de `brightdata` no se intentan todavía; contarlas como falla mezcla *"no anduvo"* con *"todavía no se intenta"* y hunde el número sin que nadie haya roto nada.
+- **`v4_fuentes_mudas` exige haber sido visitada.** La primera versión metía las de `brightdata` — cuyo único diagnóstico es `no_visitado` — y diluía la señal con el mismo error. **Muda = se visitó y no dio una sola nota.** Con el filtro corregido da 25, que cuadra exacto con `visitadas_sin_notas` de la otra vista.
+
+**El recolector no escribe en el ledger, y está bien:** `pipeline_runs.client_id` es `NOT NULL` y la clave es `(client_id, fecha, modo)` — el ledger modela *"una corrida de un cliente"*, y desde la decisión 6 el recolector es compartido. El ledger es del armado por cliente (Fase 6); el ledger del recolector es `fetch_log`.
+
+**Pendiente que destraba el aviso de verdad:** `medios_catalogo.ritmo_publicacion_semanal` está **sin poblar** (todo `NULL`), así que el orden por ritmo de `v4_fuentes_mudas` todavía no prioriza nada. Poblarlo es lo que convierte la lista en una alerta útil: un medio que publica 50 notas por semana y está mudo es un problema; uno que publica una cada tanto, no.
 
 ### Fase 4 · Normalización + compuertas — `pendiente`
 
