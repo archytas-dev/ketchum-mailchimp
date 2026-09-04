@@ -2,7 +2,7 @@
 
 El plan de construcción: fases, orden, dependencias y tickets. El **qué y el cómo** (arquitectura, modelo de datos, decisiones, alternativas) están en [`design-doc.md`](./design-doc.md) — este doc no los repite.
 
-**Estado:** en construcción · **Rama:** `feat/pipeline-v4` (fuente de verdad de la v4) · **Última actualización:** 2026-09-03
+**Estado:** en construcción · **Rama:** `feat/pipeline-v4` (fuente de verdad de la v4) · **Última actualización:** 2026-09-03 (gate de la Fase 2 medido y pasado)
 
 ---
 
@@ -35,6 +35,9 @@ En 3 semanas el cliente cargó **601 reportes de calidad** sobre los clippings. 
 7. **Barrido cada ~3 h**, no tres pasadas nocturnas: 08:00 · 11:00 · 14:00 · 17:00 · 20:00 · 23:00 · 02:00 · 05:00 y una última a las **06:30**. Hay medios que rotan sus notas a lo largo del día.
 8. **Deduplicación al guardar.** En cada barrido, una nota cuya URL canónica ya está en el pool del día se ignora; solo entran URLs nuevas. Es un filtro distinto del que compara contra lo ya enviado en días anteriores; los dos van.
 9. **Schema de prueba: se reusa y se asegura el que ya existe** (`test`). Se le activa el control de acceso por fila, se le revocan al rol anónimo los permisos de borrado, y se lo sincroniza con producción. El pipeline escribe ahí cuando arranca por botón, y en producción cuando arranca por cron.
+10. **El proxy no es el plan B, es el camino principal.** Medido: el transporte directo resuelve el 11% de las fuentes; Cloudflare, el 61%. La escalera no es una red de contención para casos raros — es por donde entra la mayoría. Cualquier diseño que asuma "directo salvo excepción" está mal calibrado.
+11. **El cuarto escalón (Bright Data, residencial y pago) va solo contra el bloqueo, nunca contra el timeout.** Medido: recupera 31 de 45 bloqueadas (69%) y apenas 3 de 20 con timeout (15%). Y 15 de esas 20 vuelven con error de servidor: son fuentes rotas de verdad, no bloqueadas. Pagar por reintentarlas es tirar plata; van a revisión o baja.
+12. **Las corridas masivas se disparan por webhook, nunca con el botón de n8n.** En ejecución manual n8n retiene todo el set en memoria para mostrarlo en pantalla y el proceso muere con volumen alto; por webhook el mismo trabajo pasa sin problema. Además se corre **por tandas contra una vista de pendientes** (`v4_medicion_pendientes`), que devuelve solo lo que falta medir: si una tanda se corta, lo no medido sigue pendiente y la siguiente lo toma. Nada de "todo o nada".
 
 ---
 
@@ -50,7 +53,7 @@ Limpia la deuda que, si no, ensucia todo lo que viene (sobre todo la medición d
 |---|---|---|---|
 | 0.1 | Relevar y apagar las corridas duplicadas en la cuenta compartida (cada cliente dispara hoy varios pipelines al mismo minuto). | Le pegamos varias veces a cada fuente desde la misma IP → parte del bloqueo puede ser autoinfligido. Medir con esa carga da un número falso. | Workflows activos de producción. |
 | 0.2 | Re-medir el bloqueo de fuentes tras apagar los duplicados. | Ajusta el alcance de la Fase 2. | Solo lectura. |
-| 0.3 | Rotar la API key de scraping expuesta en texto plano en el nodo de config de los cuatro clippings. | Credencial expuesta = alguien puede quemar la cuota paga. | Los cuatro flujos fallan en el intervalo entre rotar y actualizar. |
+| 0.3 | Rotar **tres** API keys expuestas en texto plano en el nodo de config de los clippings de la v3 (proxy residencial, modelo de lenguaje y lectura de artículos), y pasarlas a Credentials. | Credencial expuesta = alguien puede quemar la cuota paga. Se relevó el 03/09: no es una key, son tres, y una de ellas es de un servicio que se cobra por uso. | Los flujos fallan en el intervalo entre rotar y actualizar. |
 | 0.4 | Quick win de valorización: `tier_norm()` de los dos lados del cruce nombre↔tier. Medido: 16% → 36%. | Plata que el cliente deja sobre la mesa todos los días. No depende de la v4. | Único ítem que toca una función de la v3; aditivo, va con revisión + TEST. |
 | 0.5 | Limpiar el historial anti-repetición: script único que desenvuelve las URLs de redirector guardadas crudas y colapsa duplicados. | Una URL de redirector cruda nunca vuelve a matchear la real → la nota se re-envía para siempre. La Fase 4 hereda este historial. | Bajo — tabla de soporte. |
 | 0.6 | Asegurar el schema `test` (control de acceso por fila + revocar del rol anónimo el borrado) **sin romperlo** — la v3 lo usa y la v4 lo va a reusar. Cerrar aparte el backup congelado. | Bug de seguridad: cualquiera con la clave pública del front puede leerlo o vaciarlo. | Romper el modo TEST de la v3 si no se verifica primero. |
@@ -72,28 +75,47 @@ Limpia la deuda que, si no, ensucia todo lo que viene (sobre todo la medición d
 **Tickets:** `[F1.1]`–`[F1.7]` migraciones + RLS ✅ · `[F1.8]` poblar el catálogo ✅ · `[F1.9]` aplicar + advisors ✅.
 *(El schema de prueba salió de esta fase — se reusa `test`, se asegura en la Fase 0 y se sincroniza en la Fase 3.)*
 
-### Fase 2 · Transporte y cobertura — `🔨 gate, en curso`
+### Fase 2 · Transporte y cobertura — `✅ gate pasado (03/09)`
 
-- **`sub/fetch-source`** ✅ — una fuente, un transporte → contrato + `fetch_log`. Probado (directo / cloudflare / aws contra feeds reales).
+- **`sub/fetch-source`** ✅ — una fuente, un transporte → contrato + `fetch_log`. Probado contra feeds reales.
 - **`sub/fetch-escalera`** ✅ — la escalera `directo → cloudflare → aws`, corta en el primero con notas. Probado.
-- **`wf/descubridor` (A0)** — descubre formato × transporte por dominio, recupera las fuentes rotas o sin url. Pendiente.
-- **Workflow de medición aislado** ✅ construido, **sin disparar** — recorre las ~1.262 fuentes, no manda mail ni toca tablas de cliente. Produce **el número que decide si la v4 vale la pena**.
+- **Medición de cobertura** ✅ **corrida y consolidada.** Las 1.260 fuentes activas con URL usable, contra los cuatro transportes.
+- **`wf/descubridor` (A0)** — pendiente, y **subió de prioridad** (ver abajo).
 
-**Gate:** si la medición recupera pocas fuentes, se replantea el alcance de la v4. *(Dato del smoke-test: grandes diarios que el diagnóstico daba por bloqueados entran por directo — el problema puede ser más chico de lo estimado.)*
+**Resultado del gate: entran 960 de 1.260 (76%).** Por transporte ganador:
 
-**Tickets:** `[F2.1]` `sub/fetch-source` ✅ · `[F2.1b]` `sub/fetch-escalera` ✅ · `[F2.2]` `wf/descubridor` (A0) · `[F2.3]` workflow de medición ✅ (falta disparar + decidir dónde vive el proxy AWS en prod) · `[F2.4]` decisión de gate con el número en mano.
+| Transporte | Dominios | % |
+|---|---|---|
+| Cloudflare | 774 | 61% |
+| Directo | 138 | 11% |
+| Bright Data (residencial, pago) | 32 | 3% |
+| AWS | 16 | 1% |
+| Sin transporte que funcione | 300 | 24% |
+
+**El gate pasa con holgura:** sin escalera entrarían 138 fuentes; con escalera, 960. Multiplica por 7 lo recuperable, así que la capa de transporte de la v4 se justifica sola.
+
+**Lo aprendido quedó guardado, no solo medido:** `medios_estrategia` tiene, por dominio, el transporte que funciona + fecha de verificación. El recolector de la Fase 3 va derecho al que anda en vez de subir la escalera entera en cada barrido (era el riesgo de recursos que motivó un recolector por cliente). **Convención:** si `transporte` está en `NULL`, no se conoce forma de traer esa fuente — el motivo queda en `ultimo_diagnostico`. Nunca se escribe un transporte que no se verificó.
+
+**Dos hallazgos que corren el foco del problema:**
+
+1. **177 fuentes activas (12%) no tienen URL de feed usable** (143 en `NULL`, 32 en cadena vacía, 2 sin esquema). No es un problema de transporte: a esas no les pega ningún proxy porque no hay adónde pegar. Es trabajo del descubridor (A0), y probablemente explica más reportes de "no entró una nota" que el bloqueo. *(Ojo: el filtro `url_feed is not null` no alcanza — las 32 vacías lo pasan, fallan al instante y se cuentan como timeout falso. Hay que filtrar por `url_feed like 'http%'`.)*
+2. **Varias de las recuperadas traen un índice del sitio sin fechas.** Miles de URLs y casi ninguna fecha: sirve para saber que el medio responde, no para armar un clipping del día. Necesitan que se les encuentre el feed real o que se abra la nota para resolver la fecha — también A0 y Fase 4.
+
+**Pendiente de la fase:** decidir dónde vive el proxy AWS en producción (hoy corre en un proyecto de prueba).
+
+**Tickets:** `[F2.1]` `sub/fetch-source` ✅ · `[F2.1b]` `sub/fetch-escalera` ✅ · `[F2.3]` medición de cobertura ✅ · `[F2.4]` decisión de gate ✅ (pasa) · `[F2.2]` `wf/descubridor` (A0) — **prioridad alta** · `[F2.5]` dónde vive el proxy AWS en producción · `[F2.6]` revisar y dar de baja las fuentes que responden con error de servidor de forma persistente.
 
 ### Fase 3 · Recolector por cliente + schema de prueba — `pendiente`
 
 - **Sincronizar el schema `test` con producción** (agregarle las tablas nuevas de la v4).
-- **`wf/recolector-cliente`** — un workflow por cliente. Barrido cada ~3 h + 06:30. Recorre las fuentes de *ese* cliente por `sub/fetch-escalera`, con control de concurrencia y lote.
+- **`wf/recolector-cliente`** — un workflow por cliente. Barrido cada ~3 h + 06:30. Recorre las fuentes de *ese* cliente **leyendo `medios_estrategia`: va directo al transporte que ya se sabe que funciona**, y solo sube la escalera si ese transporte falla (y ahí actualiza la estrategia). Con control de concurrencia y lote.
 - **Deduplicación al guardar** por URL canónica: cada barrido suma solo lo nuevo.
 - Cierre de cobertura + aviso por barrido.
 - Los cuatro recolectores usan los mismos ladrillos; cambian los parámetros por cliente.
 
 **Salida:** el pool de cada cliente se llena a lo largo del día en `test`, en paralelo a su v3.
 
-**Tickets:** `[F3.1]` sincronizar `test` con `public` · `[F3.2]` `wf/recolector-cliente` (plantilla) · `[F3.3]` dedup al guardar por URL canónica · `[F3.4]` instanciar el recolector ×4 con sus parámetros y horarios · `[F3.5]` cierre de cobertura + aviso.
+**Tickets:** `[F3.1]` sincronizar `test` con `public` · `[F3.2]` `wf/recolector-cliente` (plantilla, leyendo `medios_estrategia`) · `[F3.3]` dedup al guardar por URL canónica · `[F3.4]` instanciar el recolector ×4 con sus parámetros y horarios · `[F3.5]` cierre de cobertura + aviso · `[F3.6]` re-verificación periódica de la estrategia (un transporte que hoy anda puede dejar de andar; hay que refrescar `medios_estrategia` sin re-medir todo).
 
 ### Fase 4 · Normalización + compuertas — `pendiente`
 
@@ -170,7 +192,7 @@ Limpia la deuda que, si no, ensucia todo lo que viene (sobre todo la medición d
 
 ## 4. Camino crítico
 
-`Fase 0` → `Fase 1` ✅ → **`Fase 2` (gate)** 🔨 → `Fase 3` → `Fase 4` → `Fase 5` → `Fase 6` → `Fase 8` (piloto) → `Fase 9`
+`Fase 0` → `Fase 1` ✅ → `Fase 2` (gate) ✅ → **`Fase 3`** ← acá estamos → `Fase 4` → `Fase 5` → `Fase 6` → `Fase 8` (piloto) → `Fase 9`
 
 La **Fase 7** (dashboard) corre en paralelo: arranca apenas existan las tablas de descartes y de reglas, se completa contra las Fases 5 y 6.
 
@@ -180,11 +202,15 @@ Desde la Fase 3, el recolector de cada cliente corre en el schema de prueba en p
 
 ## 5. Riesgos y gates
 
-- **Gate de la Fase 2:** la medición de cobertura recuperable. Si recupera poco, la v4 pierde su justificación principal — hay que saberlo antes de construir la ingesta.
+- ~~**Gate de la Fase 2:** la medición de cobertura recuperable.~~ **Resuelto el 03/09: 76% recuperable.** La capa de transporte se justifica; el riesgo que queda no es de cobertura sino de *calidad de fuente* (las que no tienen URL y las que traen índice sin fechas).
+- **Dependencia de un proveedor pago:** el 3% de las fuentes solo entra por Bright Data, que se cobra por request y hoy corre en plan de prueba. Antes de producción hay que dimensionar el costo del volumen real (nueve barridos diarios × cuatro clientes) y decidir si ese 3% lo vale.
+- **La estrategia de transporte se desactualiza sola.** Un medio que hoy entra por un proxy puede cambiar mañana. `medios_estrategia` es una foto del 03/09: sin re-verificación periódica (`[F3.6]`) envejece en silencio y el recolector empieza a fallar sin que se note.
+- **Configuración del proveedor de proxy:** una de las zonas de la cuenta tiene la IP del servidor de n8n en su lista de bloqueo, y por eso rechazaba todo con 401 aunque la credencial fuera válida. Se resolvió usando otra zona de la misma cuenta, sin tocar la configuración. Queda pendiente entender por qué está ese bloqueo (probablemente explica por qué el nodo equivalente de la v3 quedó apagado y marcado como pendiente).
 - **Flujos en vuelo:** nada de la Fase 0 que toque la cuenta compartida se ejecuta sin coordinarlo con el responsable de esa cuenta.
 - **Zonas horarias:** se resuelve antes de escribir el recolector. Todo en UTC, se decide en hora local; una fecha sin hora nunca se compara contra un corte horario.
 - **Carga de n8n:** cuatro recolectores × ~9 barridos/día. Vigilar memoria y solapamiento; escalonar los horarios entre clientes si hace falta.
-- **Proxy AWS en producción:** hoy vive en un proyecto de prueba. Decidir dónde vive antes de la Fase 3.
+- **Segundo proxy en producción:** hoy vive en un proyecto de prueba. Decidir dónde vive antes de la Fase 3.
+- **Límite de la ejecución manual de n8n:** las corridas con volumen alto mueren si se disparan con el botón (n8n retiene el set completo en memoria para mostrarlo en pantalla). Por webhook, el mismo trabajo pasa. Aplica a cualquier flujo masivo de la v4, no solo a la medición.
 - **Drift de migraciones del repo** (preexistente): `supabase db push` no es seguro hasta reconciliar — ticket aparte.
 - **Autor ≠ aprobador:** cada fase que promueve a `public` o activa un workflow necesita revisión de un segundo.
 - **Fuera de alcance:** gacetillas, editor web y exportación, clientes en formato legado.
