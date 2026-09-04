@@ -1,0 +1,1370 @@
+[
+ {
+  "dominio": "0221.com.ar",
+  "fuente_id": "1ad47e1c-6ee1-490b-a89f-97f249bccb7f",
+  "url_previa": "https://0221.com.ar/sitemap.xml",
+  "url_nueva": "https://0221.com.ar/sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "0264noticias.com.ar",
+  "fuente_id": "8251c317-5ff2-4277-a72e-7407c321a6c0",
+  "url_previa": "https://www.0264noticias.com.ar/news_sitemap.xml",
+  "url_nueva": "https://www.0264noticias.com.ar/news_sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "25digital.com.ar",
+  "fuente_id": "4649b569-185c-41d0-b2b1-b72af8f2c68c",
+  "url_previa": "https://25digital.com.ar/?feed=rss2",
+  "url_nueva": "https://25digital.com.ar/?feed=rss2",
+  "notas": 20,
+  "con_fecha": 20,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "7enpunto.com",
+  "fuente_id": "ecb42cba-9b32-433d-9242-e70c78f88654",
+  "url_previa": "https://www.7enpunto.com/news_sitemap.xml",
+  "url_nueva": "https://www.7enpunto.com/news_sitemap.xml",
+  "notas": 50,
+  "con_fecha": 50,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "aaoc.org.ar",
+  "fuente_id": "39014779-9b69-4b0a-9c61-ef16cc6227c7",
+  "url_previa": "https://aaoc.org.ar/feed/",
+  "url_nueva": "https://aaoc.org.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "abasto.com",
+  "fuente_id": "e702f45a-f923-4d78-8004-8ced3ece1bf4",
+  "url_previa": "https://abasto.com/news-sitemap.xml",
+  "url_nueva": "https://abasto.com/news-sitemap.xml",
+  "notas": 11,
+  "con_fecha": 11,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "ad-hoc-news.de",
+  "fuente_id": "a1f5cb88-aba2-4b61-ae48-c4774de9920c",
+  "url_previa": "https://www.ad-hoc-news.de/rss/nachrichten.xml",
+  "url_nueva": "https://www.ad-hoc-news.de/rss/nachrichten.xml",
+  "notas": 20,
+  "con_fecha": 20,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "adnciudad.com",
+  "fuente_id": "839bc744-95d9-44dd-bd2b-5b75616388e4",
+  "url_previa": null,
+  "url_nueva": "https://adnciudad.com/?format=feed&type=rss",
+  "notas": 7,
+  "con_fecha": 7,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "agenciacomunas.com.ar",
+  "fuente_id": "d9ae22b1-cb91-4a71-8fa4-6985f859e672",
+  "url_previa": "https://agenciacomunas.com.ar/feed/",
+  "url_nueva": "https://agenciacomunas.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "agenfor.com.ar",
+  "fuente_id": "958eb97d-9d20-401e-b345-6110cd86053f",
+  "url_previa": "https://agenfor.com.ar/feed/",
+  "url_nueva": "https://agenfor.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "agroempresario.com",
+  "fuente_id": "0ff4be7b-63a0-41ef-a672-6b43b8718abc",
+  "url_previa": "https://agroempresario.com/news-sitemap.xml",
+  "url_nueva": "https://agroempresario.com/news-sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "ahora.com.ar",
+  "fuente_id": "d283cfe2-dd7d-437a-8431-429bb484911e",
+  "url_previa": "https://ahora.com.ar/news-sitemap.xml",
+  "url_nueva": "https://ahora.com.ar/news-sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "aimdigital.com.ar",
+  "fuente_id": "764310a6-0bd2-4f78-986a-9e06c5fde6b1",
+  "url_previa": "https://aimdigital.com.ar/sitemap.xml",
+  "url_nueva": "https://aimdigital.com.ar/sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "alertadigital.ar",
+  "fuente_id": "1939483d-c020-4348-8643-6ef05db4bfe2",
+  "url_previa": "https://www.alertadigital.ar/news_sitemap.xml",
+  "url_nueva": "https://www.alertadigital.ar/news_sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "amcumbre.com",
+  "fuente_id": "2bb89081-17b0-4873-b2ff-9262e1570b82",
+  "url_previa": "https://www.amcumbre.com/news_sitemap.xml",
+  "url_nueva": "https://www.amcumbre.com/news_sitemap.xml",
+  "notas": 11,
+  "con_fecha": 11,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "analisisdigital.com.ar",
+  "fuente_id": "6e69906b-ef40-4999-a62e-2cadd6156ebb",
+  "url_previa": "https://analisisdigital.com.ar/news-sitemap.xml",
+  "url_nueva": "https://analisisdigital.com.ar/news-sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "anbariloche.com.ar",
+  "fuente_id": "e71cd287-4635-4929-a8f6-fd525870cf51",
+  "url_previa": "https://www.anbariloche.com.ar/news_sitemap.xml",
+  "url_nueva": "https://www.anbariloche.com.ar/news_sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "argentina.ladevi.info",
+  "fuente_id": "7609b07b-86f9-432b-bb0c-718ba164cf63",
+  "url_previa": "https://argentina.ladevi.info/sitemap-news.xml",
+  "url_nueva": "https://argentina.ladevi.info/sitemap-news.xml",
+  "notas": 23,
+  "con_fecha": 23,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "bnamericas.com",
+  "fuente_id": "7598f8c5-76c0-464f-83c3-16618001a84d",
+  "url_previa": "https://www.bnamericas.com/sitemaps/sitemap-tags-es.xml",
+  "url_nueva": "https://www.bnamericas.com/sitemaps/sitemap-tags-es.xml",
+  "notas": 60,
+  "con_fecha": 0,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "boletinoficial.jujuy.gob.ar",
+  "fuente_id": "3154fcb7-4b5d-4019-9ee2-3f10ddcf3043",
+  "url_previa": null,
+  "url_nueva": "https://boletinoficial.jujuy.gob.ar/?feed=rss2",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "bragartesnoticia.com.ar",
+  "fuente_id": "cec4eeb8-c367-468b-9c3d-2a434008c2cd",
+  "url_previa": "https://bragartesnoticia.com.ar/rss.xml",
+  "url_nueva": "https://bragartesnoticia.com.ar/rss.xml",
+  "notas": 50,
+  "con_fecha": 50,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "bruchoufunes.com",
+  "fuente_id": "d7c9f8a4-37fe-453b-a4fb-0e52220ccba9",
+  "url_previa": "https://bruchoufunes.com/rss.xml",
+  "url_nueva": "https://bruchoufunes.com/rss.xml",
+  "notas": 50,
+  "con_fecha": 50,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "cadena3.com",
+  "fuente_id": "38a6de6b-3c36-4942-9ee7-d4fb151ac57d",
+  "url_previa": "https://www.cadena3.com/feed/sitemap-news.xml",
+  "url_nueva": "https://www.cadena3.com/feed/sitemap-news.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "cadenanew.com.ar",
+  "fuente_id": "bbbd229a-6e9e-4d8b-8efd-2433d0e31c4b",
+  "url_previa": null,
+  "url_nueva": "https://cadenanew.com.ar/?feed=rss2",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "canal26.com",
+  "fuente_id": "3dced9bc-ffc6-4a87-8687-659922c3b140",
+  "url_previa": "https://www.canal26.com/arc/outboundfeeds/sitemap/",
+  "url_nueva": "https://www.canal26.com/arc/outboundfeeds/sitemap/",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "cardiolatina.com",
+  "fuente_id": "357578e8-6a7c-4095-9141-6652d9b094e1",
+  "url_previa": "https://cardiolatina.com/feed/",
+  "url_nueva": "https://cardiolatina.com/feed/",
+  "notas": 2,
+  "con_fecha": 2,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "chacabucoenred.com",
+  "fuente_id": "cf65500c-0996-4f31-8972-ea5851a6e6ec",
+  "url_previa": " https://chacabucoenred.com/feed/",
+  "url_nueva": "https://chacabucoenred.com/sitemap_index.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "chajarialdia.com.ar",
+  "fuente_id": "fdfb678a-b7ff-439c-8b3a-928a59cc5a4d",
+  "url_previa": null,
+  "url_nueva": "https://chajarialdia.com.ar/?feed=rss2",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "ciudad.com.ar",
+  "fuente_id": "fb881690-7689-4f40-a311-a5502e4f4b69",
+  "url_previa": "https://www.ciudad.com.ar/arc/outboundfeeds/sitemap/?outputType=xml",
+  "url_nueva": "https://www.ciudad.com.ar/arc/outboundfeeds/sitemap/?outputType=xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "contextoturistico.com",
+  "fuente_id": "2864972b-1472-45db-8e02-561bcb29d6b5",
+  "url_previa": null,
+  "url_nueva": "https://contextoturistico.com/rss.xml",
+  "notas": 50,
+  "con_fecha": 50,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "corrientesaldia.info",
+  "fuente_id": "9b5a173c-d6e7-4ee0-a200-d6b2f9d8916a",
+  "url_previa": "https://corrientesaldia.info/sitemap-news.xml",
+  "url_nueva": "https://corrientesaldia.info/sitemap-news.xml",
+  "notas": 26,
+  "con_fecha": 26,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "cronista.com",
+  "fuente_id": "2a27b00b-fa6b-4d3e-b39a-07a72ff74706",
+  "url_previa": "https://www.cronista.com/arc/outboundfeeds/sitemap/",
+  "url_nueva": "https://www.cronista.com/arc/outboundfeeds/sitemap/",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "crontu.com.ar",
+  "fuente_id": "ff3eef27-94fa-490b-9e6f-e193ce7c310a",
+  "url_previa": "https://api.crontu.com.ar/content/sitemap-guias.xml",
+  "url_nueva": "https://api.crontu.com.ar/content/sitemap-guias.xml",
+  "notas": 53,
+  "con_fecha": 52,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "cuitonline.com",
+  "fuente_id": "c93b5862-5da6-4405-8dae-55329f8e3cc6",
+  "url_previa": "https://www.cuitonline.com/sitemap-provincia-rubros.xml",
+  "url_nueva": "https://www.cuitonline.com/sitemap-provincia-rubros.xml",
+  "notas": 60,
+  "con_fecha": 0,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "cutralcoalinstante.com",
+  "fuente_id": "f4d2b68f-41ef-465c-98c6-4ef69e99ba8f",
+  "url_previa": "https://cutralcoalinstante.com/feed/",
+  "url_nueva": "https://cutralcoalinstante.com/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "dbiz.today",
+  "fuente_id": "7a20f910-5577-4dd8-9a85-9b367c14ff44",
+  "url_previa": "https://dbiz.today/sitemap.xml",
+  "url_nueva": "https://dbiz.today/sitemap.xml",
+  "notas": 60,
+  "con_fecha": 0,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "debrown.com.ar",
+  "fuente_id": "6bd0913c-adb8-4d4c-91ed-4fd098c57566",
+  "url_previa": null,
+  "url_nueva": "https://debrown.com.ar/sitemap-news.xml",
+  "notas": 9,
+  "con_fecha": 9,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "decoracion.trendencias.com",
+  "fuente_id": "5700009a-841d-4257-a99b-68c930ee75c4",
+  "url_previa": "https://decoracion.trendencias.com/sitemap_news.xml",
+  "url_nueva": "https://decoracion.trendencias.com/sitemap_news.xml",
+  "notas": 20,
+  "con_fecha": 20,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "delbosqueradio.com.ar",
+  "fuente_id": "90e3b6a6-f9e0-4ca5-8542-a9d1f5ad3ee7",
+  "url_previa": "https://delbosqueradio.com.ar/sitemap.xml",
+  "url_nueva": "https://delbosqueradio.com.ar/sitemap.xml",
+  "notas": 9,
+  "con_fecha": 0,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "delsurdiario.com",
+  "fuente_id": "9ea5d2bf-8a96-449d-8d85-9c8e6c5a59f8",
+  "url_previa": "https://delsurdiario.com/sitemap.xml",
+  "url_nueva": "https://delsurdiario.com/sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "deraiz.ar",
+  "fuente_id": "399fb941-9f73-4a9c-8b3f-853bc54f784f",
+  "url_previa": "https://deraiz.ar/feed/",
+  "url_nueva": "https://deraiz.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "devotomagazine.com.ar",
+  "fuente_id": "b7e6d141-33b0-4c0d-88d4-4a0aacaaf925",
+  "url_previa": "https://devotomagazine.com.ar/feed/",
+  "url_nueva": "https://devotomagazine.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "diario1588.com",
+  "fuente_id": "6faee382-130e-4be0-aee2-79ec10e8e34a",
+  "url_previa": null,
+  "url_nueva": "https://diario1588.com/?feed=rss2",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "diario3.com.ar",
+  "fuente_id": "cf5e40ae-df26-417f-a1b4-8d0f64494a74",
+  "url_previa": "https://diario3.com.ar/feed/",
+  "url_nueva": "https://diario3.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "diariodemocracia.com",
+  "fuente_id": "5a1800c1-576a-4c29-805d-1c81a081049b",
+  "url_previa": "https://www.diariodemocracia.com/sitemaps/google_news.xml",
+  "url_nueva": "https://www.diariodemocracia.com/sitemaps/google_news.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "diarioderivera.com.ar",
+  "fuente_id": "5f5c9834-ac9b-46a6-b91f-cd1bf01095a8",
+  "url_previa": "https://diarioderivera.com.ar/feed/",
+  "url_nueva": "https://diarioderivera.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "diarioelzondasj.com.ar",
+  "fuente_id": "5fdaffda-ce2c-4dc4-9c93-1daa2b2ae741",
+  "url_previa": "https://diarioelzondasj.com.ar/sitemap.xml",
+  "url_nueva": "https://diarioelzondasj.com.ar/sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "diariolaopinion.com.ar",
+  "fuente_id": "210dd53b-e784-4acc-9a31-ecb8df4eadaa",
+  "url_previa": "https://diariolaopinion.com.ar/sitemap-news.xml",
+  "url_nueva": "https://diariolaopinion.com.ar/sitemap-news.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "diariolonuestro.com.ar",
+  "fuente_id": "e2cedafb-4e10-4311-85b2-fd16843ec6f2",
+  "url_previa": "https://www.diariolonuestro.com.ar/blog-feed.xml",
+  "url_nueva": "https://www.diariolonuestro.com.ar/blog-feed.xml",
+  "notas": 20,
+  "con_fecha": 20,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "diariomedico.com",
+  "fuente_id": "829835a7-e553-4455-98d1-2523ee3862b9",
+  "url_previa": "https://diariomedico.com/feed/",
+  "url_nueva": "https://diariomedico.com/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "diariomendoza.com.ar",
+  "fuente_id": "26a28d49-9163-4302-b3e1-84eee03ce3fb",
+  "url_previa": "https://diariomendoza.com.ar/feed/",
+  "url_nueva": "https://diariomendoza.com.ar/feed/",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "diariosigloxxi.com",
+  "fuente_id": "76e9d66a-ec35-4f6a-8c27-ae2c46348900",
+  "url_previa": "https://www.diariosigloxxi.com/sitemap/news",
+  "url_nueva": "https://www.diariosigloxxi.com/sitemap/news",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "diariotextual.com",
+  "fuente_id": "0a6cc774-201f-4589-beac-a1f7a6cdf04d",
+  "url_previa": null,
+  "url_nueva": "https://diariotextual.com/inicio/index.php/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "diarioveterinario.com",
+  "fuente_id": "d58ce928-1549-4f9a-beec-b2434298bb9f",
+  "url_previa": "https://www.diarioveterinario.com/sitemap/news",
+  "url_nueva": "https://www.diarioveterinario.com/sitemap/news",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "econoblog.com.ar",
+  "fuente_id": "788741e6-b74e-43a4-9983-a32a2cc4d105",
+  "url_previa": "https://econoblog.com.ar/feed/",
+  "url_nueva": "https://econoblog.com.ar/feed/",
+  "notas": 20,
+  "con_fecha": 20,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "elchorrillero.com",
+  "fuente_id": "f81630b1-fb7b-44f8-b14c-81795c9ae025",
+  "url_previa": "https://elchorrillero.com/sitemap_news.xml",
+  "url_nueva": "https://elchorrillero.com/sitemap_news.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "elconurbano.com.ar",
+  "fuente_id": "0f38981f-6a8e-4fa2-9064-a7541e72447b",
+  "url_previa": "https://elconurbano.com.ar/news-sitemap.xml",
+  "url_nueva": "https://elconurbano.com.ar/news-sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "eldiariodeturismo.com.ar",
+  "fuente_id": "7a9232fb-aa70-4ba3-862b-f39b18ee3c36",
+  "url_previa": "https://eldiariodeturismo.com.ar/feed/",
+  "url_nueva": "https://eldiariodeturismo.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "elgritodelsur.com.ar",
+  "fuente_id": "4c5e6331-ebd4-406f-932e-cf849662e1c8",
+  "url_previa": "https://elgritodelsur.com.ar/feed/",
+  "url_nueva": "https://elgritodelsur.com.ar/feed/",
+  "notas": 12,
+  "con_fecha": 12,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "elle.com",
+  "fuente_id": "08f4ce72-db2f-4204-8a33-7d42bf99cda1",
+  "url_previa": "https://www.elle.com/sitemap_google_news.xml",
+  "url_nueva": "https://www.elle.com/sitemap_google_news.xml",
+  "notas": 31,
+  "con_fecha": 31,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "elmarplatense.com",
+  "fuente_id": "5ca81110-3f62-4ec8-99de-25d69a80520a",
+  "url_previa": "https://elmarplatense.com/sitemap-news.xml",
+  "url_nueva": "https://elmarplatense.com/sitemap-news.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "elregionaldigital.com.ar",
+  "fuente_id": "2dda1606-24d8-4b1f-aa24-a63dbebc2b81",
+  "url_previa": null,
+  "url_nueva": "https://elregionaldigital.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "eltrecetv.com.ar",
+  "fuente_id": "35a0ce99-b2db-42c7-a20a-c6f16596c067",
+  "url_previa": "https://www.eltrecetv.com.ar/arc/outboundfeeds/sitemap/?outputType=xml",
+  "url_nueva": "https://www.eltrecetv.com.ar/arc/outboundfeeds/sitemap/?outputType=xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "energiaynegocios.com.ar",
+  "fuente_id": "f38e310d-efc6-417f-82ce-38a35784c427",
+  "url_previa": null,
+  "url_nueva": "https://energiaynegocios.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "enteratenoticias.com.ar",
+  "fuente_id": "6ab65c90-d50c-49a5-8ae0-8d5ac76d7182",
+  "url_previa": "https://enteratenoticias.com.ar/feed/",
+  "url_nueva": "https://enteratenoticias.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "es.travel2latam.com",
+  "fuente_id": "0f28c385-f2b6-4857-ab37-d43767496226",
+  "url_previa": null,
+  "url_nueva": "https://es.travel2latam.com/sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "espinof.com",
+  "fuente_id": "9bd791a6-0f47-457c-b316-2e97d98238bc",
+  "url_previa": "https://www.espinof.com/sitemap_news.xml",
+  "url_nueva": "https://www.espinof.com/sitemap_news.xml",
+  "notas": 35,
+  "con_fecha": 35,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "estacionzafiro.com.ar",
+  "fuente_id": "85fb4213-97f5-45a4-9d2a-6e9f58db5529",
+  "url_previa": "https://www.estacionzafiro.com.ar/sitemapNews.xml",
+  "url_nueva": "https://www.estacionzafiro.com.ar/sitemapNews.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "expansion.com",
+  "fuente_id": "bf9e663d-99f6-4531-b935-8897dd8fa86c",
+  "url_previa": "https://e01-expansion.uecdn.es/rss/portada.xml",
+  "url_nueva": "https://e01-expansion.uecdn.es/rss/portada.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "expresdiario.com.ar",
+  "fuente_id": "87e8b146-4571-4d77-a177-825b2062c9c8",
+  "url_previa": "https://expresdiario.com.ar/feed/",
+  "url_nueva": "https://expresdiario.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "fac.org.ar",
+  "fuente_id": "e83708d1-d55f-457d-974f-c2d967f4ad3c",
+  "url_previa": "https://fac.org.ar/feed/",
+  "url_nueva": "https://fac.org.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "facundoquiroga.com",
+  "fuente_id": "13661cbd-05b4-48f6-8496-a9a1ca9e4aea",
+  "url_previa": "https://facundoquiroga.com/feed/",
+  "url_nueva": "https://facundoquiroga.com/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "fernandatapia.com",
+  "fuente_id": "e07d1745-119e-4000-b22b-1ebcfad30215",
+  "url_previa": "https://fernandatapia.com/news-sitemap.xml",
+  "url_nueva": "https://fernandatapia.com/news-sitemap.xml",
+  "notas": 33,
+  "con_fecha": 33,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "fmestudio2.com.ar",
+  "fuente_id": "13cf7a21-ceff-4197-9e87-22284007aeb5",
+  "url_previa": "https://fmestudio2.com.ar/feed/",
+  "url_nueva": "https://fmestudio2.com.ar/feed/",
+  "notas": 6,
+  "con_fecha": 6,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "fortunaypoder.com",
+  "fuente_id": "8bcefd5f-599d-4521-83c7-5522a4353743",
+  "url_previa": "https://fortunaypoder.com/news-sitemap.xml",
+  "url_nueva": "https://fortunaypoder.com/news-sitemap.xml",
+  "notas": 32,
+  "con_fecha": 32,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "fotmob.com",
+  "fuente_id": "3bd981b4-13a7-425c-b404-b256424155ad",
+  "url_previa": "https://www.fotmob.com/topnews/feed?format=atom",
+  "url_nueva": "https://www.fotmob.com/topnews/feed?format=atom",
+  "notas": 20,
+  "con_fecha": 20,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "gnnoticias.com.ar",
+  "fuente_id": "550883c0-f77d-4ada-9176-409d63cca9f5",
+  "url_previa": null,
+  "url_nueva": "https://gnnoticias.com.ar/index.php?option=com_jmap&view=sitemap&format=xml&lang=es",
+  "notas": 60,
+  "con_fecha": 43,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "hangarx.com.ar",
+  "fuente_id": "bb0f5905-dbe8-4692-b6af-12d833fe894a",
+  "url_previa": "https://hangarx.com.ar/feed/",
+  "url_nueva": "https://hangarx.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "infoagro.com.ar",
+  "fuente_id": "1f66f814-dd9d-42f6-b5ab-c14540c56b88",
+  "url_previa": "https://infoagro.com.ar/news-sitemap.xml",
+  "url_nueva": "https://infoagro.com.ar/news-sitemap.xml",
+  "notas": 17,
+  "con_fecha": 17,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "infoecos.com.ar",
+  "fuente_id": "7af905d9-7b8b-4f36-ab18-22a336b6b8b3",
+  "url_previa": "https://infoecos.com.ar/?feed=rss2",
+  "url_nueva": "https://infoecos.com.ar/?feed=rss2",
+  "notas": 21,
+  "con_fecha": 21,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "infomalargue.com",
+  "fuente_id": "e7351625-b4ce-42a3-b40f-d11aa6d3e63c",
+  "url_previa": null,
+  "url_nueva": "https://infomalargue.com/?format=feed&type=rss",
+  "notas": 3,
+  "con_fecha": 3,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "infoturchubut.ar",
+  "fuente_id": "e6400693-2273-43ea-8d39-8cee0134d564",
+  "url_previa": "https://infoturchubut.ar/feed/",
+  "url_nueva": "https://infoturchubut.ar/feed/",
+  "notas": 20,
+  "con_fecha": 20,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "isanidad.com",
+  "fuente_id": "1317ad26-d381-4643-9c59-38e3bd6d9173",
+  "url_previa": "https://isanidad.com/feed/",
+  "url_nueva": "https://isanidad.com/feed/",
+  "notas": 15,
+  "con_fecha": 15,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "laangosturadigital.com.ar",
+  "fuente_id": "3d5269c7-fe05-44d9-bace-5a0c5160df76",
+  "url_previa": null,
+  "url_nueva": "https://laangosturadigital.com.ar/news-sitemap.xml",
+  "notas": 32,
+  "con_fecha": 32,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "lacapitalmdp.com",
+  "fuente_id": "5cf34eb1-3cdc-4e33-b4db-4ba3f2353065",
+  "url_previa": "https://www.lacapitalmdp.com/lcmdp-sitemap-news.xml",
+  "url_nueva": "https://www.lacapitalmdp.com/lcmdp-sitemap-news.xml",
+  "notas": 1,
+  "con_fecha": 0,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "lagacetaonline.com.ar",
+  "fuente_id": "6341bd3b-bf23-4998-a75e-7bb446025994",
+  "url_previa": "https://lagacetaonline.com.ar/news-sitemap.xml",
+  "url_nueva": "https://lagacetaonline.com.ar/news-sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "laizquierdadiario.com",
+  "fuente_id": "59bfff36-2b2e-4114-9ca0-ed889daaf31e",
+  "url_previa": "https://laizquierdadiario.com/sitemap.xml",
+  "url_nueva": "https://laizquierdadiario.com/sitemap.xml",
+  "notas": 60,
+  "con_fecha": 59,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "laopinionaustral.com.ar",
+  "fuente_id": "1c0f12d9-f02d-4550-ae4b-93c54518a6a5",
+  "url_previa": "https://laopinionaustral.com.ar/sitemaps/sitemaps-tags.xml",
+  "url_nueva": "https://laopinionaustral.com.ar/sitemaps/sitemaps-tags.xml",
+  "notas": 60,
+  "con_fecha": 0,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "laplata1.com",
+  "fuente_id": "8d622488-5b9e-42d9-b43d-195804f7e9d0",
+  "url_previa": null,
+  "url_nueva": "https://www.laplata1.com/sitemap_rss",
+  "notas": 58,
+  "con_fecha": 58,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "lapostacomodorense.com.ar",
+  "fuente_id": "e0b6bef0-708b-4603-ae23-f3ae4a0d5369",
+  "url_previa": null,
+  "url_nueva": "https://lapostacomodorense.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "laprensa.com.ar",
+  "fuente_id": "f68f945c-5bd5-43aa-b50b-a04f65f21d4c",
+  "url_previa": "https://www.laprensa.com.ar/sitemap.aspx",
+  "url_nueva": "https://www.laprensa.com.ar/sitemap.aspx",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "larepublica.net",
+  "fuente_id": "696377ad-aa86-4ebd-8c90-64e938de452a",
+  "url_previa": "https://larepublica.net/feeds/feed.rss",
+  "url_nueva": "https://larepublica.net/feeds/feed.rss",
+  "notas": 30,
+  "con_fecha": 30,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "latecla.info",
+  "fuente_id": "85a6ba16-e6b9-4387-a2c1-516e99013cba",
+  "url_previa": "https://www.latecla.info/sitemap_google_news.xml",
+  "url_nueva": "https://www.latecla.info/sitemap_google_news.xml",
+  "notas": 58,
+  "con_fecha": 58,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "lateclapatagonia.com.ar",
+  "fuente_id": "44ae1840-223f-4f49-8bcb-9f2a37c4a0ac",
+  "url_previa": "https://www.lateclapatagonia.com.ar/sitemap_google_news.xml",
+  "url_nueva": "https://www.lateclapatagonia.com.ar/sitemap_google_news.xml",
+  "notas": 49,
+  "con_fecha": 49,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "lavozdebragado.com.ar",
+  "fuente_id": "59fbe2bb-61ee-4303-88e1-0b36397b51a5",
+  "url_previa": null,
+  "url_nueva": "https://lavozdebragado.com.ar/news-sitemap.xml",
+  "notas": 22,
+  "con_fecha": 22,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "lexlatin.com",
+  "fuente_id": "1bc2bbc0-57cd-4937-bb36-5d21e3d17aa9",
+  "url_previa": "https://lexlatin.com/rss.xml",
+  "url_nueva": "https://lexlatin.com/rss.xml",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "lt15concordia.com.ar",
+  "fuente_id": "6fe1d22d-c7d9-4d69-8fa9-a2c2c2b3090a",
+  "url_previa": null,
+  "url_nueva": "https://lt15concordia.com.ar/?feed=rss2",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "lujanhoy.com.ar",
+  "fuente_id": "3e2ebdb4-b6b0-4b4f-a05b-683a65e70930",
+  "url_previa": "https://lujanhoy.com.ar/feed/",
+  "url_nueva": "https://lujanhoy.com.ar/feed/",
+  "notas": 1,
+  "con_fecha": 1,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "mariovadillo.com.ar",
+  "fuente_id": "ee27c2cc-2a13-46ec-9ae0-abb89560a04c",
+  "url_previa": "https://mariovadillo.com.ar/feed/",
+  "url_nueva": "https://mariovadillo.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "mendoza24.com.ar",
+  "fuente_id": "d246b755-b66d-4c09-acf6-c098e0ae9e1e",
+  "url_previa": null,
+  "url_nueva": "https://mendoza24.com.ar/rss.asp",
+  "notas": 30,
+  "con_fecha": 30,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "mi8.com.ar",
+  "fuente_id": "1d83e3c9-71b4-491f-821d-4f44b5725d79",
+  "url_previa": "https://mi8.com.ar/news-sitemap.xml",
+  "url_nueva": "https://mi8.com.ar/news-sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "miradaprofesional.webnode.page",
+  "fuente_id": "06903508-6986-468e-85c0-aef51d82a1e2",
+  "url_previa": "https://miradaprofesional.webnode.page/sitemap.xml",
+  "url_nueva": "https://miradaprofesional.webnode.page/sitemap.xml",
+  "notas": 60,
+  "con_fecha": 0,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "montecaserosonline.com",
+  "fuente_id": "ee75d334-103d-4f33-b2db-7dbaaa0435f9",
+  "url_previa": null,
+  "url_nueva": "http://www.montecaserosonline.com/rss.asp",
+  "notas": 20,
+  "con_fecha": 20,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "municipioarroyito.gob.ar",
+  "fuente_id": "62b3bb94-6e6d-44bd-96a6-73c1ca29eff6",
+  "url_previa": null,
+  "url_nueva": "https://municipioarroyito.gob.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "neuquen.edu.ar",
+  "fuente_id": "9385ad84-f9f7-46b6-be13-983fc8bf5b4e",
+  "url_previa": "https://neuquen.edu.ar/feed/",
+  "url_nueva": "https://neuquen.edu.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "neuquencapital.gov.ar",
+  "fuente_id": "af0d4449-9a4c-4348-96c8-3dd8db6825c2",
+  "url_previa": null,
+  "url_nueva": "https://www.neuquencapital.gov.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "nomyc.com.ar",
+  "fuente_id": "1f30a3fb-59c9-4114-96e9-f75c5f481481",
+  "url_previa": "https://nomyc.com.ar/sitemap.xml",
+  "url_nueva": "https://nomyc.com.ar/sitemap.xml",
+  "notas": 55,
+  "con_fecha": 55,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "notaalpie.com.ar",
+  "fuente_id": "d2a2a689-50b2-4552-a88b-a154122a4370",
+  "url_previa": "https://notaalpie.com.ar/feed/",
+  "url_nueva": "https://notaalpie.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "noticiasformosa.com.ar",
+  "fuente_id": "6d01d7f9-0886-41da-b9c4-3c3c52e370b4",
+  "url_previa": null,
+  "url_nueva": "https://noticiasformosa.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "nuevodigitaldeescobar.com.ar",
+  "fuente_id": "79489fe3-f133-4f1e-9b76-f740bc2beba8",
+  "url_previa": null,
+  "url_nueva": "https://nuevodigitaldeescobar.com.ar/?feed=rss2",
+  "notas": 28,
+  "con_fecha": 28,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "ocu.org",
+  "fuente_id": "f3194d90-ace1-4a5f-b1df-67dccf9c161e",
+  "url_previa": "https://ocu.org/rss",
+  "url_nueva": "https://ocu.org/rss",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "ole.com.ar",
+  "fuente_id": "82a36435-308b-4c7e-ac97-5a3afc65a7a0",
+  "url_previa": "https://www.ole.com.ar/sitemaps/sitemap_google_news.xml",
+  "url_nueva": "https://www.ole.com.ar/sitemaps/sitemap_google_news.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "pagina12.com.ar",
+  "fuente_id": "70c40517-7155-4265-8d8d-4725ba32a740",
+  "url_previa": "https://www.pagina12.com.ar/arc/outboundfeeds/breakingnews-sitemap.xml",
+  "url_nueva": "https://www.pagina12.com.ar/arc/outboundfeeds/breakingnews-sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "palermonline.com.ar",
+  "fuente_id": "54fdfa97-4ee6-4d67-a226-3a92a74c4255",
+  "url_previa": null,
+  "url_nueva": "https://palermonline.com.ar/?feed=rss2",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "paraguay.com",
+  "fuente_id": "a41aa43c-2921-41fa-93ef-85b15e432b34",
+  "url_previa": "https://www.paraguay.com/index.atom",
+  "url_nueva": "https://www.paraguay.com/index.atom",
+  "notas": 43,
+  "con_fecha": 43,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "politicargentina.com",
+  "fuente_id": "7388caee-ab88-4f0f-8551-b34b2c25f7aa",
+  "url_previa": null,
+  "url_nueva": "https://www.politicargentina.com/feed/ultimasnoticias.xml",
+  "notas": 20,
+  "con_fecha": 20,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "portalciudad.com.ar",
+  "fuente_id": "b7219129-f66a-48f6-b7ce-aa1f78190842",
+  "url_previa": "https://portalciudad.com.ar/feed/",
+  "url_nueva": "https://portalciudad.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "prensa.cba.gov.ar",
+  "fuente_id": "56d64623-22bd-47bf-ab03-eb15de326d87",
+  "url_previa": null,
+  "url_nueva": "https://prensa.cba.gov.ar/feed/",
+  "notas": 9,
+  "con_fecha": 9,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "primerdato.com.ar",
+  "fuente_id": "0902d8ea-a3cf-4801-8b85-a894af928d08",
+  "url_previa": null,
+  "url_nueva": "https://primerdato.com.ar/feed/",
+  "notas": 20,
+  "con_fecha": 20,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "psicologia.unt.edu.ar",
+  "fuente_id": "bebdbd6d-f43c-4bfa-a938-bab5cd25b89e",
+  "url_previa": "https://psicologia.unt.edu.ar/feed/",
+  "url_nueva": "https://psicologia.unt.edu.ar/feed/",
+  "notas": 6,
+  "con_fecha": 6,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "qpaso.ar",
+  "fuente_id": "c191e5e8-f80d-46e6-a672-517bb39f1b6f",
+  "url_previa": "https://qpaso.ar/finanzas/dolar/sitemap.xml",
+  "url_nueva": "https://qpaso.ar/finanzas/dolar/sitemap.xml",
+  "notas": 60,
+  "con_fecha": 17,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "qpaso.com.ar",
+  "fuente_id": "9f4bfdaf-0ba4-4f5c-97cf-982d073c58e4",
+  "url_previa": "https://qpaso.ar/finanzas/dolar/sitemap.xml",
+  "url_nueva": "https://qpaso.ar/finanzas/dolar/sitemap.xml",
+  "notas": 60,
+  "con_fecha": 17,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "quedigital.com.ar",
+  "fuente_id": "e01f0216-48d3-4cd1-95d6-20c0b0e20e27",
+  "url_previa": "https://quedigital.com.ar/feed/",
+  "url_nueva": "https://quedigital.com.ar/feed/",
+  "notas": 20,
+  "con_fecha": 20,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "quepolitica.com",
+  "fuente_id": "bd505568-b035-48b4-99f0-ef193e9fa281",
+  "url_previa": "https://quepolitica.com/rss.xml",
+  "url_nueva": "https://quepolitica.com/rss.xml",
+  "notas": 25,
+  "con_fecha": 25,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "radiofederalbolivar.com.ar",
+  "fuente_id": "78e9911d-c2b8-496e-805d-e0157f9a2878",
+  "url_previa": null,
+  "url_nueva": "https://radiofederalbolivar.com.ar/feeds/default.aspx",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "radiogabal.com.ar",
+  "fuente_id": "32a30972-bc76-435a-b295-8f4af687d088",
+  "url_previa": null,
+  "url_nueva": "https://radiogabal.com.ar/index.php/component/osmap/?view=xml&id=1&format=xml",
+  "notas": 60,
+  "con_fecha": 56,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "radiomitre.cienradios.com",
+  "fuente_id": "cf5a6dd1-6fbf-4f9b-b4db-400d0741d65b",
+  "url_previa": "https://radiomitre.cienradios.com/arc/outboundfeeds/sitemap/?outputType=xml",
+  "url_nueva": "https://radiomitre.cienradios.com/arc/outboundfeeds/sitemap/?outputType=xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "realidadsur.com.ar",
+  "fuente_id": "be8846ba-b5c4-4946-be5b-773ab2af474a",
+  "url_previa": null,
+  "url_nueva": "https://realidadsur.com.ar/?feed=rss2",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "reforma.com",
+  "fuente_id": "e7173fa2-6613-4907-86f1-19a6dce8b0b3",
+  "url_previa": "https://reforma.com/rss/portada.xml",
+  "url_nueva": "https://reforma.com/rss/portada.xml",
+  "notas": 6,
+  "con_fecha": 6,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "riverlugano.com.ar",
+  "fuente_id": "0d722354-26a1-4f5c-84ed-5ea0eb358ef4",
+  "url_previa": "https://riverlugano.com.ar/feed/",
+  "url_nueva": "https://riverlugano.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "rockfm.fm",
+  "fuente_id": "25baaf08-f128-4047-84be-004fe10c3e3f",
+  "url_previa": null,
+  "url_nueva": "https://www.rockfm.fm/rss/home.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "salud.misiones.gob.ar",
+  "fuente_id": "15d5123d-b6ea-419a-b5a5-7ba87fb4d384",
+  "url_previa": "https://salud.misiones.gob.ar/feed/",
+  "url_nueva": "https://salud.misiones.gob.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "saludpublica.ms.gba.gov.ar",
+  "fuente_id": "0451b735-e921-4d05-a6f9-71654dea162d",
+  "url_previa": null,
+  "url_nueva": "https://saludpublica.ms.gba.gov.ar/index.php/revista/gateway/plugin/WebFeedGatewayPlugin/atom",
+  "notas": 30,
+  "con_fecha": 30,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "sancarlosdigital.com",
+  "fuente_id": "c82d81af-18a9-4f91-951c-43d5a575ea9a",
+  "url_previa": "https://sancarlosdigital.com/feed/",
+  "url_nueva": "https://sancarlosdigital.com/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "soloavesyporcinos.com",
+  "fuente_id": "85981821-6f1b-46c8-a68f-8c623b2def9a",
+  "url_previa": null,
+  "url_nueva": "https://soloavesyporcinos.com/sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "solocampo.com.ar",
+  "fuente_id": "043bf6f8-060b-45e4-ba6d-b6565166d449",
+  "url_previa": null,
+  "url_nueva": "https://solocampo.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "stonoticias.com.ar",
+  "fuente_id": "19f5d3be-81d7-426e-be8d-4fdc0c465488",
+  "url_previa": "https://stonoticias.com.ar/feed/",
+  "url_nueva": "https://stonoticias.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "stopenlinea.com.ar",
+  "fuente_id": "79970610-e3f5-4a0d-bc52-801e133d3f67",
+  "url_previa": "https://www.stopenlinea.com.ar/news_sitemap.xml",
+  "url_nueva": "https://www.stopenlinea.com.ar/news_sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "telediariodigital.com.ar",
+  "fuente_id": "3d989012-b5d5-4052-b187-6c2e0a8b2695",
+  "url_previa": "https://www.telediariodigital.com.ar/blog-feed.xml",
+  "url_nueva": "https://www.telediariodigital.com.ar/blog-feed.xml",
+  "notas": 20,
+  "con_fecha": 20,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "telesoldiario.com",
+  "fuente_id": "8287b8b0-5285-4751-b244-fd13d9a2d009",
+  "url_previa": "https://telesoldiario.com/sitemap.xml",
+  "url_nueva": "https://telesoldiario.com/sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "todolecheria.com.ar",
+  "fuente_id": "73af4219-1222-4621-9ca3-f9c58fd7985a",
+  "url_previa": null,
+  "url_nueva": "https://todolecheria.com.ar/feed/",
+  "notas": 30,
+  "con_fecha": 30,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "totalmedios.com",
+  "fuente_id": "861ff455-674f-45bf-9a76-85a44ae4ef2a",
+  "url_previa": null,
+  "url_nueva": "https://www.totalmedios.com/sitemap_news_48hs.xml",
+  "notas": 32,
+  "con_fecha": 32,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "toursmendoza.ar",
+  "fuente_id": "11c04325-1cde-4f34-ae30-1a4d14e04b20",
+  "url_previa": "https://www.toursmendoza.ar/blog-feed.xml",
+  "url_nueva": "https://www.toursmendoza.ar/blog-feed.xml",
+  "notas": 20,
+  "con_fecha": 20,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "turismocero.com",
+  "fuente_id": "71ebe61c-8eb7-4c90-8ae0-750e2d08af61",
+  "url_previa": null,
+  "url_nueva": "https://turismocero.com/sitemap.xml",
+  "notas": 50,
+  "con_fecha": 50,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "univision.com",
+  "fuente_id": "c82c0cb5-56a0-4995-959f-348ca4297fce",
+  "url_previa": "https://www.univision.com/feed-sitemap/google-news",
+  "url_nueva": "https://www.univision.com/feed-sitemap/google-news",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "unjudiario.unju.edu.ar",
+  "fuente_id": "196b551d-af98-4d2c-980a-83e078311359",
+  "url_previa": null,
+  "url_nueva": "https://unjudiario.unju.edu.ar/?format=feed&type=rss",
+  "notas": 6,
+  "con_fecha": 6,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "venado24.com.ar",
+  "fuente_id": "ffa5423d-e3fc-4120-9556-dda42f11929c",
+  "url_previa": "https://venado24.com.ar/feed/",
+  "url_nueva": "https://venado24.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "vietnam.vn",
+  "fuente_id": "9aa12539-7706-4a41-8157-762cbce023e4",
+  "url_previa": "https://vietnam.vn/news-sitemap.xml",
+  "url_nueva": "https://vietnam.vn/news-sitemap.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "xataka.com",
+  "fuente_id": "18329db3-f3e6-4537-bb45-e46fc8625892",
+  "url_previa": "https://www.xataka.com/sitemap_news.xml",
+  "url_nueva": "https://www.xataka.com/sitemap_news.xml",
+  "notas": 60,
+  "con_fecha": 60,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "zapala.gob.ar",
+  "fuente_id": "635e0755-d5d8-45f0-a6f0-ea21fb5acb9a",
+  "url_previa": null,
+  "url_nueva": "https://www.zapala.gob.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "sin_url"
+ },
+ {
+  "dominio": "zapala8340.com.ar",
+  "fuente_id": "c1c80d3e-95f1-457c-94be-26d395f1759c",
+  "url_previa": "https://zapala8340.com.ar/?feed=rss2",
+  "url_nueva": "https://zapala8340.com.ar/?feed=rss2",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ },
+ {
+  "dominio": "zaragozayasociados.com.ar",
+  "fuente_id": "8bcbe2a9-3363-4455-8233-5338344f7e21",
+  "url_previa": "https://zaragozayasociados.com.ar/feed/",
+  "url_nueva": "https://zaragozayasociados.com.ar/feed/",
+  "notas": 10,
+  "con_fecha": 10,
+  "grupo": "mal_apuntadas"
+ }
+]
