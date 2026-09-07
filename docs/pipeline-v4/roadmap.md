@@ -2,7 +2,7 @@
 
 El plan de construcción: fases, orden, dependencias y tickets. El **qué y el cómo** (arquitectura, modelo de datos, decisiones, alternativas) están en [`design-doc.md`](./design-doc.md) — este doc no los repite.
 
-**Estado:** en construcción · **Rama:** `feat/pipeline-v4` (fuente de verdad de la v4) · **Última actualización:** 2026-09-07 (**Fase 4 cerrada**: `[F4.4]` el registro de descartes nunca había podido correr, ahora escribe los ocho motivos con el valor que los disparó y es idempotente · `[F4.6]` el corte de fecha sale de `p_fecha` y no del reloj, más la compuerta `fecha_futura` · anti-repetición enganchada y determinística)
+**Estado:** en construcción · **Rama:** `feat/pipeline-v4` (fuente de verdad de la v4) · **Última actualización:** 2026-09-07 (**Fase 4 cerrada** y **el barrido corriendo solo**: `[F4.4]` el registro de descartes nunca había podido correr, ahora escribe los ocho motivos con el valor que los disparó y es idempotente · `[F4.6]` el corte de fecha sale de `p_fecha` y no del reloj, más la compuerta `fecha_futura` · `[F3.8]` los 9 cron encendidos tras tres días sin pool · la v3 confirmada corriendo en la cuenta compartida)
 
 ---
 
@@ -193,7 +193,7 @@ Son **178 y no 130**: a las 130 de `jina` se sumaron 48 que tienen URL cargada p
 
 **Tickets:** `[F2.1]` `sub/fetch-source` ✅ · `[F2.1b]` `sub/fetch-escalera` ✅ · `[F2.3]` medición de cobertura ✅ · `[F2.4]` decisión de gate ✅ (pasa) · `[F2.2]` `wf/descubridor` (A0) ✅ construido y medido · `[F2.2b]` aplicar al catálogo ✅ (152 fuentes, 04/09) · `[F2.2c]` re-correr las 107 "feed válido pero vacío" otro día: un feed vacío hoy puede tener notas mañana · `[F2.5]` dónde vive el proxy AWS en producción · `[F2.6]` dar de baja las 46 fuentes genuinamente inalcanzables (caídas, 404, timeout persistente) · `[F2.7]` separar `transporte` de `metodo_extraccion` ✅ (04/09).
 
-### Fase 3 · Recolector compartido + schema de prueba — `en curso`
+### Fase 3 · Recolector compartido + schema de prueba — `en curso` *(solo queda `[F3.1]`, pospuesto a `[Z.1]`)*
 
 **El recolector está construido y corrió un barrido completo (04/09).** `v4 · wf · recolector (compartido)` — ID `tzcHSIUdMGXVRFIo`, webhook `POST /v4-recolector`, body `{limite, offset, modo}`.
 
@@ -331,7 +331,39 @@ Son **vistas, no un flujo**: `fetch_log` ya tiene un renglón por intento, así 
 
 **Pendiente que destraba el aviso de verdad:** `medios_catalogo.ritmo_publicacion_semanal` está **sin poblar** (todo `NULL`), así que el orden por ritmo de `v4_fuentes_mudas` todavía no prioriza nada. Poblarlo es lo que convierte la lista en una alerta útil: un medio que publica 50 notas por semana y está mudo es un problema; uno que publica una cada tanto, no.
 
-### Fase 4 · Normalización + compuertas — `en curso`
+#### `[F3.8]` los cron encendidos — ✅ (07/09)
+
+**`[F3.4b]` estaba bien cerrado; el cron nacía deshabilitado a propósito.** Su propia nota lo decía: *"NACE DESHABILITADO a propósito: habilitarlo hace que el recolector escriba en la base 9 veces por día sin que nadie lo dispare. Es una decisión, no un default."* Lo que faltaba no era código, era tomar esa decisión. Se tomó el 07/09.
+
+Encendidos los dos cron de la v4:
+
+| Workflow | Cron | Qué hace |
+|---|---|---|
+| `v4 · wf · barrido` | 08 · 11 · 14 · 17 · 20 · 23 · 02 · 05 y **06:30** ART | llena el pool |
+| `v4 · wf · re-verificar estrategia` | diario **07:15** ART | reprueba el transporte de las que empezaron a fallar |
+
+El de re-verificación va entre el barrido de 06:30 y el de 08:00 a propósito: arregla la estrategia justo antes del barrido que alimenta el clipping del día. Cierra el riesgo de *"`medios_estrategia` es una foto del 03/09 y envejece en silencio"*.
+
+**Costo de haberlo dejado apagado: tres días sin pool.** El último barrido había sido el 04/09 19:39, y todas las ejecuciones del driver eran `mode: webhook` — o sea, a mano. Lo del 05, 06 y la mañana del 07 **no se recupera**: los feeds solo traen las últimas N notas y lo que rotó no está en ningún lado.
+
+**Primer barrido con los cron ya encendidos** (disparado a mano para no esperar a las 14:00):
+
+| | |
+|---|---|
+| Pasada | `barrido_2026-09-07_12` · 23 tandas · **0 falladas** · 5m09s |
+| Fuentes | 1.288 · **1.050 ok** |
+| Notas al pool | **33.675** *(33.795 traídas − 120 que descartó el dedup)* |
+| Con fecha confiable | 30.866 · **92%** — mismo ratio que el 04/09 |
+| Dominios que aportaron | 1.044 |
+| Diagnósticos | ok 1.050 · no_visitado 210 · sin_items 12 · timeout 8 · caído 6 · bloqueado 1 · no_es_feed 1 |
+
+`v4_recoleccion_pendientes` quedó en **0**: el barrido la drena entero, que es como está diseñada la reentrancia. Y los 210 `no_visitado` quedaron escritos en `fetch_log` — `[F3.7]` haciendo su trabajo.
+
+**De paso quedó contestado lo que estaba abierto sobre la v3.** Los cuatro clippings del día se generaron entre las **06:50 y 07:42 ART** con `origen='n8n'`: la v3 **está corriendo en la cuenta compartida y el cliente recibe sus clippings**. Los workflows que figuran inactivos en la instancia de Archytas son copias. Verificado además que el barrido no la tocó: escribió a las 11:56–12:01 ART, cuatro horas después, y el recolector no tiene un solo nodo que apunte a `notes`, `clippings`, `exports` ni `medios`.
+
+**Regla que se mantiene:** nada de lo que se construya acá manda mensajes. Los 24 nodos de la cadena (driver + recolector) son `httpRequest` a Supabase o a los proxies de transporte, `code`, `if`, `switch`, `merge` y `webhook`. Cero Slack, cero mail. `sub/slack-notify` y `sub/send-email` de la Fase 6 se van a construir porque están en el diseño, pero **nacen deshabilitados y sin conectar**.
+
+### Fase 4 · Normalización + compuertas — `✅ cerrada (07/09)`
 
 #### Lo primero no era resolver fechas: era sacar la basura de ingesta
 
@@ -617,7 +649,11 @@ Y las compuertas nuevas atraparon lo que tenían que atrapar: **15 notas con fec
 
 **Tickets:** `[F8.1]` arnés de golden · `[F8.2]` staging del piloto · `[F8.3]` cutover de Booking · `[F8.4]` disparador de rollback + monitoreo.
 
-### Fase 9 · Replicar al resto — `pendiente`
+### Fase 9 · Cutover del resto — `pendiente`
+
+> **Se llamaba "Replicar al resto" y el nombre confundía:** hacía pensar que hay que rehacer el pipeline tres veces. **No se construye nada acá.** El recolector, el dedup, `v4_evaluar_candidatas()` y `reglas_filtro` son **uno solo para los cuatro** — el 07/09 los cuatro clientes corrieron por la misma función. Lo único que se instancia ×4 es `wf/armado-cliente`, y eso se construye en la **Fase 6**. Lo demás que cambia por cliente son filas: el prompt de A2, las suscripciones, las secciones y el horario. La Fase 9 son **tres cutovers**, no tres construcciones.
+>
+> **Y van de a uno porque el rollback es por cliente.** El disparador es "dos días fuera de banda o una queja = volver". Prendiendo los cuatro juntos, un problema da cuatro clientes molestos y ninguna forma de saber si falla la arquitectura o la config de uno.
 
 - Mismo pipeline. Cambia el identificador de cliente, el prompt, las suscripciones y el horario. Un cliente nuevo es una fila y un horario.
 - Orden: **BMS → Mars → MSD.** Se confirma con los números de prueba de la Fase 6.
@@ -661,7 +697,7 @@ Desde la Fase 3, el recolector de cada cliente corre en el schema de prueba en p
 - **Configuración del proveedor de proxy:** una de las zonas de la cuenta tiene la IP del servidor de n8n en su lista de bloqueo, y por eso rechazaba todo con 401 aunque la credencial fuera válida. Se resolvió usando otra zona de la misma cuenta, sin tocar la configuración. Queda pendiente entender por qué está ese bloqueo (probablemente explica por qué el nodo equivalente de la v3 quedó apagado y marcado como pendiente).
 - **Flujos en vuelo:** nada de la Fase 0 que toque la cuenta compartida se ejecuta sin coordinarlo con el responsable de esa cuenta.
 - **Zonas horarias:** se resuelve antes de escribir el recolector. Todo en UTC, se decide en hora local; una fecha sin hora nunca se compara contra un corte horario.
-- **Carga de n8n: medida, no estimada.** Un recolector × 9 barridos/día × 1.112 fuentes ≈ **9.250 fetches/día**. Un barrido completo son ~19 tandas y **~3,5 min** de punta a punta, así que las nueve ventanas no se solapan ni cerca. Las tandas van en serie (`batchSize=1`) y la memoria de los cuerpos HTTP queda acotada a una tanda. **Lo que sí hay que vigilar** cuando el cron se encienda: ~180 ejecuciones/día en la lista, y que la duración por barrido no crezca — si un barrido empieza a tardar más de ~15 min, algo se degradó.
+- **Carga de n8n: medida, no estimada.** Un recolector × 9 barridos/día × 1.112 fuentes ≈ **9.250 fetches/día**. Un barrido completo son ~19 tandas y **~3,5 min** de punta a punta, así que las nueve ventanas no se solapan ni cerca. Las tandas van en serie (`batchSize=1`) y la memoria de los cuerpos HTTP queda acotada a una tanda. **Lo que hay que vigilar, ahora que el cron está encendido (07/09):** ~180 ejecuciones/día en la lista, y que la duración por barrido no crezca. **La línea de base es 5m09s** — el barrido del 07/09, 23 tandas, 1.288 fuentes. Si empieza a pasar de ~15 min, algo se degradó.
 - **Segundo proxy en producción:** hoy vive en un proyecto de prueba. Decidir dónde vive antes de la Fase 3.
 - **Límite de la ejecución manual de n8n:** las corridas con volumen alto mueren si se disparan con el botón (n8n retiene el set completo en memoria para mostrarlo en pantalla). Por webhook, el mismo trabajo pasa. Aplica a cualquier flujo masivo de la v4, no solo a la medición.
 - **Drift de migraciones del repo** (preexistente): `supabase db push` no es seguro hasta reconciliar — ticket aparte.
