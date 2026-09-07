@@ -598,7 +598,47 @@ Y las compuertas nuevas atraparon lo que tenían que atrapar: **15 notas con fec
 
 **Lo único que quedó afuera y hay que preguntarle a Ketchum:** si el clipping de la mañana tiene que traer la nota publicada anoche a las 23:00. Con el corte elegido no la trae. Es una línea de cambio, pero es decisión del cliente, no nuestra.
 
-### Fase 5 · Los agentes — `pendiente`
+### Fase 5 · Los agentes — `arrancada (07/09)`
+
+#### `[F5.2a]` `sub/fetch-page` y la escalera para las sin feed — ✅ (07/09)
+
+**`sub/open-article` eran dos trabajos con el mismo nombre.** El design doc lo describe como *"abre una nota individual (para A1)"* y el roadmap además le asignaba las 178 fuentes `html`. Son cosas distintas: para A1 la entrada es **una nota** y la salida **su cuerpo**; para las 178 la entrada es **la home de un medio** y la salida **una lista de N notas**. Mismo transporte, contrato de salida distinto.
+
+Se partió en **`sub/fetch-page`** (el ladrillo: URL + transporte → HTML crudo) y dos consumidores encima. Así el de la lista se entrega ya, sin esperar a la Fase 5, y A1 reusa el mismo ladrillo cuando llegue.
+
+**No hubo que tocar el proxy:** el worker de Cloudflare ya tenía `&raw=1`.
+
+#### El transporte de las páginas no se parece al de los feeds
+
+Medido el 07/09 sobre 40 de las 178, subiendo la escalera completa:
+
+| | Feeds (03/09) | Páginas (07/09) |
+|---|---|---|
+| Abren por **directo** | 138 de 1.260 · 11% | **27 de 40 · 68%** |
+| Abren por cloudflare | 774 · 61% | 0 *(no hicieron falta)* |
+
+**La decisión 10 —"el proxy no es el plan B, es el camino principal"— vale para feeds, no para páginas.** Tiene sentido visto de atrás: una home está hecha para que la visiten; un `/feed/` o un `sitemap.xml` es justo lo que los CDN protegen. **Consecuencia práctica: el camino HTML no consume cuota de proxy.**
+
+**27/40 abren (68%)**, y **23 de esas 27 usaron la URL derivada** de `https://dominio` — la heurística para las 113 sin `url_recurso` se sostiene. No se persiste ninguna URL adivinada hasta que abra: guardar una que nunca se probó es peor que no tener ninguna, porque parece dato.
+
+*Caveat: en `modo=test` la consulta devuelve siempre las mismas 40 alfabéticas. El 68% es una estimación gruesa, no un dato sobre las 178.*
+
+#### Dos bugs propios, encontrados por los datos
+
+- **`$('Entrada').first()`** en el normalizador, copiado del patrón de `sub/fetch-source`. n8n manda los N items en **una sola sub-ejecución**, así que los N resultados se creían el primer dominio: `9dejulio.gob.ar` aparecía dos veces con diagnósticos distintos. Ahora usa `$itemIndex`. **`sub/fetch-source` tiene el mismo patrón** — hoy no le duele porque la escalera lo llama de a uno, pero está anotado.
+- **HTTP 405 caía en `vacio`.** Un sitio que rechaza el método no es una página sin links: uno se arregla cambiando el pedido, el otro no se arregla. Ahora es `metodo_rechazado`.
+
+#### Lo que falta antes de encender las 178
+
+**La vista `v4_recoleccion_pendientes` ya las incluye** — el roadmap decía que no entraban hasta que existiera `open-article` y **era falso**: la condición es `metodo_extraccion='html'` a secas, sin mirar el transporte. Por eso el barrido reporta 210 `no_visitado`.
+
+Entonces **persistir el transporte antes de que exista el extractor sería prender el motor sin la caja**: el recolector iría a las 178 nueve veces por día, recibiría HTML, diría "esto no es un feed" y traería cero notas. ~1.600 visitas diarias a cambio de nada. **El orden correcto es extractor primero, `modo=prod` después.**
+
+**Tickets:** `[F5.2a]` `sub/fetch-page` + `wf/medir-html` con escalera ✅ · **`[F5.2b]` el extractor** (HTML → notas con link, título y fecha) ← *acá estamos* · `[F5.2c]` correr las 178 en `modo=prod`.
+
+---
+
+**Lo que sigue de la fase, bloqueado por decisiones:**
 
 - **`sub/llm-call`** compartido: llamada + un retry + backoff 429 + tope de tokens/cliente/día + registro de tokens y costo.
 - **`sub/agent-A1` (completador):** detecta qué falta y lo busca; limpia HTML, corta el sufijo del medio en títulos, reemplaza descripción cruzada.
@@ -665,7 +705,7 @@ Y las compuertas nuevas atraparon lo que tenían que atrapar: **15 notas con fec
 
 ## 4. Camino crítico
 
-~~`Fase 0`~~ *(omitida por decisión del 04/09 — ver abajo)* → `Fase 1` ✅ → `Fase 2` ✅ (gate · descubridor · catálogo aplicado · `metodo_extraccion`) → `Fase 3` (recolector ✅, dedup ✅, barrido automático ✅; falta sincronizar `test`) → `Fase 4` ✅ (07/09) → **`Fase 5`** ← acá estamos → `Fase 6` → `Fase 8` (piloto) → `Fase 9`
+~~`Fase 0`~~ *(omitida por decisión del 04/09 — ver abajo)* → `Fase 1` ✅ → `Fase 2` ✅ (gate · descubridor · catálogo aplicado · `metodo_extraccion`) → `Fase 3` (recolector ✅, dedup ✅, barrido automático ✅; falta sincronizar `test`) → `Fase 4` ✅ (07/09) → **`Fase 5`** ← acá estamos (arrancada: fetch-page ✅, falta el extractor) → `Fase 6` → `Fase 8` (piloto) → `Fase 9`
 
 **Por qué la Fase 2 se cerró antes de arrancar la 3:** el descubridor reescribe `url_feed` y `medios_estrategia`, que es exactamente lo que el recolector de la Fase 3 lee. Construir el recolector contra un catálogo que está por moverse obliga a re-verificar todo después. Se aplicó primero lo encontrado y se separó `metodo_extraccion`, así el recolector se escribe una sola vez contra un modelo que no se va a mover.
 

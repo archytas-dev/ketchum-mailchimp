@@ -1,0 +1,109 @@
+{
+  "_nota": "Export de `v4 · sub · fetch-page` (id kwyBxom1AVrwQJ8m) en la instancia ketchum-n8n. Fuente de verdad = la instancia; este archivo es respaldo versionado. Hermano de sub/fetch-source: mismo transporte, distinta salida — este devuelve el HTML crudo, no items de feed.",
+  "name": "v4 · sub · fetch-page",
+  "settings": { "executionOrder": "v1", "timezone": "America/Argentina/Buenos_Aires" },
+  "nodes": [
+    {
+      "id": "trg",
+      "name": "Entrada",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 416],
+      "parameters": { "inputSource": "passthrough" },
+      "notes": "Contrato IN: { dominio_norm, url, transporte }.\ntransporte = UNO solo (directo|cloudflare|aws). La escalera la maneja el que llama, no este subwf.\n\nContrato OUT: { dominio_norm, url, transporte, http_status, diagnostico, html, bytes, truncado }."
+    },
+    {
+      "id": "sw",
+      "name": "Switch transporte",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [224, 368],
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 }, "combinator": "and", "conditions": [{ "leftValue": "={{ $json.transporte }}", "rightValue": "directo", "operator": { "type": "string", "operation": "equals" } }] }, "renameOutput": true, "outputKey": "directo" },
+            { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 }, "combinator": "and", "conditions": [{ "leftValue": "={{ $json.transporte }}", "rightValue": "cloudflare", "operator": { "type": "string", "operation": "equals" } }] }, "renameOutput": true, "outputKey": "cloudflare" },
+            { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose", "version": 1 }, "combinator": "and", "conditions": [{ "leftValue": "={{ $json.transporte }}", "rightValue": "aws", "operator": { "type": "string", "operation": "equals" } }] }, "renameOutput": true, "outputKey": "aws" }
+          ]
+        },
+        "options": { "fallbackOutput": "extra", "renameFallbackOutput": "directo_default" }
+      }
+    },
+    {
+      "id": "hd",
+      "name": "HTTP directo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [448, 160],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 15000,
+          "redirect": { "redirect": { "followRedirects": true, "maxRedirects": 5 } },
+          "response": { "response": { "fullResponse": true, "neverError": true, "responseFormat": "text" } },
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "notes": "responseFormat=text porque esperamos HTML, no JSON. neverError para poder diagnosticar el 4xx/5xx en vez de romper.\n\nMEDIDO 07/09: para paginas, el directo abre 27 de 40. Para feeds abria 138 de 1.260. Son dos poblaciones distintas: una home esta hecha para que la visiten, un /feed/ es justo lo que los CDN protegen."
+    },
+    {
+      "id": "hc",
+      "name": "HTTP Cloudflare (raw)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [448, 368],
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "id": "odT5yjmKpIORGZjK", "name": "Ketchum — Fetch Proxy (Cloudflare)" } },
+      "parameters": {
+        "url": "=https://ketchum-fetch-proxy.hola-e13.workers.dev/?raw=1&url={{ encodeURIComponent($json.url) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "timeout": 25000, "response": { "response": { "fullResponse": true, "neverError": true, "responseFormat": "text" } } }
+      },
+      "notes": "raw=1 devuelve los bytes tal cual en vez del JSON con items parseados.\n\nOJO, dos trampas del worker en modo raw:\n1. SIEMPRE responde HTTP 200. El status real del medio viene en el header X-Upstream-Status. Por eso fullResponse: sin headers no hay diagnostico.\n2. Si el fetch al medio se cae, el worker entra en su catch y devuelve JSON ({ok:false,diagnostico}), no texto. El normalizador lo detecta."
+    },
+    {
+      "id": "ha",
+      "name": "HTTP AWS (raw)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [448, 576],
+      "onError": "continueRegularOutput",
+      "credentials": { "httpHeaderAuth": { "id": "LLdAbQUu6q9ChKPG", "name": "Ketchum — Fetch Proxy (AWS/Supabase)" } },
+      "parameters": {
+        "url": "=https://tufgbajqgjkwqwskkcam.supabase.co/functions/v1/fetch-proxy?raw=1&url={{ encodeURIComponent($json.url) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "timeout": 25000, "response": { "response": { "fullResponse": true, "neverError": true, "responseFormat": "text" } } }
+      },
+      "notes": "El proxy AWS es una Edge Function y NO se verifico que soporte raw=1. Si no lo soporta devuelve el JSON con items parseados; el normalizador lo marca como diagnostico='sin_raw' en vez de inventar un HTML vacio. Eso nos dice que hay que agregarle el modo raw, en vez de que falle en silencio."
+    },
+    {
+      "id": "norm",
+      "name": "Normalizar → contrato de pagina",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 416],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Unifica las tres ramas en un contrato unico. Devuelve HTML, no items:\n// quien extrae las notas es el consumidor, no este ladrillo.\n// $itemIndex, NO .first(): n8n manda todos los items en UNA sub-ejecucion, asi\n// que con .first() los N resultados se creen el primer dominio. Se vio en la\n// primera prueba: 9dejulio.gob.ar aparecia dos veces con diagnosticos distintos.\nconst _entradas = $('Entrada').all();\nconst req = (_entradas[$itemIndex] || _entradas[0] || { json: {} }).json;\nconst inp = $json;\nconst transporte = req.transporte || 'directo';\n\n// Tope de memoria. Medido en la Fase 3: 35 dominios con HTML retienen ~21 MB en\n// el nodo HTTP y 70 matan el proceso. Una home puede pesar megas, asi que se\n// corta y se avisa con `truncado` en vez de arrastrar todo y morir.\nconst TOPE = 800 * 1024;\n\nfunction host(u){ try { return (String(u).split('//')[1]||String(u)).split('/')[0].replace(/^www\\./,'').toLowerCase(); } catch(e){ return null; } }\n\nconst r = {\n  dominio_norm: req.dominio_norm || host(req.url || ''),\n  url: req.url || null,\n  transporte,\n  http_status: null,\n  diagnostico: null,\n  html: null,\n  bytes: 0,\n  truncado: false\n};\n\n// --- de donde sale el cuerpo y el status, segun la rama ---\nlet body = inp.data ?? inp.body ?? (typeof inp === 'string' ? inp : '');\nif (typeof body !== 'string') body = JSON.stringify(body);\n\nconst headers = inp.headers || {};\n// El worker en modo raw siempre responde 200 y pone el status del medio aca.\nconst upstream = headers['x-upstream-status'] ?? headers['X-Upstream-Status'] ?? null;\nlet status = upstream !== null ? parseInt(upstream, 10) : (inp.statusCode ?? inp.status ?? null);\n\n// El proxy pudo caer en su catch y devolver JSON en vez de texto, o el de AWS\n// pudo ignorar raw=1 y mandar el contrato con items. Los dos casos son JSON.\nif (body && body.trimStart().startsWith('{')) {\n  let j = null;\n  try { j = JSON.parse(body); } catch(e) { j = null; }\n  if (j && typeof j === 'object') {\n    if (Array.isArray(j.items)) {\n      r.http_status = j.upstream_status ?? status;\n      r.diagnostico = 'sin_raw';\n      return { json: r };\n    }\n    if (j.ok === false || j.diagnostico) {\n      r.http_status = j.upstream_status ?? status;\n      // error_red no esta en el vocabulario del resto; se aplana a timeout.\n      r.diagnostico = (j.diagnostico === 'error_red') ? 'timeout' : (j.diagnostico || 'timeout');\n      return { json: r };\n    }\n  }\n}\n\nif (inp.error || status === null || status === 0) { r.http_status = status; r.diagnostico = 'timeout'; return { json: r }; }\n\nr.http_status = status;\nif (status === 403 || status === 401) { r.diagnostico = 'bloqueado'; return { json: r }; }\nif (status === 404) { r.diagnostico = 'no_existe'; return { json: r }; }\nif (status === 429) { r.diagnostico = 'rate_limit'; return { json: r }; }\n// 405/400: el sitio rechaza el pedido tal como se lo hacemos. NO es 'vacio' —\n// visto en buscojobs.com.ar, que devolvia 405 y quedaba como 'pagina sin links'.\n// Distinguirlo importa: uno se arregla cambiando el pedido, el otro no se arregla.\nif (status === 405 || status === 400) { r.diagnostico = 'metodo_rechazado'; return { json: r }; }\nif (status >= 500) { r.diagnostico = 'caido'; return { json: r }; }\n\nr.bytes = body.length;\nif (r.bytes > TOPE) { body = body.slice(0, TOPE); r.truncado = true; }\nr.html = body;\n\n// 'ok' = vino algo de donde se puedan sacar notas. Sin un solo <a href> no hay\n// nada que extraer, y eso es distinto de un 200 con la pagina vacia.\nr.diagnostico = /<a\\s[^>]*href/i.test(body) ? 'ok' : 'vacio';\nreturn { json: r };\n"
+      },
+      "notes": "Vocabulario de diagnostico: ok · timeout · bloqueado · no_existe · rate_limit · metodo_rechazado · caido · vacio · sin_raw.\n\nNo escribe en fetch_log a proposito: este subwf hace UNA cosa. El registro lo hace el consumidor en bulk, como ya lo hace wf/recolector."
+    }
+  ],
+  "connections": {
+    "Entrada": { "main": [[{ "node": "Switch transporte", "type": "main", "index": 0 }]] },
+    "Switch transporte": {
+      "main": [
+        [{ "node": "HTTP directo", "type": "main", "index": 0 }],
+        [{ "node": "HTTP Cloudflare (raw)", "type": "main", "index": 0 }],
+        [{ "node": "HTTP AWS (raw)", "type": "main", "index": 0 }],
+        [{ "node": "HTTP directo", "type": "main", "index": 0 }]
+      ]
+    },
+    "HTTP directo": { "main": [[{ "node": "Normalizar → contrato de pagina", "type": "main", "index": 0 }]] },
+    "HTTP Cloudflare (raw)": { "main": [[{ "node": "Normalizar → contrato de pagina", "type": "main", "index": 0 }]] },
+    "HTTP AWS (raw)": { "main": [[{ "node": "Normalizar → contrato de pagina", "type": "main", "index": 0 }]] }
+  }
+}
