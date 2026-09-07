@@ -700,7 +700,26 @@ Seis filtros en orden: mismo dominio → fuera navegación por ruta y por extens
 
   Hizo falta un índice nuevo: el único que había era `(fecha, url_canonica)`, que no sirve para buscar por URL sola porque `fecha` es la columna líder. Se agregó `(url_canonica, fecha)`.
 
-**Tickets:** `[F5.2a]` `sub/fetch-page` + `wf/medir-html` con escalera ✅ · `[F5.2b]` el extractor — **en curso**, falta encoding y medir el volumen sin fecha · `[F5.2c]` correr las 178 en `modo=prod` — **después de las dos anteriores**.
+#### `[F5.2b-iii]` las fuentes sin feed salen del recolector de feeds — ✅ (07/09)
+
+**Estuvo a punto de pasar sin que nadie lo viera.** `v4_recoleccion_pendientes` incluía `metodo_extraccion='html'` **sin mirar el transporte**. Mientras esas fuentes no lo tenían, no molestaba: quedaban como `no_visitado` —los 210 de cada barrido—. Pero apenas se les escribiera el transporte, el recolector de **feeds** las iba a agarrar, pedirles la página, recibir HTML, decir *"esto no es un feed"* y traer **cero notas**, nueve veces por día. ~1.600 visitas diarias a cambio de nada.
+
+Se partió en dos vistas en vez de meterle una rama al recolector principal: ese flujo ya está probado y le costó cuatro bugs encontrados a los golpes; abrirlo para esto es arriesgar lo que funciona. Y separados, cada uno tiene su tanda y su tope de memoria — **154 KB por página medidos, contra unos pocos KB de un feed**.
+
+| Vista | Quién la lee | Qué trae |
+|---|---|---|
+| `v4_recoleccion_pendientes` | `wf/recolector` | solo `feed`, con transporte y URL usable |
+| `v4_recoleccion_html_pendientes` | `wf/recolector-html` | solo `html`, **con transporte ya medido** |
+
+Y `wf/barrido-html`, el driver que las drena por tandas de 10, con los mismos 9 cron **15 minutos después** que el de feeds para no pisarse. Mientras ninguna fuente `html` tenga transporte, la vista está vacía y no hace nada.
+
+**Tres cosas que faltaban y aparecieron probando en vacío:**
+
+- **`recolector-html` no escribía `fetch_log`.** Sin eso la vista no se vacía sola, el barrido no converge y cada tanda vuelve a traer lo mismo — es el bug que ya costó cuatro tandas repetidas en la Fase 3. Va en rama **paralela** a la escritura de candidatas, no encadenado, que es la otra lección de esa fase.
+- **`fetch_log.diagnostico` tiene vocabulario cerrado** y `fetch-page` usa cuatro que no están (`vacio`, `charset_roto`, `metodo_rechazado`, `sin_raw`). Con el insert en bulk, **una fila inválida mata el lote entero**. Se acotó al enum: `vacio→sin_items`, `charset_roto→ok` (trajo la página; el charset lo resuelve la escalera), los otros dos a `error`.
+- **Con la vista vacía, el webhook no respondía.** PostgREST devuelve `[]`, n8n produce **cero items** y saltea todo lo que sigue, así que `Responder` nunca corría. Y la vista se vacía al final de **cada** barrido: no es un caso raro, es el de todos los días. Se arregla con `alwaysOutputData` en el nodo de lectura. *(Chequeado: el recolector de feeds ya lo tenía.)*
+
+**Tickets:** `[F5.2a]` `sub/fetch-page` + `wf/medir-html` con escalera ✅ · `[F5.2b]` el extractor ✅ · `[F5.2b-i]` charset ✅ *(vía escalera, sin desplegar)* · `[F5.2b-ii]` compuerta anti-evergreen ✅ · `[F5.2b-iii]` separación de vistas + `wf/barrido-html` ✅ · **`[F5.2c]` correr las 178 en `modo=prod`** ← *lo único que queda, y ya no está bloqueado*.
 
 ---
 

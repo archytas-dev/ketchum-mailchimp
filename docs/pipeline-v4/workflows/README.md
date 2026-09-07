@@ -24,7 +24,8 @@ Respaldo de referencia. La **fuente de verdad es la instancia** `ketchum-n8n`
 | `v4 · wf · re-verificar estrategia` | `y5UXitrQdQ5UkKL4` | reprueba el transporte de las que empezaron a fallar | activo · **cron 07:15 ART desde el 07/09** |
 | `v4 · wf · descubridor (A0)` | `nvShglwLuHqgF5cp` | busca feeds que no sabíamos que existían | **inactivo** — se dispara a mano |
 | `v4 · wf · medir-html (escalera)` | `wqHvLCVH4mcTWdvl` | sube la escalera sobre las 178 sin feed y guarda el transporte ganador | activo · webhook `v4-medir-html` · **07/09** |
-| `v4 · wf · recolector-html` | `p6MFCVE8Ggx65Npq` | espejo del recolector para las sin feed: extrae las notas del HTML de la home | activo · webhook `v4-recolector-html` · **07/09** |
+| `v4 · wf · recolector-html` | `p6MFCVE8Ggx65Npq` | espejo del recolector para las sin feed: extrae las notas del HTML de la home. Lee `v4_recoleccion_html_pendientes` | activo · webhook `v4-recolector-html` · **07/09** |
+| `v4 · wf · barrido-html` | `Zm8OhzNmu0uLs2JA` | driver del anterior: lo drena por tandas de 10 | activo · **9 cron ART, 15 min despues que el de feeds** + webhook `v4-barrido-html` · **07/09** |
 
 ## Herramientas de un solo uso (Fase 2, ya cumplieron)
 
