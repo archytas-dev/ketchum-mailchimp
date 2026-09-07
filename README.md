@@ -78,10 +78,24 @@ como red de seguridad, así que conviene arreglarla antes del próximo cambio gr
 
 Viven en `supabase/migrations/`. Se aplican con `npx supabase db push`.
 
-⚠️ **El historial de migraciones local y el de producción no coinciden.** Producción tiene
-migraciones que no están en el repo (entre ellas las del 19/08, el cutover). `db push` y
-`db pull` fallan hasta que se repare el historial. Si necesitás consultar producción sin
-resolver eso, `npx supabase db query --linked -f archivo.sql` funciona igual — es solo lectura.
+✅ **Historial reconciliado el 07/09/2026.** Antes el repo tenía 41 archivos contra 69
+migraciones aplicadas en producción, así que `db push` y `db pull` fallaban. Se bajaron las
+**28 que faltaban** (desde `supabase_migrations.schema_migrations`, que guarda el SQL exacto)
+y se renumeraron **9** que estaban con un timestamp distinto al del registro. Ahora son
+**69 = 69, sin diferencias en ninguna dirección**.
+
+> Lo que se verificó es que **el historial coincide**, que era el bloqueante. Un `db push`
+> end-to-end no se probó — eso necesita el link y la password de la base.
+
+**Cómo no volver a romperlo:** si aplicás un cambio con las herramientas de Supabase en vez de
+`db push`, la base queda con una migración que el repo no tiene. Cuando pase, bajala:
+>
+> ```sql
+> select version, name, array_to_string(statements, ';') from supabase_migrations.schema_migrations
+> where version > '<la ultima que tengas en el repo>' order by version;
+> ```
+>
+> y guardala como `supabase/migrations/<version>_<name>.sql`, con el **mismo** número.
 
 ## Cosas que conviene saber antes de tocar
 
