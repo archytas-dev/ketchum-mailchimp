@@ -817,7 +817,46 @@ El consumo sale del ledger, no de un contador aparte: **un contador propio es un
 
 **Un bug propio, encontrado probando:** la rama falsa de `¿registrar?` no iba a ningún lado, así que en modo test el subworkflow terminaba sin emitir nada y quien lo llamaba recibía `{}`. Ahora hay un punto único de salida.
 
-**Tickets:** `[F5.0]` prompts migrados ✅ · `[F5.1]` `sub/llm-call` ✅ · `[F5.2]` el camino HTML ✅ · **`[F5.3]` `sub/agent-A1`** · `[F5.4]` `sub/agent-A2` · `[F5.5]` `sub/agent-A3`.
+#### `[F5.4]` `sub/agent-A2`, el juez — ✅ (07/09)
+
+El prompt de la v3 solo devolvía `{"ids":[...]}`. Se le agregó una **adenda v2** que cambia **solo el formato de salida** —suma sección y confianza— y deja intactas las reglas de país, agenda temática y exclusiones, afinadas hace meses. **`v1` queda archivada:** si la v2 resulta peor, se vuelve con un `update`. Para eso estaba el versionado de `client_prompts`.
+
+**Las secciones no van dentro del prompt**, van en el mensaje de cada llamada leídas de la tabla. El equipo las edita desde la app; meterlas en el prompt obligaría a re-versionarlo cada vez que agregan una.
+
+**Probado con un lote mixto de 5 notas:** entran 3, no entran 2, sin veredicto 0, forzadas 1 · 3.722 tokens · USD 0,0101.
+
+| Nota | Veredicto | |
+|---|---|---|
+| Booking cambia cancelaciones | **Exclusiva** (0.95) | ✅ |
+| Despegar compró una operadora | **Competencia** (0.92) | ✅ competidor, no exclusiva |
+| Día de la Botánica · recital | descartadas (0.90) | ✅ |
+| Red de gas, **marcada prioritaria** | Exclusiva, **FORZADA** | ⚠️ |
+
+**Esa última es la prueba que importa.** La nota no tiene nada que ver con turismo y el modelo dijo que no entraba. **El código se lo pisó**, porque el diseño manda que el A2 no puede descartar una fuente prioritaria — solo decidir su sección. Salió marcada `forzada` con el motivo escrito: el juez dijo una cosa, la regla dijo otra, y eso queda registrado en vez de resolverse en silencio.
+
+> **Tres cosas se aplican en código y no en el prompt**, porque una instrucción se puede ignorar y una línea de código no: no puede descartar prioritarias · no puede inventar secciones (se acota a la lista del cliente) · ninguna nota se pierde — sin veredicto sale marcada `sin_veredicto`, no desaparece.
+
+#### `[F5.2]` `sub/open-article` — ✅ (07/09)
+
+El hermano de `recolector-html`: aquel abre la **home** y saca una lista, este abre **una nota** y saca su contenido. Los dos sobre `sub/fetch-page`.
+
+**Medido sobre 8 notas reales sin fecha, de fuentes `html`:**
+
+| | |
+|---|---|
+| Abrieron | **8 de 8** |
+| Con copete recuperado | **8 de 8** |
+| **Con fecha recuperada** | **2 de 8 · 25%** |
+
+**El 25% es el dato honesto, y es menos de lo que esperaba.** La idea era que la página de una nota declara su fecha aunque la home no lo diga — y es cierto, pero solo en una de cada cuatro. Las dos que aparecieron salieron de `article:published_time` y de `<time datetime>`.
+
+**No reemplaza a `vista_antes_sin_fecha`, la complementa:** el 25% que sí trae fecha se puede envejecer bien, y el resto sigue cayendo en la heurística de "primera vez que la vimos".
+
+La prioridad es siempre lo **declarado** por el sitio —`article:published_time` → JSON-LD `datePublished` → `<time datetime>`— nunca deducido del texto. Se descartan fechas del futuro (dato roto, no primicia) y anteriores al 2000 (página de archivo mal etiquetada). Si no hay ninguna, `null`: inventarla es el riesgo *"fecha fresca-falsa"* del design doc.
+
+**Un defecto que encontraron los datos:** un título salió como `&#34South Park&#34` — entidades HTML **sin punto y coma**, que ningún decodificador estándar toma. Ahora se decodifican las numéricas con el `;` opcional. Es exactamente el tipo de título roto que llega tal cual al cliente si nadie lo mira.
+
+**Tickets:** `[F5.0]` prompts migrados ✅ · `[F5.1]` `sub/llm-call` ✅ · `[F5.2]` camino HTML + `sub/open-article` ✅ · **`[F5.3]` `sub/agent-A1`** ← *lo que sigue* · `[F5.4]` `sub/agent-A2` ✅ · `[F5.5]` `sub/agent-A3`.
 
 - ~~**`sub/llm-call`** compartido: llamada + un retry + backoff 429 + tope de tokens/cliente/día + registro de tokens y costo.~~ ✅
 - **`sub/agent-A1` (completador):** detecta qué falta y lo busca; limpia HTML, corta el sufijo del medio en títulos, reemplaza descripción cruzada.
