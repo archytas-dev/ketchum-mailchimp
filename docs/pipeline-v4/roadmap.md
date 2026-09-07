@@ -2,7 +2,7 @@
 
 El plan de construcción: fases, orden, dependencias y tickets. El **qué y el cómo** (arquitectura, modelo de datos, decisiones, alternativas) están en [`design-doc.md`](./design-doc.md) — este doc no los repite.
 
-**Estado:** en construcción · **Rama:** `feat/pipeline-v4` (fuente de verdad de la v4) · **Última actualización:** 2026-09-07 (`[F4.4]` cerrado: el registro de descartes nunca había podido correr, ahora escribe los seis motivos con el valor que los disparó y es idempotente · `es_repetida()` enganchada · nuevo `[F4.6]`: la antigüedad se mide contra `now()` y eso rompe el golden)
+**Estado:** en construcción · **Rama:** `feat/pipeline-v4` (fuente de verdad de la v4) · **Última actualización:** 2026-09-07 (**Fase 4 cerrada**: `[F4.4]` el registro de descartes nunca había podido correr, ahora escribe los ocho motivos con el valor que los disparó y es idempotente · `[F4.6]` el corte de fecha sale de `p_fecha` y no del reloj, más la compuerta `fecha_futura` · anti-repetición enganchada y determinística)
 
 ---
 
@@ -483,18 +483,24 @@ Eso valida una decisión del diseño v4 que parecía un detalle: `url_canonica()
 
 **No era "falta correrla": no podía correr.** El bloque de registro insertaba sin `fase`, que es `NOT NULL` y sin default, así que **toda** llamada con `p_registrar=true` —que es el **default**— moría en `23502`. Por eso `notas_descartadas` tenía **0 filas** con `etapa='compuerta'`: las mediciones del 04/09 salieron todas pasando `p_registrar=false` explícitamente, y nadie notó que el camino por default estaba roto.
 
-Y aun arreglando eso, el bloque solo miraba los descartes **por regla**. El embudo real de Booking dice que eso es el 7%:
+Y aun arreglando eso, el bloque solo miraba los descartes **por regla**. El embudo real de Booking dice que eso es el 9% *(números finales, ya con el corte de `[F4.6]`)*:
 
 | Motivo | Notas | ¿Quedaba registrado antes? |
 |---|---|---|
-| Antigüedad | 4.813 | ❌ |
-| Título pobre | 341 | ❌ |
+| Antigüedad | 2.625 | ❌ |
+| Título pobre | 874 | ❌ |
 | Markdown roto en el título | 162 | ✅ |
 | Otro mercado | 95 | ✅ |
 | Portal de empleo | 61 | ✅ |
 | URL de home o de comentarios | 25 | ✅ |
-| **Ya enviada** (historial) | **9** | ❌ *(la compuerta ni existía)* |
+| **Ya enviada** (historial) | **16** | ❌ *(la compuerta ni existía)* |
 | Aviso de empleo por título | 3 | ✅ |
+| Repetida en el día | 2 | ❌ |
+| Fecha futura | 1 | ❌ *(la compuerta ni existía)* |
+| **Total descartes** | **3.864** | |
+| **Candidatas** | **1.710** | |
+
+**El embudo cierra exacto:** 3.864 + 1.710 = 5.574 suscritas. Ninguna nota se pierde sin dejar dicho por qué — que es la condición para que la pantalla "Notas que no entraron" signifique algo.
 
 Tres arreglos más, cada uno con su motivo:
 
@@ -517,7 +523,34 @@ Correr `normalizar_y_compuertas(cliente, '2026-09-04')` **hoy** (07/09) no da lo
 
 Casi el doble de descartes, sobre los mismos datos. Y contradice lo que este mismo doc afirma en `[F4.2]`: *"dos corridas del mismo día dan lo mismo — es un test del golden"*. **Es cierto solo dentro de la misma ventana de 24 h.** La Fase 8 compara la v4 contra la v3 sobre un día ya pasado: tal como está, el arnés de golden mediría la diferencia entre dos relojes y la leería como una diferencia de criterio.
 
-**No lo arreglé todavía porque el arreglo esconde una decisión de producto**, y no es mía: si "últimas 24 h" significa *24 h rodantes desde el instante de la corrida* (entonces la función necesita un `p_corte timestamptz` que producción pasa como `now()` y el golden pinea) o *publicada el día del clipping* (entonces el corte sale de `p_fecha` y la función se vuelve determinística sola). La primera conserva el comportamiento actual; la segunda es más simple y más fácil de explicarle al cliente. **Va como `[F4.6]` y bloquea el arnés de golden de la Fase 8.**
+#### `[F4.6]` el corte sale de la fecha, no del reloj — ✅ (07/09)
+
+**Decidido: "el clipping del martes trae lo publicado el martes".** El corte es el fin del día `p_fecha` en hora local (`America/Argentina/Buenos_Aires`), así que `normalizar_y_compuertas(cliente, '2026-09-04')` da lo mismo se corra hoy, mañana o en la Fase 8.
+
+**Lo que cambia y se acepta a sabiendas:** una nota publicada el lunes 23:00 **ya no entra** en el clipping del martes. Antes entraba —a las 06:30 tenía 7 h de vida—. Si Ketchum espera ver la nota de anoche, el corte se corre; pero se corre **en un solo lugar** y sigue siendo determinístico. Vale preguntárselo.
+
+**La alternativa que se descartó, anotada por las dudas:** agregar `p_corte timestamptz default now()`, que producción pase `now()` y el golden pinee el instante de la corrida original. Conservaba el comportamiento exacto de hoy y no cambiaba nada para el cliente. **Se descartó porque deja el bug vivo:** depende de que todo llamador nuevo se acuerde de pasar el parámetro, y si se olvida el problema vuelve en silencio. `[F4.4]` es la prueba de que eso no se sostiene — `p_registrar=true` estuvo roto tres días justamente porque nadie ejecutó el camino por default. Si algún día Ketchum pide las 24 h rodantes de verdad, este es el camino y el cambio es de una línea.
+
+**La ventana tiene dos bordes, y el de arriba estaba abierto.** El pool del 04/09 tiene **11 notas fechadas después de ese día, una en 2029**. Nunca eran "viejas", así que entraban siempre — y como el orden de salida es `fecha_pub desc`, **encabezaban el clipping**. Es el riesgo *"fecha fresca-falsa"* del design doc por el lado que no habíamos mirado. Ahora hay compuerta `fecha_futura`, y va **antes que la marca del cliente**: una fecha imposible es un defecto del dato, no un juicio de relevancia.
+
+**El otro `now()` también se cerró, sin tocar producción.** `es_repetida()` medía contra `current_date - 30`, y **`import_clipping()` —que está en producción— la usa**, así que cambiarle la firma no era una opción. La regla se mudó a **`es_repetida_al(client, url_ya_canonizada, fecha)`**, determinística, y `es_repetida()` quedó como fachada que delega pasando `current_date`. Una sola definición de la regla, dos puertas de entrada: la v3 sigue entrando por donde entraba.
+
+**De paso resolvió un problema de performance que recién apareció acá.** Con el corte viejo sobrevivían 74 notas, así que la compuerta anti-repetición se llamaba 74 veces. Con el corte nuevo sobreviven miles, y **la primera corrida de los cuatro clientes se murió por `statement timeout`**: cada llamada recalculaba `url_canonica()` —con su decode base64— sobre una URL que **ya estaba canonizada en una columna generada**. Pasarle esa columna, en vez de la URL cruda, convierte la compuerta en un lookup contra el índice único `(client_id, url_norm)`. Verificado que la columna generada no quedó desactualizada tras `[F4.1]`: 0 de 20.000 difieren.
+
+> **La lección, que aplica a las Fases 5 y 6:** una compuerta barata cuando descarta casi todo se vuelve cara cuando deja pasar. El costo de una etapa hay que medirlo con el volumen que va a tener *después* de arreglar la etapa anterior, no con el de hoy.
+
+**Los cuatro clientes, con todo aplicado:**
+
+| Cliente | Suscritas | Descartes | Candidatas |
+|---|---|---|---|
+| MSD | 21.891 | 15.973 | **5.918** |
+| BMS | 15.377 | 9.916 | **5.461** |
+| Mars | 14.255 | 8.864 | **5.391** |
+| Booking | 5.574 | 3.864 | **1.710** |
+
+**Determinismo verificado:** dos corridas seguidas de Booking dan 1.710 las dos veces, y `notas_descartadas` queda en **38.617 filas, 38.617 únicas**.
+
+Y las compuertas nuevas atraparon lo que tenían que atrapar: **15 notas con fecha futura** (9 BMS, 3 Mars, 2 MSD, 1 Booking), **43 ya enviadas** en los 30 días previos, y **46 Bruno Mars** que la desambiguación de Mars sacó antes de que la marca las hiciera prioritarias.
 
 - Completar `url_canonica` con el decode de los redirectores del agregador.
 - `normalizar_y_compuertas()`: normaliza → resuelve fecha (cascada, nunca inventa) → deduplica (una regla) → tres compuertas.
@@ -527,9 +560,11 @@ Casi el doble de descartes, sobre los mismos datos. Y contradice lo que este mis
 
 **Cierra:** el grueso de "fuente extranjera", "vieja / repetida", la mitad de "no relevante", y "exclusiva que no entró".
 
-**Tickets:** `[F4.1]` `url_canonica` decode de redirectores ✅ · `[F4.2]` `normalizar_y_compuertas()` ✅ · `[F4.3]` poblar `reglas_filtro` ✅ · `[F4.3b]` reglas de BMS, MSD y Mars ✅ · `[F4.5]` reconstruir el historial ✅ — **todos el 04/09** · `[F4.4]` escritura de descartes con regla + valor ✅ + `es_repetida()` enganchada — **07/09** · **`[F4.6]` el corte de antigüedad, determinístico** — abierto, decisión pendiente.
+**Tickets:** `[F4.1]` `url_canonica` decode de redirectores ✅ · `[F4.2]` `normalizar_y_compuertas()` ✅ · `[F4.3]` poblar `reglas_filtro` ✅ · `[F4.3b]` reglas de BMS, MSD y Mars ✅ · `[F4.5]` reconstruir el historial ✅ — **todos el 04/09** · `[F4.4]` escritura de descartes con regla + valor ✅ + compuerta anti-repetición enganchada · `[F4.6]` corte de antigüedad determinístico ✅ + compuerta `fecha_futura` — **07/09**.
 
-**Lo que queda de la fase:** solo `[F4.6]`, y no es código sino una decisión: contra qué instante se mide la ventana de 24 h. Hasta que se resuelva, **el arnés de golden de la Fase 8 no se puede escribir** — compararía relojes, no criterios.
+**Fase 4 cerrada.** El pipeline determinístico va de punta a punta: del pool compartido a las candidatas de cada cliente, con cada descarte escrito con su regla y su valor, sin duplicar al re-ejecutar y sin depender del reloj. La Fase 8 ya puede escribir su arnés de golden contra esto.
+
+**Lo único que quedó afuera y hay que preguntarle a Ketchum:** si el clipping de la mañana tiene que traer la nota publicada anoche a las 23:00. Con el corte elegido no la trae. Es una línea de cambio, pero es decisión del cliente, no nuestra.
 
 ### Fase 5 · Los agentes — `pendiente`
 
@@ -594,7 +629,7 @@ Casi el doble de descartes, sobre los mismos datos. Y contradice lo que este mis
 
 ## 4. Camino crítico
 
-~~`Fase 0`~~ *(omitida por decisión del 04/09 — ver abajo)* → `Fase 1` ✅ → `Fase 2` ✅ (gate · descubridor · catálogo aplicado · `metodo_extraccion`) → `Fase 3` (recolector ✅, dedup ✅, barrido automático ✅; falta sincronizar `test`) → **`Fase 4`** ← acá estamos (cerrada salvo `[F4.6]`) → `Fase 5` → `Fase 6` → `Fase 8` (piloto) → `Fase 9`
+~~`Fase 0`~~ *(omitida por decisión del 04/09 — ver abajo)* → `Fase 1` ✅ → `Fase 2` ✅ (gate · descubridor · catálogo aplicado · `metodo_extraccion`) → `Fase 3` (recolector ✅, dedup ✅, barrido automático ✅; falta sincronizar `test`) → `Fase 4` ✅ (07/09) → **`Fase 5`** ← acá estamos → `Fase 6` → `Fase 8` (piloto) → `Fase 9`
 
 **Por qué la Fase 2 se cerró antes de arrancar la 3:** el descubridor reescribe `url_feed` y `medios_estrategia`, que es exactamente lo que el recolector de la Fase 3 lee. Construir el recolector contra un catálogo que está por moverse obliga a re-verificar todo después. Se aplicó primero lo encontrado y se separó `metodo_extraccion`, así el recolector se escribe una sola vez contra un modelo que no se va a mover.
 
@@ -617,7 +652,8 @@ Desde la Fase 3, el recolector de cada cliente corre en el schema de prueba en p
 - **Un PATCH de PostgREST que no matchea ninguna fila devuelve 204, igual que uno exitoso.** Encontrado el 04/09: los dos nodos de escritura del descubridor estaban encadenados en serie y el primero usa `Prefer: return=minimal`, así que devolvía `{}` y el segundo se quedaba sin campos — armaba `?dominio_norm=eq.` y no escribía nada. **El flujo reportó "154 escritas" y en la base no había entrado ninguna.** Dos reglas que salen de acá: los nodos de escritura van en paralelo desde el mismo item, no encadenados; y **el contador de escrituras se cuenta por `statusCode`, nunca por cantidad de items** — con `onError: continue` un fallo también produce item. Aplica a toda la Fase 3 en adelante.
 - **El techo de cobertura es 77–85%, no 96% (medido y aplicado 04/09).** El descubridor recupera el 35% de las 442 fuentes rotas, no casi todas. **Quedan ~181 fuentes sin salida por feed**, de las cuales ~126 nunca tuvieron feed y dependen del camino HTML de la Fase 5. La v4 hereda un agujero más chico que el de la v3, pero lo hereda. Cualquier promesa de cobertura al cliente se hace sobre 78–85%.
 - **Un `NOT NULL` sin default convierte el camino por default en el camino roto.** `[F4.4]` estuvo tres días dado por hecho porque las mediciones se hicieron con `p_registrar=false` y nadie ejecutó el default. **Regla: toda función con un parámetro que dispara escritura se prueba con sus valores por default, no solo con los que uno usa.** Aplica a `armar_clipping()` y `decidir_nivel()` de la Fase 6.
-- **Nada que decida por fecha puede depender de `now()` si se va a reproducir.** Ver `[F4.6]`: la compuerta de antigüedad da casi el doble de descartes si se la corre tres días después sobre los mismos datos. Cualquier función de la v4 que compare contra un corte horario tiene que recibir el instante, no leerlo del reloj — es precondición del golden de la Fase 8.
+- **Nada que decida por fecha puede depender de `now()` si se va a reproducir.** ~~Riesgo abierto~~ **aplicado en `[F4.6]`**: la compuerta de antigüedad daba casi el doble de descartes corrida tres días después sobre los mismos datos. Ahora el corte sale de `p_fecha`. **Queda como regla para las Fases 5 y 6:** toda función que compare contra un corte horario recibe el instante, no lo lee del reloj. `decidir_nivel()` y `wf/salud` (umbrales por día de la semana) son las próximas candidatas a caer en lo mismo.
+- **El costo de una etapa se mide con el volumen que va a tener, no con el de hoy.** La compuerta anti-repetición era gratis mientras la etapa anterior descartaba casi todo (74 notas la llamaban); apenas `[F4.6]` dejó pasar miles, la corrida de los cuatro clientes murió por `statement timeout`. Aplica directo a la Fase 5: los agentes se van a encontrar con ~5.000 candidatas por cliente, no con las 74 de las pruebas.
 - **PostgREST corta las lecturas en 1.000 filas y no avisa** (encontrado el 04/09 en el descubridor: pedía `limit=2000` sobre 1.437 fuentes y recibía 1.000, calculando los pendientes sobre un universo truncado sin que nada fallara). Aplica a **todo flujo v4 que lea una tabla grande por REST** — `medios_fuentes` (1.437), `medios_suscripcion` (2.102). Hay que paginar y hacer que el flujo falle ruidosamente si la última página viene llena. Revisar con este criterio los flujos de medición del 03/09.
 - **Techo de memoria por tanda en n8n.** Medido: 35 dominios × ~17 candidatas retienen **21 MB** en el nodo HTTP; 70 dominios matan el proceso. Cualquier flujo que retenga cuerpos HTML tiene que ir por tandas chicas y no pedir dos veces la misma página.
 - **Dependencia de un proveedor pago:** el 3% de las fuentes solo entra por Bright Data, que se cobra por request y hoy corre en plan de prueba. Antes de producción hay que dimensionar el costo del volumen real (nueve barridos diarios × cuatro clientes) y decidir si ese 3% lo vale.
