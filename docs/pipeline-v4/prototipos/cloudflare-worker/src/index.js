@@ -47,6 +47,73 @@ function clean(s) {
     .trim();
 }
 
+// --- Decodificacion por charset --------------------------------------------
+//
+// `Response.text()` decodifica SIEMPRE como UTF-8. Para un medio en ISO-8859-1
+// eso destruye los acentos: "aprobo" con tilde queda "aprob�" y el byte
+// original ya no se recupera. Medido el 07/09 en agritotal.com y agrolatam.com,
+// que ademas NO declaran charset en el header — solo en el <meta> de la pagina,
+// asi que hay que mirar los bytes para saberlo.
+//
+// No se usa TextDecoder con etiquetas distintas de 'utf-8': el runtime de
+// Workers no las garantiza. ISO-8859-1 es un mapeo byte -> codepoint directo, se
+// hace a mano; windows-1252 solo difiere en el rango 0x80-0x9F.
+
+const CP1252_ALTO = {
+  0x80: '€', 0x82: '‚', 0x83: 'ƒ', 0x84: '„', 0x85: '…',
+  0x86: '†', 0x87: '‡', 0x88: 'ˆ', 0x89: '‰', 0x8a: 'Š',
+  0x8b: '‹', 0x8c: 'Œ', 0x8e: 'Ž', 0x91: '‘', 0x92: '’',
+  0x93: '“', 0x94: '”', 0x95: '•', 0x96: '–', 0x97: '—',
+  0x98: '˜', 0x99: '™', 0x9a: 'š', 0x9b: '›', 0x9c: 'œ',
+  0x9e: 'ž', 0x9f: 'Ÿ',
+};
+
+function decodeByteAByte(bytes, cp1252) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i];
+    s += cp1252 && b >= 0x80 && b <= 0x9f
+      ? CP1252_ALTO[b] || String.fromCharCode(b)
+      : String.fromCharCode(b);
+  }
+  return s;
+}
+
+function charsetDe(ctype, bytes) {
+  let cs = (String(ctype || '').match(/charset\s*=\s*["']?([\w-]+)/i) || [])[1];
+  if (!cs) {
+    // El header no lo dice: lo dice el <meta>. La cabeza se lee byte a byte
+    // porque para ASCII todas las codificaciones coinciden.
+    const cabeza = decodeByteAByte(bytes.subarray(0, 4096), false);
+    cs = (cabeza.match(/<meta[^>]+charset\s*=\s*["']?\s*([\w-]+)/i) || [])[1];
+  }
+  return cs ? cs.toLowerCase() : null;
+}
+
+function decodificar(bytes, ctype) {
+  const cs = charsetDe(ctype, bytes);
+
+  if (cs && /utf-?8/.test(cs)) {
+    return { texto: new TextDecoder().decode(bytes), charset: 'utf-8' };
+  }
+  if (cs && /(8859-1|latin-?1|1252)/.test(cs)) {
+    return { texto: decodeByteAByte(bytes, /1252/.test(cs)), charset: cs };
+  }
+  if (cs) {
+    // Declarado pero exotico: se prueba utf-8 y, si sale con reemplazos, byte a byte.
+    const utf = new TextDecoder().decode(bytes);
+    return utf.indexOf('�') === -1
+      ? { texto: utf, charset: cs + ' (leido como utf-8)' }
+      : { texto: decodeByteAByte(bytes, true), charset: cs + ' (fallback 1252)' };
+  }
+
+  // Nadie lo declara: si el buffer es UTF-8 valido, es UTF-8. El caracter de
+  // reemplazo es la prueba de que no lo era.
+  const utf = new TextDecoder().decode(bytes);
+  if (utf.indexOf('�') === -1) return { texto: utf, charset: 'utf-8 (inferido)' };
+  return { texto: decodeByteAByte(bytes, true), charset: 'windows-1252 (inferido)' };
+}
+
 function parseFeed(xml) {
   const out = [];
   const re = /<(item|entry)\b[^>]*>([\s\S]*?)<\/\1>/gi;
@@ -138,14 +205,20 @@ export default {
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
 
-      const text = await r.text();
+      // arrayBuffer y no text(): text() decodifica como UTF-8 sin preguntar y
+      // los medios latin1 pierden los acentos ahi mismo, sin vuelta atras.
+      const bytes = new Uint8Array(await r.arrayBuffer());
+      const dec = decodificar(bytes, r.headers.get('content-type'));
+      const text = dec.texto;
 
       if (qs.get('raw') === '1') {
         return new Response(text, {
           status: 200,
           headers: {
-            'Content-Type': r.headers.get('content-type') || 'text/plain',
+            // Siempre utf-8: la conversion ya se hizo aca, sobre los bytes crudos.
+            'Content-Type': 'text/html; charset=utf-8',
             'X-Upstream-Status': String(r.status),
+            'X-Charset': dec.charset,
           },
         });
       }
@@ -159,6 +232,7 @@ export default {
         ok: items.length > 0,
         diagnostico: diagnosticar(r.status, esFeed || esSitemap, items.length),
         formato: esFeed ? 'rss' : esSitemap ? 'sitemap' : 'desconocido',
+        charset: dec.charset,
         upstream_status: r.status,
         bytes_upstream: text.length,
         total: items.length,

@@ -660,7 +660,15 @@ Seis filtros en orden: mismo dominio → fuera navegación por ruta y por extens
 
   **Conclusión: el buffer que expone el Code node de n8n no es el cuerpo de la respuesta** (probablemente por el modo de almacenamiento de binarios de la instancia). Insistir por ahí es tanteo.
 
-  **El camino que sí tiene sentido:** hacer la conversión **en el worker de Cloudflare**, que ya tenemos y donde el `Response` crudo está disponible con `TextDecoder`. Sería un `raw=1&charset=auto` que detecta el `<meta>` y devuelve siempre UTF-8. Cuesta que esos medios salgan por el proxy en vez de directo, pero son la minoría latin1 — no los 27 que abren por directo.
+  **La solución, en dos piezas — código listo, falta desplegar:**
+
+  **1. El worker decodifica bien.** `Response.text()` de Cloudflare tiene *el mismo bug* que n8n: decodifica como UTF-8 sin preguntar. Se cambió a `arrayBuffer()` + un decodificador propio que mira el `charset` del header, si no está el `<meta>`, y si tampoco infiere por validez UTF-8. **No usa `TextDecoder` con etiquetas distintas de `utf-8`** porque el runtime de Workers no las garantiza: ISO-8859-1 es un mapeo byte→codepoint directo y se hace a mano; windows-1252 solo difiere en `0x80-0x9F`. Probado aislado, los cuatro casos pasan: latin1 sin declarar, utf8 sin declarar, latin1 en el header y latin1 en el `<meta>`.
+
+  **2. Los medios rotos escalan solos al proxy.** El arreglo del worker no servía de nada por sí solo: `agritotal.com` y `agrolatam.com` entran por **directo**, no por el proxy. Ahora `fetch-page` cuenta los caracteres de reemplazo y, si hay 3 o más **y** venía por directo, devuelve `diagnostico='charset_roto'` — que se sumó a la lista de escalada de `wf/medir-html`. O sea: **el charset roto deja de ser un error terminal y pasa a ser una razón para subir un escalón**, exactamente como el bloqueo o el timeout.
+
+  El HTML se devuelve igual aunque esté roto: mejor una nota con un acento mal que ninguna, para quien no pueda escalar. Verificado que `charset_roto` se dispara en `agritotal.com` y `abchoy.com.ar` sin regresión (363 notas de 7 medios).
+
+  **Pendiente: `npx wrangler login && npx wrangler deploy`** en `docs/pipeline-v4/prototipos/cloudflare-worker`. Es interactivo (abre el navegador), así que no se pudo hacer desde acá. **El cambio es de bajo riesgo para los 911 feeds que ya usan el proxy:** si el charset es UTF-8 declarado, o es UTF-8 válido sin declarar, el resultado es byte a byte el mismo que hoy. Solo cambia el comportamiento cuando el contenido **no** es UTF-8 válido — que hoy ya devuelve basura.
 - **`[F5.2b-ii]` las fechas.** De las 364 notas, **ninguna** trae fecha en la URL. Entran todas con `fecha_confiable=false`, y la compuerta de antigüedad —por diseño— no descarta lo que no tiene fecha. Hay que medir el volumen real antes de encenderlas: 61 notas × 178 medios × 9 barridos es mucha nota sin fecha entrando al pool. El dedup por URL las colapsa entre barridos, pero conviene tener el número antes y no después.
 
 **Tickets:** `[F5.2a]` `sub/fetch-page` + `wf/medir-html` con escalera ✅ · `[F5.2b]` el extractor — **en curso**, falta encoding y medir el volumen sin fecha · `[F5.2c]` correr las 178 en `modo=prod` — **después de las dos anteriores**.
