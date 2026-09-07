@@ -856,7 +856,44 @@ La prioridad es siempre lo **declarado** por el sitio —`article:published_time
 
 **Un defecto que encontraron los datos:** un título salió como `&#34South Park&#34` — entidades HTML **sin punto y coma**, que ningún decodificador estándar toma. Ahora se decodifican las numéricas con el `;` opcional. Es exactamente el tipo de título roto que llega tal cual al cliente si nadie lo mira.
 
-**Tickets:** `[F5.0]` prompts migrados ✅ · `[F5.1]` `sub/llm-call` ✅ · `[F5.2]` camino HTML + `sub/open-article` ✅ · **`[F5.3]` `sub/agent-A1`** ← *lo que sigue* · `[F5.4]` `sub/agent-A2` ✅ · `[F5.5]` `sub/agent-A3`.
+#### `[F5.3]` `sub/agent-A1`, el completador — ✅ (07/09)
+
+**La mayor parte de lo que el A1 arregla no necesita IA.** Cortar el sufijo del medio, decodificar entidades y limpiar markdown es determinístico; pagar tokens por eso sería el mismo error que la Fase 4 evitó al mover las reglas de JavaScript a una tabla.
+
+Así que el orden es: **primero lo que se arregla solo y gratis, después abrir la nota, y recién ahí —si hiciera falta— el modelo.**
+
+**Probado con cuatro notas, una por defecto:**
+
+| Entraba | Salió | Arreglo |
+|---|---|---|
+| `…Oriente Medio - En La Mitad` | `…Oriente Medio` | sufijo del medio |
+| `![](cdn/foto.jpg) Misterio…` + `&#34Es algo…&#34` | `Misterio en Mendoza…` | markdown y entidades |
+| título de fútbol + copete de horóscopo | copete descartado | copete cruzado |
+| nota sana de Booking | intacta | **no se abrió** |
+
+**La cuarta es la que importa para el costo:** no salió a la red. Solo se abre lo que quedó incompleto después del arreglo gratis.
+
+**Dos decisiones de precisión:**
+
+- **El sufijo se corta solo si la cola se parece al dominio.** Sin esa condición, un título real con guion quedaría mutilado — y un título mutilado no se nota hasta que lo lee el cliente.
+- **El copete cruzado se detecta por cero palabras en común con el título.** Es el síntoma de un scraping que se llevó el bloque equivocado.
+
+> #### El bug que apareció cuatro veces en una jornada
+>
+> En n8n, **el emparejamiento entre un item y su origen se rompe en silencio.** No hay error: simplemente salen datos de otra nota. Cuatro veces hoy:
+>
+> 1. `sub/fetch-page` usaba `$('Entrada').first()` — los N resultados se creían el primer dominio
+> 2. `wf/medir-html` emparejaba por índice — un IF filtra y el índice deja de alinear
+> 3. `sub/fetch-page` con ramas sin `Merge` — `executeWorkflow` devolvía **una sola rama**, se perdían items
+> 4. `sub/agent-A1` — las dos anteriores juntas: volvía 1 nota de 4, y después 4 pero las tres abiertas con el mismo título
+>
+> **Las dos reglas, ahora explícitas:**
+> - Toda bifurcación que vuelva al que llama necesita un **`Merge`**.
+> - **`$('nodo').item` solo empareja de a uno en modo `runOnceForEachItem`.** En modo "all items" devuelve siempre el mismo, aunque lo llames dentro de un `.map()`.
+>
+> La regla estaba escrita desde el tercer caso y aun así se repitió. Por eso queda acá arriba y no en una nota de nodo.
+
+**Tickets:** `[F5.0]` prompts migrados ✅ · `[F5.1]` `sub/llm-call` ✅ · `[F5.2]` camino HTML + `sub/open-article` ✅ · `[F5.3]` `sub/agent-A1` ✅ · `[F5.4]` `sub/agent-A2` ✅ · **`[F5.5]` `sub/agent-A3`** ← *lo único que queda de la fase*.
 
 - ~~**`sub/llm-call`** compartido: llamada + un retry + backoff 429 + tope de tokens/cliente/día + registro de tokens y costo.~~ ✅
 - **`sub/agent-A1` (completador):** detecta qué falta y lo busca; limpia HTML, corta el sufijo del medio en títulos, reemplaza descripción cruzada.
