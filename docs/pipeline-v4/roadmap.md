@@ -634,7 +634,30 @@ Medido el 07/09 sobre 40 de las 178, subiendo la escalera completa:
 
 Entonces **persistir el transporte antes de que exista el extractor sería prender el motor sin la caja**: el recolector iría a las 178 nueve veces por día, recibiría HTML, diría "esto no es un feed" y traería cero notas. ~1.600 visitas diarias a cambio de nada. **El orden correcto es extractor primero, `modo=prod` después.**
 
-**Tickets:** `[F5.2a]` `sub/fetch-page` + `wf/medir-html` con escalera ✅ · **`[F5.2b]` el extractor** (HTML → notas con link, título y fecha) ← *acá estamos* · `[F5.2c]` correr las 178 en `modo=prod`.
+#### `[F5.2b]` el extractor — `en curso` (07/09)
+
+`wf/recolector-html` es el espejo de `wf/recolector` para las fuentes sin feed: en vez de parsear un XML, saca las notas del HTML de la home. **Heurística pura, sin IA** — el agente A1 limpia lo que salga de acá, no lo reemplaza.
+
+Seis filtros en orden: mismo dominio → fuera navegación por ruta y por extensión → **tiene que parecer una nota** → dedup por URL → título de 25+ caracteres (el mismo umbral que la compuerta `titulo_corto`) → fuera títulos de menú.
+
+**Medido sobre 10 fuentes reales: 364 notas de 6 medios**, 61 por medio. Los títulos son noticias de verdad, no menú.
+
+**Tres bugs, y los tres los encontró la instrumentación, no el ojo.** La primera corrida dio **cero** notas. Agregarle al extractor un **contador de rechazos por etapa** convirtió "no saco nada" en un diagnóstico:
+
+| Bug | Cómo se vio | Arreglo |
+|---|---|---|
+| **`new URL()` no existe** en el sandbox de los Code node | 1.272 de 1.334 anclas morían en `no_http` | Todo el parseo de URL a mano con strings, como ya lo hace `sub/fetch-source` |
+| **El id de la nota va en el query**, no en la ruta | 478 rechazos por `no_parece_nota`, entre ellos `9dejulio.gob.ar/noticia.php?id=9734` con título real | Se mira también el query: `?id=`, `?nota=`, `?articulo=`… |
+| **Encoding latin1 leído como UTF-8** | `agritotal.com` y `agrolatam.com` devuelven `aprob�`, `El Ni�o` | **Abierto** — ver abajo |
+
+> **La lección, que aplica a los agentes de la Fase 5:** un extractor que devuelve cero no dice por qué. El contador de rechazos por etapa costó diez líneas y ahorró adivinar entre seis filtros. Los agentes A1/A2/A3 necesitan lo mismo: no alcanza con el veredicto, hace falta el motivo.
+
+**Lo que falta de `[F5.2b]`:**
+
+- **`[F5.2b-i]` el encoding.** 2 de 6 medios devuelven títulos rotos. Las páginas están en ISO-8859-1 y n8n las decodifica como UTF-8, así que los bytes se pierden en el camino. Se arregla en `fetch-page`: pedir la respuesta **binaria** y decodificar según el `charset` del `Content-Type` o del `<meta charset>`. **Bloquea el prod:** un título roto llega tal cual al cliente.
+- **`[F5.2b-ii]` las fechas.** De las 364 notas, **ninguna** trae fecha en la URL. Entran todas con `fecha_confiable=false`, y la compuerta de antigüedad —por diseño— no descarta lo que no tiene fecha. Hay que medir el volumen real antes de encenderlas: 61 notas × 178 medios × 9 barridos es mucha nota sin fecha entrando al pool. El dedup por URL las colapsa entre barridos, pero conviene tener el número antes y no después.
+
+**Tickets:** `[F5.2a]` `sub/fetch-page` + `wf/medir-html` con escalera ✅ · `[F5.2b]` el extractor — **en curso**, falta encoding y medir el volumen sin fecha · `[F5.2c]` correr las 178 en `modo=prod` — **después de las dos anteriores**.
 
 ---
 
