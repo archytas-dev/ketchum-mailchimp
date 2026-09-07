@@ -2,7 +2,7 @@
 
 El plan de construcción: fases, orden, dependencias y tickets. El **qué y el cómo** (arquitectura, modelo de datos, decisiones, alternativas) están en [`design-doc.md`](./design-doc.md) — este doc no los repite.
 
-**Estado:** en construcción · **Rama:** `feat/pipeline-v4` (fuente de verdad de la v4) · **Última actualización:** 2026-09-04 (Fase 2 cerrada: descubridor aplicado, +152 fuentes, `metodo_extraccion` separado · Fase 0 omitida · el techo del ~96% no se sostuvo, es 77–85%)
+**Estado:** en construcción · **Rama:** `feat/pipeline-v4` (fuente de verdad de la v4) · **Última actualización:** 2026-09-07 (`[F4.4]` cerrado: el registro de descartes nunca había podido correr, ahora escribe los seis motivos con el valor que los disparó y es idempotente · `es_repetida()` enganchada · nuevo `[F4.6]`: la antigüedad se mide contra `now()` y eso rompe el golden)
 
 ---
 
@@ -416,7 +416,108 @@ Tres reglas de comportamiento que quedaron en la función y no en la tabla, porq
 | BMS | 6.717 |
 | **Booking** | **2.173** |
 
-**Y esa diferencia es el trabajo que falta, no un error:** Booking baja a 2.173 porque tiene sus reglas propias cargadas; los otros tres quedan en ~7.000 porque **solo se les aplican las globales**. Sus reglas específicas —keywords por grupo terapéutico, marcas del cliente, geo— siguen en el JavaScript de sus workflows. `[F4.3b]`: repetir la traducción para BMS, MSD y Mars. Es el mismo trabajo, tres veces, y sin él esos clientes no tienen filtro real.
+#### `[F4.3b]` las reglas de los otros tres — ✅
+
+**Cada cliente las tenía en un nodo distinto**, que es por qué nadie las había visto juntas:
+
+| Cliente | Dónde vivían |
+|---|---|
+| BMS | `Quality Guard PRE-AI` (~220 patrones) |
+| MSD | `Quality Guard POST-AI` |
+| Mars | `Quality Guard POST-AI` |
+| Booking | `Normalize + Dedup + Pre-filter` |
+
+Y los `PRE-AI` de MSD y Mars son **passthrough byte a byte, los dos rotulados "BOOKING"**: copiados y nunca adaptados.
+
+**No se migraron ~160 reglas, y no es un olvido.** La v4 solo trae lo que está en el catálogo suscripto; la v3 además ingería el agregador por búsqueda abierta, y por eso le entraba internet entero. Medido: **0 fuentes de agregador en la v4**, y de 54 dominios extranjeros de la lista de BMS **solo 12 están en el catálogo**. Las ~40 reglas que matchean por *nombre de medio* existían solo porque la v3 no podía resolver el dominio detrás del redirect — la v4 siempre sabe el `dominio_norm`. **La arquitectura resolvió arriba lo que la v3 filtraba abajo.**
+
+Quedaron **30 reglas**: 11 globales, 6 de BMS, 5 de MSD, 4 de Mars, 4 de Booking.
+
+#### La cuarta compuerta: `desambiguacion`
+
+Probando con datos reales apareció un bug de diseño mío: **"Karol G y Bruno Mars se ponen cariñosos" entraba como PRIORITARIA para Mars.** La regla de marca (`\ymars\y`) es `entra_si_o_si`, se evalúa primero y le ganaba a la regla de farándula.
+
+El arreglo no fue hacer el regex más astuto —POSIX no tiene lookbehind, y el problema volvería con el próximo caso ambiguo— sino reconocer que hay **dos clases de descarte duro con distinta precedencia**:
+
+| Compuerta | Qué dice | Precedencia |
+|---|---|---|
+| `desambiguacion` | la palabra **parece** la marca y no lo es (Bruno Mars, el planeta Marte, el escritor Roemmers) | **gana sobre todo** |
+| `entra_si_o_si` | menciona al cliente de verdad | le gana al descarte por tema |
+| `no_entra_nunca` | el tema no le sirve al cliente | — |
+| `puntua` | suma o resta, no decide sola | — |
+
+**Sin esa distinción, toda marca ambigua es una puerta abierta.** Verificado después del cambio: Bruno Mars ya no entra.
+
+**Los cuatro clientes, con sus reglas:**
+
+| Cliente | Candidatas | Prioritarias |
+|---|---|---|
+| MSD | 7.452 | 0 |
+| Mars | 6.608 | 2 |
+| BMS | 6.572 | 11 |
+| Booking | 2.130 | 1 |
+
+**Los tres siguen en ~7.000 y eso es correcto:** su filtro temático real lo hace la IA (`AI Filter Paralelo`), no las compuertas — por eso sus `PRE-AI` son passthrough. Las compuertas sacan basura verificable; **decidir si una nota de salud animal le interesa a MSD es trabajo del juez A2, en la Fase 5.** Booking baja a 2.130 porque su filtro es de keywords, que sí es determinístico.
+
+#### `[F4.1]` + `[F4.5]` el historial anti-repetición — ✅
+
+**El problema, medido:** el historial tenía 9.806 filas y **5.243 (53%) eran URLs de redirector crudas**. Una URL de redirector nunca vuelve a matchear la real, así que esas notas **se podían re-enviar para siempre** — es la mitad del reporte *"nota vieja o repetida"*.
+
+`url_canonica()` ahora desenvuelve los **dos** formatos del agregador: el de parámetro (`?url=`, `?q=`) que ya resolvía, y el **token base64** de `news.google.com/rss/articles/…`, que se decodifica a LATIN1 —no a UTF8, porque el contenido es protobuf con bytes que no son texto válido y UTF8 aborta—. Si el token no se puede decodificar devuelve la URL original: **nunca inventa una**.
+
+**Reconstrucción del historial:**
+
+| | Filas |
+|---|---|
+| Recuperadas del formato `?url=` | **3.075** |
+| Colisiones consolidadas *(la misma nota guardada dos veces — el bug en persona)* | 47 |
+| **Usable: 47% → 78%** | 7.591 de 9.759 |
+
+Hay backup en `notas_historico_url_backup_20260904`. Verificado end-to-end: `es_repetida()` detecta una nota ya enviada aunque venga con tracking, y da `false` para una nueva.
+
+**Y 2.168 filas son irrecuperables, con una causa que vale como lección:** el normalizador de la v3 pasaba **toda** la URL a minúsculas, incluido el token base64. Base64 distingue mayúsculas, así que `CBMiK2h0…` quedó `cbmik2h0…` y **la información se destruyó al guardar**. No hay de dónde sacarla.
+
+Eso valida una decisión del diseño v4 que parecía un detalle: `url_canonica()` pasa a minúsculas **solo el host**, nunca el path ni el query. Fallan del lado seguro — solo pueden dejar pasar una repetición, nunca bloquear una nota legítima.
+
+#### `[F4.4]` la escritura de descartes — ✅ (07/09)
+
+**No era "falta correrla": no podía correr.** El bloque de registro insertaba sin `fase`, que es `NOT NULL` y sin default, así que **toda** llamada con `p_registrar=true` —que es el **default**— moría en `23502`. Por eso `notas_descartadas` tenía **0 filas** con `etapa='compuerta'`: las mediciones del 04/09 salieron todas pasando `p_registrar=false` explícitamente, y nadie notó que el camino por default estaba roto.
+
+Y aun arreglando eso, el bloque solo miraba los descartes **por regla**. El embudo real de Booking dice que eso es el 7%:
+
+| Motivo | Notas | ¿Quedaba registrado antes? |
+|---|---|---|
+| Antigüedad | 4.813 | ❌ |
+| Título pobre | 341 | ❌ |
+| Markdown roto en el título | 162 | ✅ |
+| Otro mercado | 95 | ✅ |
+| Portal de empleo | 61 | ✅ |
+| URL de home o de comentarios | 25 | ✅ |
+| **Ya enviada** (historial) | **9** | ❌ *(la compuerta ni existía)* |
+| Aviso de empleo por título | 3 | ✅ |
+
+Tres arreglos más, cada uno con su motivo:
+
+- **`valor_que_matcheo` escribía siempre el dominio**, fuera cual fuera la regla. Ahora escribe **lo que matcheó de verdad**, buscándolo primero en el texto y después en la URL: `![` para el markdown roto, `alemanes` para otro mercado, `bebee.` para el portal de empleo, `/feeds/…/comments/` para la URL de comentarios, `postular` para el aviso de empleo. Eso es lo que la Fase 7 necesita mostrar; el dominio no explica nada.
+- **No era idempotente.** La tabla solo tenía PK sobre `id` (un uuid generado), así que el `on conflict do nothing` **no matcheaba nada**: re-ejecutar el día habría duplicado el embudo entero. Hay índice único parcial `(client_id, fecha, md5(url), motivo) where etapa='compuerta'` —parcial para no tocar las filas de la v3—. Verificado: dos corridas seguidas, **5.509 filas, 5.509 únicas**.
+- **La lógica estaba escrita dos veces** (una para devolver candidatas, otra para registrar descartes) y ya divergía: el registro no filtraba por fuente activa ni por suscripción bloqueada. Ahora vive una sola vez en **`v4_evaluar_candidatas()`**, y `normalizar_y_compuertas()` la usa para las dos cosas. No pueden volver a separarse.
+
+**`es_repetida()` quedó enganchada**, que era el otro pendiente: entra como último escalón, después de la dedup del día. En Booking sacó **9 notas ya enviadas** en los últimos 30 días — las primeras que el historial reconstruido de `[F4.5]` atrapa en producción.
+
+#### El hallazgo que rompe el golden: la antigüedad se mide contra `now()`
+
+Correr `normalizar_y_compuertas(cliente, '2026-09-04')` **hoy** (07/09) no da lo mismo que darle el 04/09. La compuerta de antigüedad compara `fecha_pub < now() - 24 h`, así que **el resultado depende de cuándo la corras**, no solo de qué datos tenga:
+
+| Cliente | Suscritas | Viejas si corre hoy | Viejas con el corte del día |
+|---|---|---|---|
+| BMS | 15.377 | 14.506 | **7.677** |
+| MSD | 21.891 | 20.206 | **13.264** |
+| Mars | 14.255 | 13.539 | **6.813** |
+| Booking | 5.574 | 5.099 | **2.784** |
+
+Casi el doble de descartes, sobre los mismos datos. Y contradice lo que este mismo doc afirma en `[F4.2]`: *"dos corridas del mismo día dan lo mismo — es un test del golden"*. **Es cierto solo dentro de la misma ventana de 24 h.** La Fase 8 compara la v4 contra la v3 sobre un día ya pasado: tal como está, el arnés de golden mediría la diferencia entre dos relojes y la leería como una diferencia de criterio.
+
+**No lo arreglé todavía porque el arreglo esconde una decisión de producto**, y no es mía: si "últimas 24 h" significa *24 h rodantes desde el instante de la corrida* (entonces la función necesita un `p_corte timestamptz` que producción pasa como `now()` y el golden pinea) o *publicada el día del clipping* (entonces el corte sale de `p_fecha` y la función se vuelve determinística sola). La primera conserva el comportamiento actual; la segunda es más simple y más fácil de explicarle al cliente. **Va como `[F4.6]` y bloquea el arnés de golden de la Fase 8.**
 
 - Completar `url_canonica` con el decode de los redirectores del agregador.
 - `normalizar_y_compuertas()`: normaliza → resuelve fecha (cascada, nunca inventa) → deduplica (una regla) → tres compuertas.
@@ -426,7 +527,9 @@ Tres reglas de comportamiento que quedaron en la función y no en la tabla, porq
 
 **Cierra:** el grueso de "fuente extranjera", "vieja / repetida", la mitad de "no relevante", y "exclusiva que no entró".
 
-**Tickets:** `[F4.1]` `url_canonica` decode de redirectores · `[F4.2]` `normalizar_y_compuertas()` ✅ (04/09) · `[F4.3]` poblar `reglas_filtro` ✅ globales + Booking · **`[F4.3b]` traducir las reglas de BMS, MSD y Mars** (hoy solo tienen las globales) · `[F4.4]` escritura de descartes con regla + valor · `[F4.5]` reconstruir el historial con URL canónica.
+**Tickets:** `[F4.1]` `url_canonica` decode de redirectores ✅ · `[F4.2]` `normalizar_y_compuertas()` ✅ · `[F4.3]` poblar `reglas_filtro` ✅ · `[F4.3b]` reglas de BMS, MSD y Mars ✅ · `[F4.5]` reconstruir el historial ✅ — **todos el 04/09** · `[F4.4]` escritura de descartes con regla + valor ✅ + `es_repetida()` enganchada — **07/09** · **`[F4.6]` el corte de antigüedad, determinístico** — abierto, decisión pendiente.
+
+**Lo que queda de la fase:** solo `[F4.6]`, y no es código sino una decisión: contra qué instante se mide la ventana de 24 h. Hasta que se resuelva, **el arnés de golden de la Fase 8 no se puede escribir** — compararía relojes, no criterios.
 
 ### Fase 5 · Los agentes — `pendiente`
 
@@ -491,7 +594,7 @@ Tres reglas de comportamiento que quedaron en la función y no en la tabla, porq
 
 ## 4. Camino crítico
 
-~~`Fase 0`~~ *(omitida por decisión del 04/09 — ver abajo)* → `Fase 1` ✅ → `Fase 2` ✅ (gate · descubridor · catálogo aplicado · `metodo_extraccion`) → **`Fase 3`** ← acá estamos (recolector ✅ y dedup ✅; falta automatizar tandas/cron y sincronizar `test`) → `Fase 4` → `Fase 5` → `Fase 6` → `Fase 8` (piloto) → `Fase 9`
+~~`Fase 0`~~ *(omitida por decisión del 04/09 — ver abajo)* → `Fase 1` ✅ → `Fase 2` ✅ (gate · descubridor · catálogo aplicado · `metodo_extraccion`) → `Fase 3` (recolector ✅, dedup ✅, barrido automático ✅; falta sincronizar `test`) → **`Fase 4`** ← acá estamos (cerrada salvo `[F4.6]`) → `Fase 5` → `Fase 6` → `Fase 8` (piloto) → `Fase 9`
 
 **Por qué la Fase 2 se cerró antes de arrancar la 3:** el descubridor reescribe `url_feed` y `medios_estrategia`, que es exactamente lo que el recolector de la Fase 3 lee. Construir el recolector contra un catálogo que está por moverse obliga a re-verificar todo después. Se aplicó primero lo encontrado y se separó `metodo_extraccion`, así el recolector se escribe una sola vez contra un modelo que no se va a mover.
 
@@ -513,6 +616,8 @@ Desde la Fase 3, el recolector de cada cliente corre en el schema de prueba en p
 - ~~**Gate de la Fase 2:** la medición de cobertura recuperable.~~ **Resuelto el 03/09: 76% entra hoy.** La capa de transporte se justifica y el bloqueo prácticamente desaparece como problema (queda 1 fuente bloqueada en 1.260).
 - **Un PATCH de PostgREST que no matchea ninguna fila devuelve 204, igual que uno exitoso.** Encontrado el 04/09: los dos nodos de escritura del descubridor estaban encadenados en serie y el primero usa `Prefer: return=minimal`, así que devolvía `{}` y el segundo se quedaba sin campos — armaba `?dominio_norm=eq.` y no escribía nada. **El flujo reportó "154 escritas" y en la base no había entrado ninguna.** Dos reglas que salen de acá: los nodos de escritura van en paralelo desde el mismo item, no encadenados; y **el contador de escrituras se cuenta por `statusCode`, nunca por cantidad de items** — con `onError: continue` un fallo también produce item. Aplica a toda la Fase 3 en adelante.
 - **El techo de cobertura es 77–85%, no 96% (medido y aplicado 04/09).** El descubridor recupera el 35% de las 442 fuentes rotas, no casi todas. **Quedan ~181 fuentes sin salida por feed**, de las cuales ~126 nunca tuvieron feed y dependen del camino HTML de la Fase 5. La v4 hereda un agujero más chico que el de la v3, pero lo hereda. Cualquier promesa de cobertura al cliente se hace sobre 78–85%.
+- **Un `NOT NULL` sin default convierte el camino por default en el camino roto.** `[F4.4]` estuvo tres días dado por hecho porque las mediciones se hicieron con `p_registrar=false` y nadie ejecutó el default. **Regla: toda función con un parámetro que dispara escritura se prueba con sus valores por default, no solo con los que uno usa.** Aplica a `armar_clipping()` y `decidir_nivel()` de la Fase 6.
+- **Nada que decida por fecha puede depender de `now()` si se va a reproducir.** Ver `[F4.6]`: la compuerta de antigüedad da casi el doble de descartes si se la corre tres días después sobre los mismos datos. Cualquier función de la v4 que compare contra un corte horario tiene que recibir el instante, no leerlo del reloj — es precondición del golden de la Fase 8.
 - **PostgREST corta las lecturas en 1.000 filas y no avisa** (encontrado el 04/09 en el descubridor: pedía `limit=2000` sobre 1.437 fuentes y recibía 1.000, calculando los pendientes sobre un universo truncado sin que nada fallara). Aplica a **todo flujo v4 que lea una tabla grande por REST** — `medios_fuentes` (1.437), `medios_suscripcion` (2.102). Hay que paginar y hacer que el flujo falle ruidosamente si la última página viene llena. Revisar con este criterio los flujos de medición del 03/09.
 - **Techo de memoria por tanda en n8n.** Medido: 35 dominios × ~17 candidatas retienen **21 MB** en el nodo HTTP; 70 dominios matan el proceso. Cualquier flujo que retenga cuerpos HTML tiene que ir por tandas chicas y no pedir dos veces la misma página.
 - **Dependencia de un proveedor pago:** el 3% de las fuentes solo entra por Bright Data, que se cobra por request y hoy corre en plan de prueba. Antes de producción hay que dimensionar el costo del volumen real (nueve barridos diarios × cuatro clientes) y decidir si ese 3% lo vale.
