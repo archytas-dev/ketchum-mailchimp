@@ -688,7 +688,17 @@ Seis filtros en orden: mismo dominio → fuera navegación por ruta y por extens
 
   **La salida que propongo, y que no inventa ninguna fecha:** usar **la primera vez que la vimos** como estimación de frescura. `candidatas_raw` ya guarda una fila por día y URL canónica, así que la primera aparición de una URL es un dato que ya tenemos. Si una URL de una fuente `html` viene apareciendo desde hace días y nunca se envió, no es noticia de hoy — es mueble de la home. Es honesto porque no dice *"se publicó tal día"* sino *"la vemos desde tal día"*, que es exactamente lo que sabemos.
 
-  **Decisión pendiente antes del prod:** aceptar ese +30/67% de candidatas sin fecha apoyándose en el juez A2 de la Fase 5 para filtrarlas, o implementar primero la regla de "primera vez vista". **Mi recomendación es la segunda**: mandarle al A2 3.600 notas de las que no sabe la fecha es pagar tokens por resolver algo que la base ya sabe.
+  **Resuelto el 07/09 con la compuerta `vista_antes_sin_fecha`.**
+
+  **La señal se validó antes de construirla**, y con un control cruzado que se podía medir: de las 36.236 notas del pool de hoy, 15.652 ya se habían visto el 04/09. De las que **sí** traen fecha confiable y ya se habían visto, **11.948 eran viejas contra 1.037 frescas**. O sea: *"ya la vimos"* predice *"es vieja"* con **92% de acierto**, contrastado contra la fecha real de las notas que la traen. Y de las 2.919 sin fecha, **2.667 (91%) ya estaban**.
+
+  La compuerta descarta una nota **solo si no trae fecha propia Y ya estaba en el pool un día anterior**, y escribe en el descarte desde cuándo la venimos viendo. No inventa ninguna fecha: no dice *"se publicó tal día"* sino *"la vemos desde tal día"*, que es exactamente lo que sabemos. Respeta la regla del design doc.
+
+  **Medido sobre el pool del 07/09:** Booking 1.423 candidatas con **391 frenadas**; BMS 4.611 con **690 frenadas**. Sin la compuerta habrían entrado 1.814 y 5.301.
+
+  **Por qué era la única salida posible:** el dedup del día no la ve (es de un día), `es_repetida()` tampoco (solo atrapa lo ya **enviado**) y la compuerta de antigüedad —por diseño— no descarta lo que no tiene fecha. Sin esto, una nota vieja pegada en la home de un medio `html` entraba **todos los días para siempre**.
+
+  Hizo falta un índice nuevo: el único que había era `(fecha, url_canonica)`, que no sirve para buscar por URL sola porque `fecha` es la columna líder. Se agregó `(url_canonica, fecha)`.
 
 **Tickets:** `[F5.2a]` `sub/fetch-page` + `wf/medir-html` con escalera ✅ · `[F5.2b]` el extractor — **en curso**, falta encoding y medir el volumen sin fecha · `[F5.2c]` correr las 178 en `modo=prod` — **después de las dos anteriores**.
 
@@ -796,7 +806,7 @@ Desde la Fase 3, el recolector de cada cliente corre en el schema de prueba en p
 - **Carga de n8n: medida, no estimada.** Un recolector × 9 barridos/día × 1.112 fuentes ≈ **9.250 fetches/día**. Un barrido completo son ~19 tandas y **~3,5 min** de punta a punta, así que las nueve ventanas no se solapan ni cerca. Las tandas van en serie (`batchSize=1`) y la memoria de los cuerpos HTTP queda acotada a una tanda. **Lo que hay que vigilar, ahora que el cron está encendido (07/09):** ~180 ejecuciones/día en la lista, y que la duración por barrido no crezca. **La línea de base es 5m09s** — el barrido del 07/09, 23 tandas, 1.288 fuentes. Si empieza a pasar de ~15 min, algo se degradó.
 - **Segundo proxy en producción:** hoy vive en un proyecto de prueba. Decidir dónde vive antes de la Fase 3.
 - **Límite de la ejecución manual de n8n:** las corridas con volumen alto mueren si se disparan con el botón (n8n retiene el set completo en memoria para mostrarlo en pantalla). Por webhook, el mismo trabajo pasa. Aplica a cualquier flujo masivo de la v4, no solo a la medición.
-- **Drift de migraciones del repo** (preexistente): `supabase db push` no es seguro hasta reconciliar — ticket aparte.
+- **Drift de migraciones del repo** (preexistente y creciendo): `supabase db push` no es seguro hasta reconciliar — ticket aparte. **Al 07/09 hay 22 migraciones aplicadas en Supabase que no están en `supabase/migrations/`:** las 20 del 04/09, más `v4_evaluador_usa_es_repetida_al` y `v4_f52b_compuerta_vista_antes_sin_fecha` del 07/09. Las tres de `[F4.4]`/`[F4.6]` sí quedaron en el repo.
 - **Autor ≠ aprobador:** cada fase que promueve a `public` o activa un workflow necesita revisión de un segundo.
 - **Fuera de alcance:** gacetillas, editor web y exportación, clientes en formato legado.
 
