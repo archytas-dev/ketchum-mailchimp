@@ -12,6 +12,7 @@ Respaldo de referencia. La **fuente de verdad es la instancia** `ketchum-n8n`
 | `v4 · sub · fetch-source` | `UUIlvhTv3Rjy9YEP` | 1 fuente, 1 transporte → `{diagnostico, items[]}` de un **feed** + escribe `fetch_log` | activo (inerte) | ✅ |
 | `v4 · sub · fetch-escalera` | `TyXVALaeUzfPlgv8` | la escalera directo→cloudflare→aws sobre una fuente. Corta en el primero con items | activo (inerte) | — |
 | `v4 · sub · llm-call` | `8xgMfLdQLuwkpVgr` | llamada al modelo + retry + tope de tokens + registro de costo. Lee el prompt vigente de `client_prompts` | activo (inerte) · **07/09** | — |
+| `v4 · sub · agent-A2 (el juez)` | `9pwrSH2KdpGhbXjS` | por lote: decide si la nota entra y en que seccion, con confianza. Aplica en codigo las restricciones que el prompt no puede garantizar | activo (inerte) · **07/09** | — |
 | `v4 · sub · fetch-page` | `kwyBxom1AVrwQJ8m` | 1 URL, 1 transporte → **el HTML crudo**. Para las fuentes sin feed y, en la Fase 5, para que A1 abra una nota | activo (inerte) · **07/09** | ✅ |
 
 > **`sub/fetch-source` tiene una mina:** su normalizador usa `$('Entrada').first()`. Hoy no duele porque la escalera lo llama de a uno, pero si alguna vez se lo llama con N items, los N resultados se van a creer el primero. `fetch-page` ya tuvo ese bug y se arregló con `$itemIndex`.
