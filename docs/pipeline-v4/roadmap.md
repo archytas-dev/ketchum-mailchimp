@@ -600,6 +600,40 @@ Y las compuertas nuevas atraparon lo que tenían que atrapar: **15 notas con fec
 
 ### Fase 5 · Los agentes — `arrancada (07/09)`
 
+#### `[F5.0]` los prompts de la v3, migrados a `client_prompts` — ✅ (07/09)
+
+`client_prompts` existía desde la Fase 1 —con `version`, `vigente` y `vigente_desde`— pero **con 0 filas**. Se hizo el mueble y nunca se mudó la ropa: los prompts seguían hardcodeados como `SYSTEM_MESSAGE` dentro del nodo `AI Filter Paralelo` de cada v3.
+
+**Dónde estaban de verdad:** en la instancia **`archytasai.app.n8n.cloud`**, no en `n8n-ketchum`. Los cuatro workflows activos con tag `prod`, tocados el 02/09. *(Los que se ven en `n8n-ketchum` son copias inactivas.)*
+
+**No se transcribieron a mano.** Un prompt con un carácter mal no rompe nada visible: el juez simplemente empieza a decidir distinto y nadie se entera hasta que el cliente se queja. Se armó un workflow de un solo uso —`Ketchum · v4 · extraer prompts de la v3`, `usaCmyYb2N62U8FD`, **solo lee**— que los saca por la API de n8n y los devuelve; la escritura se hizo desde afuera sobre ese JSON, con literales dollar-quoted.
+
+El parseo **respeta los backticks escapados**: el prompt contiene `` \`id\` ``, y un regex ingenuo habría cortado el texto por la mitad sin avisar.
+
+**Verificado por SHA-256, origen contra destino:**
+
+| Cliente | Caracteres | SHA-256 | |
+|---|---|---|---|
+| BMS | 20.702 | `b55ab4c5…` | ✅ |
+| MSD | 13.944 | `105867f5…` | ✅ |
+| Booking | 11.350 | `9e1a0146…` | ✅ |
+| Mars | 11.038 | `2edb7a76…` | ✅ |
+
+*(Booking cuenta 11.349 en Postgres y 11.350 en JS: el hash coincide, así que los bytes son los mismos. La diferencia es que JS cuenta unidades UTF-16 y Postgres caracteres, y ese prompt tiene un emoji fuera del plano básico.)*
+
+**Lo que se aprende de tenerlos juntos:**
+
+- **No hay contaminación cruzada entre clientes**, a diferencia de lo que apareció en `[F4.3b]` con las reglas de filtrado. Cada prompt habla solo de su cliente.
+- **BMS pesa casi el doble que el resto.** Vale mirarlo cuando se escriba el A2.
+- **El modelo y la temperatura también estaban hardcodeados ahí**, y el código documenta las decisiones con fecha y motivo: `gpt-4o` con `temperature=0.1`, *"subido desde gpt-4o-mini el 12/08 por mejor adherencia a reglas complejas, mismo cambio ya validado en MSD el 03/07"*. El clustering usa `text-embedding-3-small`. **Eso achica el bloqueante "qué modelo usar": ya hay uno elegido, probado y con la contra conocida** (Tier 1 TPM ~30k contra 200k de mini, más chance de 429).
+
+> **Esto es el punto de partida, no el destino.** El juez de la v3 solo devuelve `{"ids": [...]}`: decide si la nota entra. El A2 de la v4 tiene que decidir **relevancia y sección**. Hay que extenderlos — pero ahora se extienden como filas versionadas, no editando JavaScript en producción.
+
+**De paso, dos hallazgos operativos:**
+
+- **Hay dos `Ketchum - Clipping Msd v3` activos.** Los dos disparan 10:30 UTC: `19NPw3POuwTKdUsK` corre ~12 min (el real) y `gXXA9qIJ844k6OUs` arranca y muere en 0,3 s. No duplica el clipping, pero se ejecuta todos los días al pepe y confunde: tiene 108 nodos, más que el real. Es el `[F0.7]`, que sigue abierto.
+- **Confirmado el `[F0.3]`:** la API key de OpenAI se lee de `GSID` en texto plano, con la credencial de n8n solo como respaldo.
+
 #### `[F5.2a]` `sub/fetch-page` y la escalera para las sin feed — ✅ (07/09)
 
 **`sub/open-article` eran dos trabajos con el mismo nombre.** El design doc lo describe como *"abre una nota individual (para A1)"* y el roadmap además le asignaba las 178 fuentes `html`. Son cosas distintas: para A1 la entrada es **una nota** y la salida **su cuerpo**; para las 178 la entrada es **la home de un medio** y la salida **una lista de N notas**. Mismo transporte, contrato de salida distinto.
