@@ -669,7 +669,26 @@ Seis filtros en orden: mismo dominio → fuera navegación por ruta y por extens
   El HTML se devuelve igual aunque esté roto: mejor una nota con un acento mal que ninguna, para quien no pueda escalar. Verificado que `charset_roto` se dispara en `agritotal.com` y `abchoy.com.ar` sin regresión (363 notas de 7 medios).
 
   **Pendiente: `npx wrangler login && npx wrangler deploy`** en `docs/pipeline-v4/prototipos/cloudflare-worker`. Es interactivo (abre el navegador), así que no se pudo hacer desde acá. **El cambio es de bajo riesgo para los 911 feeds que ya usan el proxy:** si el charset es UTF-8 declarado, o es UTF-8 válido sin declarar, el resultado es byte a byte el mismo que hoy. Solo cambia el comportamiento cuando el contenido **no** es UTF-8 válido — que hoy ya devuelve basura.
-- **`[F5.2b-ii]` las fechas.** De las 364 notas, **ninguna** trae fecha en la URL. Entran todas con `fecha_confiable=false`, y la compuerta de antigüedad —por diseño— no descarta lo que no tiene fecha. Hay que medir el volumen real antes de encenderlas: 61 notas × 178 medios × 9 barridos es mucha nota sin fecha entrando al pool. El dedup por URL las colapsa entre barridos, pero conviene tener el número antes y no después.
+- **`[F5.2b-ii]` las fechas — medido el 07/09, y el número es grande.** De las 363 notas extraídas, **ninguna** trae fecha en la URL. Entran con `fecha_confiable=false`, y la compuerta de antigüedad —por diseño— no descarta lo que no se sabe cuándo se publicó.
+
+  **Hoy eso casi no pasa.** El pool tiene 8,1% de notas sin fecha, pero apenas llegan a candidata: Booking 64 (3,7%), MSD 79 (1,3%), **BMS y Mars cero**.
+
+  **Con las 178 encendidas, cambia de escala:**
+
+  | Cliente | Candidatas hoy | Medios `html` suscriptos | Notas sin fecha/día *(est.)* | Impacto |
+  |---|---|---|---|---|
+  | BMS | 5.461 | 103 | ~3.642 | **+67%** |
+  | MSD | 5.918 | 78 | ~2.758 | +47% |
+  | Mars | 5.391 | 46 | ~1.627 | +30% |
+  | Booking | 1.710 | 18 | ~636 | +37% |
+
+  *(52 notas por medio medidas × 68% que abren.)*
+
+  **El riesgo real no es el volumen: es lo evergreen.** Una nota vieja que el medio deja linkeada en la home entra **todos los días, para siempre**. El dedup del día no la frena (es de un día), y `es_repetida()` tampoco (solo atrapa lo ya **enviado**). Sin fecha, ninguna compuerta la puede descartar.
+
+  **La salida que propongo, y que no inventa ninguna fecha:** usar **la primera vez que la vimos** como estimación de frescura. `candidatas_raw` ya guarda una fila por día y URL canónica, así que la primera aparición de una URL es un dato que ya tenemos. Si una URL de una fuente `html` viene apareciendo desde hace días y nunca se envió, no es noticia de hoy — es mueble de la home. Es honesto porque no dice *"se publicó tal día"* sino *"la vemos desde tal día"*, que es exactamente lo que sabemos.
+
+  **Decisión pendiente antes del prod:** aceptar ese +30/67% de candidatas sin fecha apoyándose en el juez A2 de la Fase 5 para filtrarlas, o implementar primero la regla de "primera vez vista". **Mi recomendación es la segunda**: mandarle al A2 3.600 notas de las que no sabe la fecha es pagar tokens por resolver algo que la base ya sabe.
 
 **Tickets:** `[F5.2a]` `sub/fetch-page` + `wf/medir-html` con escalera ✅ · `[F5.2b]` el extractor — **en curso**, falta encoding y medir el volumen sin fecha · `[F5.2c]` correr las 178 en `modo=prod` — **después de las dos anteriores**.
 
