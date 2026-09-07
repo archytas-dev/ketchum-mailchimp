@@ -719,7 +719,30 @@ Y `wf/barrido-html`, el driver que las drena por tandas de 10, con los mismos 9 
 - **`fetch_log.diagnostico` tiene vocabulario cerrado** y `fetch-page` usa cuatro que no están (`vacio`, `charset_roto`, `metodo_rechazado`, `sin_raw`). Con el insert en bulk, **una fila inválida mata el lote entero**. Se acotó al enum: `vacio→sin_items`, `charset_roto→ok` (trajo la página; el charset lo resuelve la escalera), los otros dos a `error`.
 - **Con la vista vacía, el webhook no respondía.** PostgREST devuelve `[]`, n8n produce **cero items** y saltea todo lo que sigue, así que `Responder` nunca corría. Y la vista se vacía al final de **cada** barrido: no es un caso raro, es el de todos los días. Se arregla con `alwaysOutputData` en el nodo de lectura. *(Chequeado: el recolector de feeds ya lo tenía.)*
 
-**Tickets:** `[F5.2a]` `sub/fetch-page` + `wf/medir-html` con escalera ✅ · `[F5.2b]` el extractor ✅ · `[F5.2b-i]` charset ✅ *(vía escalera, sin desplegar)* · `[F5.2b-ii]` compuerta anti-evergreen ✅ · `[F5.2b-iii]` separación de vistas + `wf/barrido-html` ✅ · **`[F5.2c]` correr las 178 en `modo=prod`** ← *lo único que queda, y ya no está bloqueado*.
+#### `[F5.2c]` las 178 encendidas — ✅ (07/09)
+
+**74 de 178 tienen puerta de entrada** (64 por directo, 10 por proxy). Las otras 104 no abren por ningún transporte: timeout, bloqueo, 404 o páginas sin un solo link.
+
+**Resultado del primer barrido HTML:** 84 fuentes intentadas, 78 ok, **1.236 notas al pool** de 31 medios. Y llegan al cliente: **Booking pasa a 2.118 candidatas, 159 de fuentes que hasta hoy aportaban cero.**
+
+**El bug que casi se lleva todo puesto: `fetch-page` perdía items cuando los transportes venían mezclados.** El Switch repartía en tres ramas HTTP y cada una iba **sola** al normalizador, sin juntarlas: `executeWorkflow` devuelve **una** rama, así que pedir 5 fuentes devolvía 1 y pedir 10 devolvía 3.
+
+No se había visto porque `wf/medir-html` llama con **todos los items en el mismo transporte** —cada escalón de la escalera es uno solo—, así que ahí funcionaba de casualidad. `wf/recolector` ya tenía su *"Juntar las cuatro ramas"* por exactamente esta razón; `fetch-page` no.
+
+Al agregar el Merge apareció el problema de al lado: **el orden de salida ya no es el de entrada**, así que emparejar por índice se rompe. Se pasó a **`$('Entrada').item`**, el emparejamiento que n8n rastrea a través de los nodos. Es el tercer bug de índice del día — los otros dos fueron `.first()` en este mismo normalizador y el lookup por posición en `medir-html`.
+
+> **La regla, para las Fases 5 y 6:** en n8n nunca se empareja por índice. Un IF que filtra, un Merge que reordena o una sub-ejecución que agrupa rompen la correspondencia, **y lo hacen en silencio**. Se empareja por `.item`, o por una clave del propio dato.
+
+**Y dos escrituras que fallaban sin decir nada:**
+
+- **No se mandaba `fuente_id`.** `normalizar_y_compuertas()` hace `join medios_fuentes on f.id = c.fuente_id`, así que una nota sin él entra al pool y **no llega a ningún cliente**. Las primeras 984 notas extraídas quedaron inertes.
+- **Se mandaba una columna `origen` que no existe** (la real es `fecha_origen`). PostgREST devuelve 400 y, con `neverError`, el lote se pierde entero.
+
+Las dos las tapaba el mismo defecto de reporte: el resumen decía `guardadas: 129` **sin haber mirado la respuesta**. Ahora cuenta por `statusCode` y expone `escrituras_fallidas` con el detalle — que es la lección de la Fase 3 que estaba escrita y no aplicada acá.
+
+**Tickets:** `[F5.2a]` `sub/fetch-page` + `wf/medir-html` ✅ · `[F5.2b]` el extractor ✅ · `[F5.2b-i]` charset ✅ *(vía escalera, sin desplegar)* · `[F5.2b-ii]` compuerta anti-evergreen ✅ · `[F5.2b-iii]` separación de vistas + `wf/barrido-html` ✅ · `[F5.2c]` las 178 encendidas ✅. **El camino HTML está cerrado.**
+
+**Queda anotado, menor:** el contador de tandas de `wf/barrido-html` reporta siempre 1 — `$('Correr una tanda').all()` devuelve solo la última vuelta del bucle. El barrido **funciona** (la vista queda en 0), lo que miente es el resumen.
 
 ---
 
