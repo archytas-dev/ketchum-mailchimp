@@ -782,7 +782,44 @@ Las dos las tapaba el mismo defecto de reporte: el resumen decía `guardadas: 12
 
 **Lo que sigue de la fase, bloqueado por decisiones:**
 
-- **`sub/llm-call`** compartido: llamada + un retry + backoff 429 + tope de tokens/cliente/día + registro de tokens y costo.
+#### `[F5.1]` `sub/llm-call` — ✅ (07/09)
+
+**El ladrillo del que cuelgan A1, A2 y A3.** Probado de punta a punta con notas reales de Booking contra su prompt recién migrado:
+
+```
+diagnostico: ok    contenido: {"ids": []}    tokens: 3.584 (3.579 in / 5 out)
+costo_usd: 0.008998    costo_confiable: false    prompt_version: 1    ms: 892
+```
+
+Las seis notas de prueba eran reales y **todas irrelevantes** —Día del Trabajador Metalúrgico, Día de la Botánica, un recital, una red de gas—: habían pasado las compuertas determinísticas pero ninguna es noticia de turismo. El juez las rechazó a las seis. Eso es exactamente para lo que está el A2.
+
+**Cuatro decisiones que importan:**
+
+- **La key no vive en el código.** Los Code node de n8n **no aceptan credenciales**, y por eso la v3 termina leyendo `openai_api_key` del nodo `GSID` en texto plano — el `[F0.3]`. Acá la llamada la hace un nodo HTTP con credencial `openAiApi` de verdad, y el Code node solo prepara el cuerpo.
+- **El freno va antes del gasto.** Si el cliente no tiene prompt vigente o ya pasó su tope del día, **no se llama**: verificado, devuelve `sin_prompt` con **0 tokens**. Y devuelve el mismo contrato que el camino largo, así quien invoca no distingue *"no se llamó"* de *"se llamó y falló"*.
+- **Un solo viaje a la base por lote.** `v4_llm_contexto()` trae prompt vigente + tope + consumo del día + precios juntos. Tres consultas separadas son un impuesto que se paga en cada llamada al modelo.
+- **El error handling se hereda, no se inventa.** El `AI Filter Paralelo` de la v3 lleva meses en producción con retry, backoff leyendo los headers de rate limit y tope duro de tiempo. Se reusó el criterio: **se reintenta solo lo transitorio** (429, 408, 5xx, timeout). Un 400 o un 401 no mejoran esperando — reintentarlos es gastar tiempo y, si la culpa es del payload, tokens.
+
+**Lo que se agregó al modelo de datos:**
+
+| | Para qué |
+|---|---|
+| `llm_modelos` | precio por millón de tokens, con `verificado` |
+| `llm_topes` | tope diario por cliente; `client_id` nulo = default |
+| `v4_llm_consumo_dia` | tokens y costo del día, derivados de `stage_events` |
+| `v4_llm_contexto()` | todo lo anterior en una consulta |
+
+> **Los precios nacen `verificado=false` a propósito.** Un precio inventado no rompe nada visible: produce un reporte de costos equivocado y alguien toma una decisión de presupuesto con un número que nadie chequeó. `llm-call` devuelve el costo igual, pero marcado — y `v4_llm_consumo_dia` expone `costo_confiable`. **Hay que confirmarlos contra la página de OpenAI antes de cotizar.**
+
+El consumo sale del ledger, no de un contador aparte: **un contador propio es una segunda verdad que se puede desincronizar.**
+
+**Tope default: 2.000.000 tokens/día**, provisorio y con el motivo escrito en la fila. El número real sale de la primera corrida del A2 — con 3.584 tokens por lote de 6 notas, unas 2.000 candidatas son ~1,2 M tokens por cliente.
+
+**Un bug propio, encontrado probando:** la rama falsa de `¿registrar?` no iba a ningún lado, así que en modo test el subworkflow terminaba sin emitir nada y quien lo llamaba recibía `{}`. Ahora hay un punto único de salida.
+
+**Tickets:** `[F5.0]` prompts migrados ✅ · `[F5.1]` `sub/llm-call` ✅ · `[F5.2]` el camino HTML ✅ · **`[F5.3]` `sub/agent-A1`** · `[F5.4]` `sub/agent-A2` · `[F5.5]` `sub/agent-A3`.
+
+- ~~**`sub/llm-call`** compartido: llamada + un retry + backoff 429 + tope de tokens/cliente/día + registro de tokens y costo.~~ ✅
 - **`sub/agent-A1` (completador):** detecta qué falta y lo busca; limpia HTML, corta el sufijo del medio en títulos, reemplaza descripción cruzada.
 - **`sub/agent-A2` (juez):** veredicto por nota con el prompt del cliente + secciones, en lotes, con escalado a modelo grande ante duda. **No puede descartar** fuente prioritaria ni nota con marca del cliente — solo decide la sección.
 - **`sub/agent-A3` (auditor):** ve el clipping entero; chequeos duros (saca la nota, no frena), blandos (avisan), repesca de descartes dudosos.
