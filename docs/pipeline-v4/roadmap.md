@@ -654,7 +654,13 @@ Seis filtros en orden: mismo dominio → fuera navegación por ruta y por extens
 
 **Lo que falta de `[F5.2b]`:**
 
-- **`[F5.2b-i]` el encoding.** 2 de 6 medios devuelven títulos rotos. Las páginas están en ISO-8859-1 y n8n las decodifica como UTF-8, así que los bytes se pierden en el camino. Se arregla en `fetch-page`: pedir la respuesta **binaria** y decodificar según el `charset` del `Content-Type` o del `<meta charset>`. **Bloquea el prod:** un título roto llega tal cual al cliente.
+- **`[F5.2b-i]` el encoding — abierto, y el camino obvio ya se probó y no anda.** 2 de 6 medios devuelven títulos rotos (`aprob�`, `El Ni�o`): están en ISO-8859-1, **no declaran charset en el header** (`Content-Type: text/html` a secas) y n8n los decodifica como UTF-8. Una vez decodificado mal, el byte se perdió: no hay como recuperarlo del texto.
+
+  **Intento 1 (fallido):** pedir la respuesta **binaria** en `fetch-page` y decodificar leyendo el `<meta charset>` de los bytes. El binario llega —el charset se calcula— pero el cuerpo no es HTML: los 10 medios pasaron a `vacio` con 0 anclas. **Intento 2 (fallido):** `Accept-Encoding: identity` por si venía comprimido. Tampoco, y el `User-Agent` que se agregó de paso hizo que `accionrural.com.ar` empezara a devolver 403. Revertido a texto; verificado que vuelve a dar 364 notas.
+
+  **Conclusión: el buffer que expone el Code node de n8n no es el cuerpo de la respuesta** (probablemente por el modo de almacenamiento de binarios de la instancia). Insistir por ahí es tanteo.
+
+  **El camino que sí tiene sentido:** hacer la conversión **en el worker de Cloudflare**, que ya tenemos y donde el `Response` crudo está disponible con `TextDecoder`. Sería un `raw=1&charset=auto` que detecta el `<meta>` y devuelve siempre UTF-8. Cuesta que esos medios salgan por el proxy en vez de directo, pero son la minoría latin1 — no los 27 que abren por directo.
 - **`[F5.2b-ii]` las fechas.** De las 364 notas, **ninguna** trae fecha en la URL. Entran todas con `fecha_confiable=false`, y la compuerta de antigüedad —por diseño— no descarta lo que no tiene fecha. Hay que medir el volumen real antes de encenderlas: 61 notas × 178 medios × 9 barridos es mucha nota sin fecha entrando al pool. El dedup por URL las colapsa entre barridos, pero conviene tener el número antes y no después.
 
 **Tickets:** `[F5.2a]` `sub/fetch-page` + `wf/medir-html` con escalera ✅ · `[F5.2b]` el extractor — **en curso**, falta encoding y medir el volumen sin fecha · `[F5.2c]` correr las 178 en `modo=prod` — **después de las dos anteriores**.
