@@ -1373,11 +1373,14 @@ queda como dato secundario.
 
 | | Antes | Ahora |
 |---|---|---|
-| Monitoreados que la v4 puede abrir | 195 / 220 | **201 / 220** |
-| Todas las fuentes activas | 1.184 / 1.437 | **1.237 / 1.437** |
-| Fuentes html con transporte | 74 / 178 | **97 / 178** |
+| Monitoreados que la v4 puede abrir | 195 / 220 | **204 / 220** |
+| Todas las fuentes activas | 1.184 / 1.437 | **1.254 / 1.437** |
+| Fuentes html con transporte | 74 / 178 | **114 / 178** |
 
-**Quedan 19 monitoreados que no abren.** El detalle de por qué, que es lo que
+`medir-html` se agoto: las ultimas seis corridas no abrieron ninguna fuente
+nueva. Las 64 html que quedan sin transporte no abren por ninguno de los cuatro.
+
+**Quedan 16 monitoreados que no abren.** El detalle de por qué, que es lo que
 define el trabajo:
 
 - **`sin_feed_requiere_html`** — no tienen feed y hay que leerles el HTML. Se
@@ -1415,6 +1418,89 @@ define el trabajo:
 > La lección para el dashboard de la Fase 7: **`diagnostico = 'ok'` no significa
 > que entró una nota.** Hacen falta las dos columnas, y la que importa es la
 > segunda.
+
+#### Los cuatro bugs de los medios que decían "ok" — resueltos el 08/09
+
+El síntoma era uno solo —medios con `diagnostico = 'ok'` que no dejaban una nota
+en el pool— y adentro había cuatro causas distintas. Ninguna se veía desde
+arriba, y esa es la parte que importa.
+
+**1. El recolector no sabía ejecutar Bright Data.** El router tenía cuatro
+salidas, pero la de `brightdata` iba **directo al Merge sin pasar por ningún
+nodo HTTP**: se registraba `no_visitado` y listo. 32 fuentes se anotaban nueve
+veces por día como intentadas sin que nadie las pidiera, tres de ellas medios
+monitoreados.
+
+La credencial existía **desde el 03/09**; el nodo estaba deshabilitado con la
+nota *"falta credencial"*. La nota envejeció y nadie la volvió a leer. Todo lo
+necesario para conectarlo —zona `mcp_unlocker`, `format=json`, por qué no
+`web_unlocker1`— estaba escrito en las notas del workflow de medición archivado.
+
+Rama propia conectada, Merge ampliado a cinco entradas. Verificado:
+`19640noticias.com` pasó de `no_visitado` a **200 ok con 1.015 artículos**.
+
+> **Ojo al costo:** Bright Data se paga por request y tarda ~26s cada uno. Son 32
+> fuentes × 9 ventanas = ~288 requests por día que antes no se hacían. Hay que
+> mirar la factura esta semana y, si duele, bajarles la frecuencia a esas fuentes
+> en vez de apagarlas.
+
+**2. El parser solo aceptaba comillas dobles.** Atom escribe el link como
+atributo, y **Blogger lo hace con comillas simples**: `href='...'`. El regex solo
+matcheaba `href="..."`, así que `url` quedaba en `null` y la nota se descartaba
+al insertar — pero **`fetch_log` ya había contado el artículo**. De ahí el
+síntoma imposible: *"25 artículos reportados, 0 en el pool"*, 28 corridas
+seguidas desde el 03/09.
+
+Arreglado prefiriendo `rel="alternate"` (en Atom es la nota; `self`, `hub` y
+`next` apuntan al feed) y aceptando los dos tipos de comilla. Verificado:
+`notiagro.blogspot.com` y `radardeviajes.com.ar` pasaron de 0 a **25 y 25**.
+
+**3. Un sitemap índice no es un feed vacío.** `<sitemapindex>` lista otros
+sitemaps, no artículos. El parser no encontraba `<url>` y reportaba `sin_items`
+— el mismo diagnóstico que un feed genuinamente vacío, que **no tiene arreglo**.
+Así quedaron **25 fuentes** paradas detrás de una etiqueta equivocada.
+
+Ahora tiene diagnóstico propio, `sitemap_index`, sumado al vocabulario cerrado
+de `fetch_log`. Y se resolvieron cinco a mano apuntándolas al sitemap hijo
+correcto.
+
+> #### Casi meto basura en el pool
+>
+> Para resolver los 25 índices escribí un script que elegía el sitemap hijo
+> "más probable" por nombre y por `lastmod`. Dio 19 resueltos y **estaba mal**:
+> eligió el sitemap de **juegos casuales en chino** de `msn.com`, el de *tags* de
+> `agrofy`, el de *jobs* de `thefoodtech` y el de *páginas* de una web de
+> gobierno. Aplicarlo habría metido miles de URLs basura por ventana.
+>
+> El criterio bueno no es el nombre del archivo sino **la evidencia**: exigir que
+> el hijo traiga al menos tres notas con fecha de los últimos tres días. Un
+> listado de noticias se actualiza a diario; uno de tags o de páginas
+> institucionales, no. Con esa regla quedaron 7, y de esos descarté a mano dos
+> que no son medios —`ar.jooble.org` (ofertas de trabajo) y `oddsscanner.com`
+> (apuestas)— que pasaban el filtro porque también se actualizan todos los días.
+>
+> **Una heurística que acierta el 70% no sirve para escribir configuración sola.**
+> El 30% restante no es ruido: es basura que después hay que encontrar y sacar.
+
+**4. Los cuatro HTML que extraían cero enlaces no eran un bug del extractor.**
+Lo di por sentado y estaba equivocado. Mirando el HTML de cada uno son tres
+problemas distintos de la fuente, y ninguno se arregla con código genérico:
+
+- `elcampohoy.com` — **el medio se mudó**: su home es una redirección a
+  `cadena3.com/elcampohoy`. La URL que tenemos quedó vieja.
+- `elproductorporcino.com` e `inluxus.com` — **son SPA**: los únicos `href` del
+  HTML son favicons y CSS; el contenido lo arma JavaScript contra una API. Sin
+  render no hay enlaces que extraer.
+
+Lo que **sí** era nuestro es que dijeran `ok`. Bajar la página y no sacar nada
+no es éxito: ahora el recolector html lo reporta como `sin_items`. Verificado en
+una tanda de 25: **21 `ok` con 744 artículos y 4 `sin_items` con cero**, que
+antes se contaban como sanos.
+
+> **La regla que sale de los cuatro:** un diagnóstico que mezcla dos causas con
+> arreglos distintos es peor que no tener diagnóstico, porque da la sensación de
+> que ya se miró. `ok` con cero artículos, y `sin_items` para un sitemap índice,
+> escondieron nueve medios monitoreados durante días.
 
 #### El descubridor, encendido — 08/09
 
