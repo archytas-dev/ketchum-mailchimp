@@ -1,6 +1,6 @@
 {
-  "_nota": "Export de `v4 · sub · fetch-page` (id kwyBxom1AVrwQJ8m) en la instancia ketchum-n8n. Fuente de verdad = la instancia; este archivo es respaldo versionado. Hermano de sub/fetch-source: mismo transporte, distinta salida — este devuelve el HTML crudo, no items de feed.",
-  "name": "v4 · sub · fetch-page",
+  "_nota": "Export de `v4 · pieza · fetch-page` (id kwyBxom1AVrwQJ8m) en la instancia ketchum-n8n. Fuente de verdad = la instancia; este archivo es respaldo versionado. Hermano de sub/fetch-source: mismo transporte, distinta salida — este devuelve el HTML crudo, no items de feed.",
+  "name": "v4 · pieza · fetch-page",
   "settings": { "executionOrder": "v1", "timezone": "America/Argentina/Buenos_Aires" },
   "nodes": [
     {

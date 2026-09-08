@@ -195,7 +195,7 @@ Son **178 y no 130**: a las 130 de `jina` se sumaron 48 que tienen URL cargada p
 
 ### Fase 3 · Recolector compartido + schema de prueba — `en curso` *(solo queda `[F3.1]`, pospuesto a `[Z.1]`)*
 
-**El recolector está construido y corrió un barrido completo (04/09).** `v4 · wf · recolector (compartido)` — ID `tzcHSIUdMGXVRFIo`, webhook `POST /v4-recolector`, body `{limite, offset, modo}`.
+**El recolector está construido y corrió un barrido completo (04/09).** `v4 · recolección · recolector feeds` — ID `tzcHSIUdMGXVRFIo`, webhook `POST /v4-recolector`, body `{limite, offset, modo}`.
 
 | | |
 |---|---|
@@ -339,8 +339,8 @@ Encendidos los dos cron de la v4:
 
 | Workflow | Cron | Qué hace |
 |---|---|---|
-| `v4 · wf · barrido` | 08 · 11 · 14 · 17 · 20 · 23 · 02 · 05 y **06:30** ART | llena el pool |
-| `v4 · wf · re-verificar estrategia` | diario **07:15** ART | reprueba el transporte de las que empezaron a fallar |
+| `v4 · recolección · barrido feeds` | 08 · 11 · 14 · 17 · 20 · 23 · 02 · 05 y **06:30** ART | llena el pool |
+| `v4 · mantenimiento · re-verificar transporte` | diario **07:15** ART | reprueba el transporte de las que empezaron a fallar |
 
 El de re-verificación va entre el barrido de 06:30 y el de 08:00 a propósito: arregla la estrategia justo antes del barrido que alimenta el clipping del día. Cierra el riesgo de *"`medios_estrategia` es una foto del 03/09 y envejece en silencio"*.
 

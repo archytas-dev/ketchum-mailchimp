@@ -1,6 +1,6 @@
 {
-  "_nota": "Export de `v4 · sub · fetch-source` (id UUIlvhTv3Rjy9YEP) en la instancia ketchum-n8n. Fuente de verdad = la instancia; este archivo es respaldo versionado.",
-  "name": "v4 · sub · fetch-source",
+  "_nota": "Export de `v4 · pieza · fetch-source` (id UUIlvhTv3Rjy9YEP) en la instancia ketchum-n8n. Fuente de verdad = la instancia; este archivo es respaldo versionado.",
+  "name": "v4 · pieza · fetch-source",
   "settings": { "executionOrder": "v1", "saveDataErrorExecution": "all", "saveDataSuccessExecution": "all" },
   "nodes": [
     { "id": "trg", "name": "Entrada", "type": "n8n-nodes-base.executeWorkflowTrigger", "typeVersion": 1.1, "position": [0, 300], "parameters": { "inputSource": "passthrough" }, "notes": "Contrato IN: { fuente_id, dominio_norm, url, formato, transporte, pasada }. transporte = UNO solo (directo|cloudflare|aws|brightdata). La escalera (probar el siguiente) la maneja el orquestador, no este subwf." },

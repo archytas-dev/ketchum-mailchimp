@@ -8,9 +8,9 @@ Instancia: `ketchum-n8n`. Rama: `feat/pipeline-v4`.
 |---|---|
 | Credencial `Ketchum — Fetch Proxy (AWS/Supabase)` (`LLdAbQUu6q9ChKPG`) | **Creada y probada** — `httpHeaderAuth`, `Authorization: Bearer <anon del proyecto de prueba tufgbajqgjkwqwskkcam>` |
 | Credencial `Ketchum — Fetch Proxy (Cloudflare)` (`odT5yjmKpIORGZjK`) | **Cargada y probada** — `X-Api-Key` real puesta el 03/09 |
-| `v4 · sub · fetch-source` (`UUIlvhTv3Rjy9YEP`) | **Construido y probado end-to-end** (03/09). Activo (publicado, inerte). |
-| `v4 · sub · fetch-escalera` (`TyXVALaeUzfPlgv8`) | **Construido y probado** (03/09) — la escalera directo→cloudflare→aws. Activo (inerte). |
-| `v4 · medición · cobertura` (`XpeIOEJg92H1hrrJ`) | **Construido, validado. INACTIVO.** Manual Trigger. Falta dispararlo (~1–2 h). Instrucciones: `workflows/README.md`. |
+| `v4 · pieza · fetch-source` (`UUIlvhTv3Rjy9YEP`) | **Construido y probado end-to-end** (03/09). Activo (publicado, inerte). |
+| `v4 · pieza · fetch-escalera` (`TyXVALaeUzfPlgv8`) | **Construido y probado** (03/09) — la escalera directo→cloudflare→aws. Activo (inerte). |
+| `ZZ · archivo · v4 medición cobertura` (`XpeIOEJg92H1hrrJ`) | **Construido, validado. INACTIVO.** Manual Trigger. Falta dispararlo (~1–2 h). Instrucciones: `workflows/README.md`. |
 | `wf/descubridor` (A0) | Pendiente — después de ver el resultado de la medición |
 | Credencial Bright Data | Pendiente — nodo deshabilitado en `sub/fetch-source` |
 

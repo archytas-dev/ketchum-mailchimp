@@ -377,7 +377,7 @@ Corta en el primero con `articulos > 0`. Escala **solo** con `diagnostico ∈ (b
 | `wf/descubridor` (A0) | webhook, por tandas, fuera de la ventana de envío | agarra las fuentes sin transporte y prueba ~17 rutas por dominio **saliendo por Cloudflare**, más una segunda vuelta leyendo lo que declaran la home (`<link rel="alternate">`) y el `robots.txt` (`Sitemap:`). Escribe `medios_fuentes.url_feed` + `medios_estrategia` solo con lo verificado | ✅ **construido y corrido** (04/09): 152 fuentes recuperadas de 442 |
 | `wf/salud` | post-envío | cobertura del día, fuentes mudas (N × ritmo de publicación), volumen esperado **por día de la semana** | pendiente |
 | `wf/error-handler` | Error Workflow de todos los workflows nuevos | consolida a Slack (1 aviso/corrida) + escribe el fallo en `stage_events` | pendiente |
-| `v4 · medición · cobertura` | webhook, por tandas | recorrió las 1.260 fuentes con URL usable por la escalera → `fetch_log` (`pasada='medicion'`). No manda mails ni toca tablas de cliente. | ✅ **corrido (03/09)** — dio el gate. Ya cumplió su función |
+| `ZZ · archivo · v4 medición cobertura` | webhook, por tandas | recorrió las 1.260 fuentes con URL usable por la escalera → `fetch_log` (`pasada='medicion'`). No manda mails ni toca tablas de cliente. | ✅ **corrido (03/09)** — dio el gate. Ya cumplió su función |
 
 #### Los tres agentes
 
@@ -491,7 +491,7 @@ Ver §3.6. Es un test del golden, no una promesa.
 |---|---|---|
 | Local | los 38 feeds del benchmark + curl a los proxies | que los proxies traen lo que dicen (hecho) |
 | n8n aislado | `sub/fetch-source` / `sub/fetch-escalera` contra feeds reales | contrato, parseo, escritura a `fetch_log` (hecho) |
-| Medición | `v4 · medición · cobertura` sobre las 1.260 con URL usable, después `wf/descubridor` sobre las 442 rotas | ✅ **hecho (03–04/09).** 960 entraban por transporte; el descubridor sumó 152 → **1.112 de 1.437 (77%)** |
+| Medición | `ZZ · archivo · v4 medición cobertura` sobre las 1.260 con URL usable, después `wf/descubridor` sobre las 442 rotas | ✅ **hecho (03–04/09).** 960 entraban por transporte; el descubridor sumó 152 → **1.112 de 1.437 (77%)** |
 | Schema de prueba | modo `ensayo` → schema `test`, mail al equipo | que el pipeline decide igual sin tocar datos de cliente |
 | Golden | copia de un día real del cliente piloto | que la v4 decide **idéntico** a la v3; cada diferencia se explica antes de avanzar |
 | Producción | un cliente (Booking), con la v3 prendida en paralelo | que el mail sale y es el mismo |
@@ -543,12 +543,12 @@ Ver §3.6. Es un test del golden, no una promesa.
 
 | Objeto | ID | Estado |
 |---|---|---|
-| `v4 · sub · fetch-source` | `UUIlvhTv3Rjy9YEP` | activo (lo llama un orquestador) |
-| `v4 · sub · fetch-escalera` | `TyXVALaeUzfPlgv8` | activo |
-| `v4 · wf · descubridor (A0)` | `nvShglwLuHqgF5cp` | **inactivo** — se activa a mano para correrlo. Webhook `POST /v4-descubridor`, body `{cliente, grupo, limite, offset, modo}`; `modo=test` (default) no escribe nada |
-| `v4 · medición · cobertura FINAL (por tandas)` | `lVRHLZaL5VCmfWFK` | activo, webhook — **ya cumplió su función**, candidato a archivar |
-| `v4 · medición · escalera pendiente` | `2yemtvcIABA0KB34` | activo, webhook — ya cumplió, candidato a archivar |
-| `ZZ · OBSOLETO · medición cobertura` | `XpeIOEJg92H1hrrJ` | inactivo, roto — **borrar** |
+| `v4 · pieza · fetch-source` | `UUIlvhTv3Rjy9YEP` | activo (lo llama un orquestador) |
+| `v4 · pieza · fetch-escalera` | `TyXVALaeUzfPlgv8` | activo |
+| `v4 · mantenimiento · descubridor (A0)` | `nvShglwLuHqgF5cp` | **inactivo** — se activa a mano para correrlo. Webhook `POST /v4-descubridor`, body `{cliente, grupo, limite, offset, modo}`; `modo=test` (default) no escribe nada |
+| `ZZ · archivo · v4 medición cobertura` | `lVRHLZaL5VCmfWFK` | **archivada el 08/09** — desactivada y movida a `KETCHUM/ARCHIVO` |
+| `ZZ · archivo · v4 medición escalera pendiente` | `2yemtvcIABA0KB34` | **archivada el 08/09** — nunca llegó a correr |
+| `ZZ · archivo · v4 medición cobertura ROTA` | `XpeIOEJg92H1hrrJ` | **archivada el 08/09** — rota, no usar |
 | cred `Ketchum — Fetch Proxy (Cloudflare)` | `odT5yjmKpIORGZjK` | cargada |
 | cred `Ketchum — Fetch Proxy (AWS/Supabase)` | `LLdAbQUu6q9ChKPG` | cargada (key del proyecto de prueba) |
 | cred `Ketchum — Fetch Proxy (Brightdata)` | `Jg1RLQ26OX2pQgzE` | cargada |
