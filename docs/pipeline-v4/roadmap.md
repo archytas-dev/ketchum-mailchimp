@@ -1223,6 +1223,70 @@ aportaron nada, y el resto se reparte entre un puñado de medios sin cargar
 —casi todos con una sola nota— y notas sueltas de medios que sí aportaron pero
 donde el feed no listaba esa nota puntual.
 
+#### Dónde se pierden las notas de fuente propia — 08/09
+
+De las 165 notas que la v3 mandó hoy desde fuentes propias, la v4 tenía 125.
+Las 40 que faltaban, rastreadas una por una:
+
+| Dónde se pierde | Notas | Medios |
+|---|---|---|
+| El medio respondió OK, pero esa nota no vino en el feed | 25 | 13 |
+| El medio está activo pero **el barrido no lo intenta** | 14 | 7 |
+| El medio no está cargado | 1 | 1 |
+
+**Por qué el barrido no los intenta:** `v4_recoleccion_pendientes` hace `JOIN
+medios_estrategia` y exige `transporte IS NOT NULL`. Una fuente que la medición
+de la Fase 2 no pudo abrir por ningún transporte **queda fuera del barrido para
+siempre**, sin reintento y sin aparecer en ningún lado como faltante. Son 253 de
+las 1.437 activas.
+
+Eso está bien como diseño —no tiene sentido golpear todos los días algo que no
+abre— pero **el supuesto de por qué no abren era el equivocado**:
+
+| Diagnóstico | Fuentes | Qué es realmente |
+|---|---|---|
+| `sin_items` | 100 | el feed responde, pero viene vacío |
+| `sin_feed_requiere_html` | 76 | no tiene feed; hay que leer el HTML |
+| `no_es_feed` | 25 | la URL cargada no apunta a un feed |
+| `no_existe` | 15 | 404 |
+| `caido` | 20 | el sitio no responde |
+| `timeout` + `bloqueado` | **7** | bloqueo de verdad |
+
+**216 de 253 (85%) son "la URL que tenemos no sirve". Siete son bloqueo.**
+
+El cuello de botella de la cobertura **no es el transporte** —la escalera de la
+Fase 2 hace su trabajo— **es la configuración de las fuentes**. Y ese es
+exactamente el trabajo del descubridor (A0), que está construido y apagado desde
+el 04/09. Correrlo sobre esas 216 es, por lejos, lo que más rinde de todo lo que
+queda pendiente.
+
+Los siete medios que la v3 lee hoy y la v4 no lo confirman uno por uno:
+`lavoz.com.ar`, `consensosalud.com.ar`, `programainfosalud.com` y
+`pulsoturistico.com.ar` dan `no_es_feed`; `anroca.com.ar` da `sin_items`;
+`mitdf.com.ar` da 404; `mitreyelcampo.cienradios.com` necesita HTML. **Ninguno
+está bloqueado.** La v3 les entra porque tiene otra URL cargada, o porque se los
+trae Google Alerts.
+
+> #### Arreglar la mitad de un desfase horario
+>
+> Buscando esto apareció una regresión **introducida ese mismo día**. Las dos
+> vistas de pendientes evitan repetir una fuente dentro de la misma ventana con
+> `l.fecha = CURRENT_DATE and l.pasada = 'barrido_<fecha_ART>'`. La *pasada* ya se
+> calculaba en hora argentina; la *fecha* se comparaba contra `CURRENT_DATE`, que
+> es UTC. Mientras `fetch_log.fecha` también era UTC, los dos lados coincidían
+> **por accidente**.
+>
+> Al pasar el default de `fetch_log.fecha` a `v4_hoy()`, los dos lados dejaron de
+> coincidir entre las 21:00 y las 24:00 ART: el `NOT EXISTS` no encontraba nada y
+> la ventana de las 23:00 habría vuelto a recolectar todas las fuentes ya hechas.
+> No rompía datos —el pool deduplica— pero era una pasada entera de trabajo al
+> pedo, todas las noches.
+>
+> Corregidas las tres vistas que quedaban con `CURRENT_DATE`. La lección:
+> **arreglar la mitad de un desfase horario deja las dos mitades peor que antes
+> de tocar nada.** Cuando se cambia el reloj de una columna hay que buscar todo
+> lo que la compara, no solo lo que la escribe.
+
 **Tickets:** `[F8.1]` arnés de golden · `[F8.2]` staging del piloto · `[F8.3]` cutover de Booking · `[F8.4]` disparador de rollback + monitoreo.
 
 ### Fase 9 · Cutover del resto — `pendiente`
@@ -1283,6 +1347,43 @@ Desde la Fase 3, el recolector de cada cliente corre en el schema de prueba en p
 ---
 
 ## 6. Pendiente al cierre del roadmap
+
+### `[Z.2]` La v4 no tiene el canal de Google Alerts — *abierto el 08/09, a resolver antes del cutover*
+
+**Verificado: la v4 no cubre nada de Google Alerts ni de Google News.** Cero. No
+es que esté flojo, es que no existe:
+
+- `google_alerts` tiene 196 filas, 134 activas — **es configuración exclusiva de
+  la v3**, nadie de la v4 la lee.
+- `medios_fuentes` tiene 9 fuentes cuya URL contiene "google", pero son
+  `sitemap_google_news.xml` **alojados en el propio medio**: el formato de
+  sitemap que cada diario publica para Google News. No tienen nada que ver con
+  el canal de Alerts.
+- El pool de la v4 no tiene **ni una** nota de dominio google.
+
+**Cuánto pesa:** de las 238 notas que la v3 mandó el 08/09, **73 (31%) entraron
+por Google** — 37 por Alerts (`google.com/url?...`) y 36 por Google News RSS
+(`news.google.com/rss/articles/...`). De esas 73, la v4 tenía 30 por otra vía.
+Las 43 restantes son **más de la mitad de todo lo que le falta a la v4**.
+
+**La decisión no está tomada y hay que tomarla antes del cutover.** Las opciones,
+sin recomendación todavía porque falta medir:
+
+1. **Sumar el canal.** Leer `google_alerts` y traer sus resultados como una
+   fuente más. Es lo que hace la v3 y cierra el hueco de una.
+2. **Demostrar que no hace falta.** Medir cuántas de esas 43 están publicadas en
+   medios que ya monitoreamos y simplemente no las vimos por otra razón. Si la
+   mayoría es alcanzable, el descubridor las recupera y Alerts es redundante.
+3. **Aceptar el hueco.** Solo si Ketchum confirma que esas notas no le importan,
+   cosa que hoy nadie preguntó.
+
+**Lo que no se puede hacer es cortar la v3 sin resolver esto**, porque el
+clipping perdería un tercio de su volumen el primer día.
+
+> Dato del camino: la v3 guarda en `notes.url` el link con el que **encontró** la
+> nota, no el del medio. Un tercio del clipping lleva URLs de Google en la base.
+> Habría que confirmar si eso es también lo que ve Ketchum en el mail y en el
+> editor, o si el HTML resuelve el redirect antes de mostrarlo.
 
 ### `[Z.1]` Asegurar el schema `test` — *pospuesto por decisión del 04/09, se revisa al final*
 
