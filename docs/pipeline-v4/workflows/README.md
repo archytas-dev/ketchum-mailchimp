@@ -3,6 +3,9 @@
 Respaldo de referencia. La **fuente de verdad es la instancia** `ketchum-n8n`
 (`n8n-ketchum.archytas.io`, project `lZwDOgXzFudxU5oC`).
 
+**Todos viven en `KETCHUM/V4`** (movidos el 08/09; antes estaban sueltos en la raíz del
+proyecto). Los archivados están en `KETCHUM/ARCHIVO`.
+
 **Los nombres dicen cuándo corre cada uno** (renombrados el 08/09): `v4 · <etapa> · <nombre>`,
 con etapa `recolección`, `clipping`, `operación`, `mantenimiento`, `pieza` o `prueba`. Ordenan
 solos alfabéticamente y quedan agrupados por etapa sin numerar nada — numerar obliga a renumerar

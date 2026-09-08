@@ -946,6 +946,76 @@ Encenderlos es una decisión explícita con revisión de un segundo (mandamiento
 
 **Lo que faltaba de la fase —`wf/salud`, `wf/error-handler` y la idempotencia del día— quedó cerrado el 07/09.** Detalle abajo.
 
+#### Qué protege el `modo=test` — auditado el 08/09
+
+Se auditó qué hace realmente `modo=test` en la v4, porque la intuición era
+*"test escribe en el schema `test`"* y **eso no es lo que pasa ni lo que
+conviene**. El schema `test` es un espejo de la **v3/webapp** — 28 tablas y 7
+funciones: `notes`, `clippings`, `gacetillas`, `tiers`, `exports`. Ninguna tabla
+de la v4 tiene espejo ahí, y no debería tenerlo. Las tablas se parten en tres
+grupos y cada uno se protege distinto:
+
+| Grupo | Tablas | Cómo se protege |
+|---|---|---|
+| **Laboratorio de la v4** | `candidatas_raw`, `fetch_log`, `pipeline_runs`, `candidatas_veredicto`, `v4_errores` | Nadie las lee salvo la v4. Se escribe siempre, **marcado con `modo`** donde importa. Duplicarlas en `test` sería duplicar el pool entero para nada, y probar contra un pool sintético es peor que probar contra el real. |
+| **Config** | `medios_fuentes`, `client_prompts` | La escribe la v4 y afecta a las corridas siguientes. Acá el modo **sí** frena: `medir-html` tiene `¿modo=prod y abrió?` antes de guardar el transporte, y el descubridor no escribe nada en test. |
+| **Lo que ve el cliente** | `notes`, `clippings`, `summaries`, `exports`, `notas_historico_url` | **La v4 todavía no escribe ahí.** Verificado con datos: todo lo que entró desde el 03/09 son los cuatro clippings de la v3 (origen `n8n`, 20–76 notas por cliente por día). |
+
+**La regla para cuando se construya el guardado en plataforma** —el paso que
+falta de esta fase— es que ahí sí `modo=test` tiene que ir a
+`test.import_clipping()`, que ya existe en los dos schemas. Es la única línea
+donde "otro schema" es la respuesta correcta, porque es la única tabla que un
+humano mira creyendo que es real.
+
+> #### El modo test no podía probar nada
+>
+> La guarda era *"en test no escribas"*. Suena seguro y rompe el propósito:
+> **`decidir_nivel()` lee los veredictos de la base**, así que en modo test nunca
+> encontraba ninguno y **siempre devolvía nivel 2 "sin veredictos"**, aunque el
+> A2 hubiera andado perfecto. El modo de prueba no podía validar el armado de
+> punta a punta — que es exactamente lo que el golden de la Fase 8 necesita.
+>
+> Se dio vuelta la guarda: en vez de **no escribir**, se escribe **marcado**.
+> `candidatas_veredicto` tiene `modo`, y el modo entra en la clave única, así que
+> un ensayo no puede pisar el veredicto real de la misma candidata. Las tres
+> funciones del armado toman `p_modo` y cada corrida ve solo lo suyo.
+>
+> Verificado: la misma corrida en modo test que antes daba *nivel 2* ahora da
+> **nivel 0 "completo"**, con el veredicto persistido (201) y separado — 12 filas
+> `prod` del 07/09 y 1 fila `test` del 08/09, conviviendo.
+>
+> La lección no es sobre veredictos: **una guarda que apaga el sistema en vez de
+> aislarlo no es una guarda, es un interruptor.** Lo que hay que separar son los
+> datos, no la ejecución.
+
+> #### El bug de las tres horas, otra vez — y esta vez sí dolía
+>
+> Lo habíamos arreglado en las **funciones** con `v4_hoy()`. Los **defaults de
+> las tablas** seguían en `CURRENT_DATE`, que es UTC. Y el recolector no manda la
+> fecha: la deja poner a la base.
+>
+> Medido antes de tocar nada: de **33.615** notas capturadas entre las 21:00 y
+> las 24:00 ART en los últimos 5 días, **33.608 quedaron guardadas con la fecha
+> del día siguiente**. No era un caso borde — era **una de las nueve ventanas del
+> barrido entera, todos los días**.
+>
+> Consecuencia: el clipping de la mañana nunca veía las notas de la noche
+> anterior. La pregunta que teníamos abierta con Ketchum —si debería llevarlas—
+> **estaba contestada de hecho, y por accidente.**
+>
+> Apareció de rebote: el primer intento de guardar un veredicto en modo test
+> rebotó con `23502 fecha null`, porque `candidatas_veredicto` no tenía default
+> —y la nota del nodo que la escribía **afirmaba que sí lo tenía**. Tirando de
+> ese hilo aparecieron los otros dos.
+>
+> Arreglado: `candidatas_raw`, `fetch_log` y `candidatas_veredicto` ahora tienen
+> default `v4_hoy()`. **El histórico quedó como está** — son 5 días de datos de
+> prueba que nadie consumió, y reescribirlos cambiaría números que ya reportamos.
+> Vale saberlo al leer la cobertura de esos días.
+>
+> Un mismo bug arreglado en un lugar y no en el otro es peor que no arreglarlo:
+> queda la creencia de que está resuelto.
+
 #### `[F6.5]` La idempotencia del día — ✅ (07/09)
 
 **`pipeline_runs` existía con la forma correcta y sin el candado.** La clave
