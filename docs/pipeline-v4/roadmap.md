@@ -1160,7 +1160,7 @@ Y `ad_value` distingue **`null` de cero**: cero es un valor, `null` es *"no sabe
 
 **Tickets:** `[F7.1]`–`[F7.4]` las cuatro pantallas · `[F7.5]` sonda de alta · `[F7.6]` historial de configuración · `[F7.7]` fixes puntuales.
 
-### Fase 8 · Golden + primer cutover (Booking) — `pendiente`
+### Fase 8 · Golden + primer cutover (Booking) — `pendiente` *(con un primer contraste medido el 08/09)`*
 
 - **Golden:** la v4 decide idéntico a la v3 sobre los mismos datos del mismo día. Cada diferencia se explica antes de avanzar.
 - **Staging obligatorio:** copia de un día real del piloto.
@@ -1169,6 +1169,59 @@ Y `ad_value` distingue **`null` de cero**: cero es un valor, `null` es *"no sabe
 
 **Piloto = Booking** (más chico y simple: 210 fuentes vs 640, 18 keywords vs 106, corre en 5 min). El error es el más barato: si la arquitectura falla, se ve en el contexto más limpio.
 **BMS va segundo, no cuarto** — es donde más duele, pero ese dolor lo arreglan las Fases 2–4 (compartidas) y su recolector se construye en la Fase 3: BMS mejora en el schema de prueba desde la Fase 3, sin cortar nada. *(La medición del 03/09 lo confirma con datos: es el de peor cobertura, 62%, con 217 fuentes rotas o sin dirección. Por eso el descubridor arranca por él aunque el cutover arranque por el piloto.)*
+
+#### Primer contraste real contra la v3 — 08/09
+
+Todavía no es el golden (eso compara **decisiones**), pero sí la pregunta previa
+y más barata: **de lo que la v3 mandó hoy, ¿cuánto tenía la v4 en el pool?** Si
+una nota no está en el pool, ninguna mejora del juez la va a recuperar.
+
+Los nueve barridos del día corrieron completos, ~1.100–1.300 fuentes por ventana
+con ~95% de respuesta. La v3 mandó 238 notas entre los cuatro clientes.
+
+| | v3 mandó | la v4 la tenía | |
+|---|---|---|---|
+| **De fuentes propias** (feed o HTML del medio) | 165 | 125 | **76%** |
+| **Por Google Alerts / Google News** | 73 | 30 | **41%** |
+| **Total** | 238 | 155 | **65%** |
+
+**El resultado que cambia el plan: un tercio del clipping de la v3 entra por
+Google, y ahí la v4 cubre menos de la mitad.** No es un bug — es un canal entero
+que la v4 no replica: el diseño se apoya en feeds, HTML y el descubridor, y
+Google Alerts nunca entró en esa lista. Explica 43 de las 83 notas que faltan.
+
+**La conclusión operativa es que el cutover no puede depender solo de mejorar la
+cobertura de fuentes.** O la v4 suma el canal de Alerts, o hay que demostrar que
+lo que Alerts trae también llega por fuentes propias — y hoy no llega.
+
+> #### Comparar por URL no alcanza
+>
+> El primer cruce dio **48%** y era mentira. La v3 guarda en `notes.url` el link
+> con el que encontró la nota, no el del medio, y eso rompe la comparación de dos
+> formas distintas:
+>
+> - **`google.com/url?...&url=<la real>`** (Alerts): la URL verdadera está
+>   adentro del parámetro y se puede extraer. Recupera el cruce.
+> - **`news.google.com/rss/articles/CBMi...`** (Google News RSS): el
+>   identificador es un blob codificado. No se puede desarmar con texto, así que
+>   esas notas **solo se pueden cruzar por título**.
+>
+> Decodificando lo primero: 48% → 52%. Sumando el cruce por título: 52% → **65%**.
+> El mismo día, la misma data, tres números distintos según cómo se compare.
+>
+> Verificado que el número es firme y no un artefacto de la ventana: contra todo
+> el pool histórico en vez de las últimas 40 horas da 66%, no 65%.
+>
+> **Para `[F8.1]`, el arnés de golden tiene que cruzar por URL normalizada Y por
+> título**, y decodificar los dos formatos de Google antes de comparar. Un golden
+> que cruce solo por URL va a reportar diferencias que no existen, y nadie va a
+> saber cuáles de las que reporta son reales.
+
+**Lo que falta, ordenado por lo que rinde:** de las 83 notas que la v4 no tenía,
+43 son del canal de Google, 24 son de medios que están cargados y hoy no
+aportaron nada, y el resto se reparte entre un puñado de medios sin cargar
+—casi todos con una sola nota— y notas sueltas de medios que sí aportaron pero
+donde el feed no listaba esa nota puntual.
 
 **Tickets:** `[F8.1]` arnés de golden · `[F8.2]` staging del piloto · `[F8.3]` cutover de Booking · `[F8.4]` disparador de rollback + monitoreo.
 
