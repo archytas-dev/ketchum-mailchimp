@@ -1469,8 +1469,8 @@ clipping perdería un tercio de su volumen el primer día.
 **Decisión del 08/09: hay que construirlo.** No se espera a medir si es
 redundante — el canal se suma. La medición de la opción 2 sigue teniendo sentido
 para saber cuánto aporta de verdad, pero deja de ser un bloqueante: se construye
-igual. Queda pendiente definir si se lee  tal como está o si las
-alertas se re-modelan como una fuente más de .
+igual. Queda pendiente definir si se lee `google_alerts` tal como está o si las
+alertas se re-modelan como una fuente más de `medios_fuentes`.
 
 > Dato del camino: la v3 guarda en `notes.url` el link con el que **encontró** la
 > nota, no el del medio. Un tercio del clipping lleva URLs de Google en la base.
