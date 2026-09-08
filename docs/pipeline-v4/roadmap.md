@@ -1348,6 +1348,86 @@ Desde la Fase 3, el recolector de cada cliente corre en el schema de prueba en p
 
 ## 6. Pendiente al cierre del roadmap
 
+### `[Z.4]` Lo que falta para que el clipping de la v4 sea comparable — *08/09*
+
+Al intentar correr el armado para los **cuatro** clientes por primera vez —hasta
+hoy solo se había probado con Booking— aparecieron tres cosas que hacen que la
+comparación con la v3 todavía no se pueda hacer. Ninguna se veía antes porque
+**el piloto elegido es justamente el cliente que las esconde**.
+
+#### 1. El armado no puede correr para tres de los cuatro clientes
+
+`v4_candidatas_del_dia` tarda **20,9 s para BMS**. PostgREST corta antes: el rol
+`anon` tiene `statement_timeout = 3s` y `authenticated` 8 s. El RPC vuelve vacío,
+el workflow cae por la rama *"Sin candidatas"* y reporta **nivel 3 "el pool no
+dio nada"** — con 5.359 candidatas esperando. Un fallo que se disfraza de
+resultado, que es la peor forma de fallar.
+
+| Cliente | Filas a evaluar | Corre |
+|---|---|---|
+| Booking | 10.707 | sí |
+| Mars | 23.481 | **no** |
+| MSD | 37.273 | **no** |
+| BMS | 48.379 | **no** |
+
+**Dónde se va el tiempo, medido:** el join base tarda 78 ms. Lo caro son los
+regex: `v4_evaluar_candidatas` corre ~17 patrones de ~136 caracteres contra
+título + copete de **cada** fila. Solo la compuerta `regla_tema` son 5,4 s.
+
+Se probó materializar la CTE de reglas para evitar releer la tabla 48.379 veces:
+bajó de 5,4 s a 5,0 s. **No es el acceso a la tabla, son los regex**, así que no
+se arregla con un índice.
+
+El camino es reducir cuántas filas llegan a los regex caros. Tiene una trampa:
+la precedencia de compuertas pone `regla_tema` **antes** que `antiguedad`, así
+que saltear el regex para las notas viejas cambiaría el motivo que se reporta en
+`notas_descartadas` — no cambia qué entra al clipping, pero sí la auditoría. Hay
+que decidirlo a propósito, no de costado.
+
+#### 2. El armado juzga un lote, no el pool
+
+`armado-cliente` toma `limite` candidatas (30–80) de **1.567 a 5.359** y el A2
+juzga solo esas. La v3 mira todo lo suyo. Aunque el punto 1 estuviera resuelto,
+**comparar decisiones seguiría sin ser válido**: no se puede decir que la v4
+"eligió peor" cuando vio el 2% de lo que vio la v3.
+
+Subir el límite choca con dos paredes a la vez: el costo del LLM y el mismo
+timeout. La respuesta no es un número más grande, es que el filtro determinista
+deje pocas candidatas de verdad — o que el juicio se haga por tandas.
+
+#### 3. El A2 devuelve veredictos repetidos
+
+En una corrida de 30, el A2 devolvió **2 veredictos para la misma nota**.
+Postgres no lo perdona: dos filas iguales en el mismo INSERT hacen que
+`ON CONFLICT` tire `21000 · cannot affect row a second time` y **se pierda el
+lote entero**, no la fila repetida. El síntoma era `nivel 2 · sin veredictos`
+con el A2 funcionando perfecto.
+
+Se deduplica antes de escribir y **se cuenta**: que el juez repita es una señal
+sobre el juez, no algo para tapar. `veredictos_repetidos_del_a2` va en el resumen
+de cada corrida. La causa en el agente sigue abierta.
+
+> Con lotes de 10 no pasaba. Los tres problemas de esta lista aparecen recién al
+> subir el volumen, y **los tres estuvieron escondidos por probar siempre con el
+> cliente más chico**. Booking se eligió como piloto por bajo riesgo, y esa misma
+> propiedad lo vuelve un mal detector.
+
+#### Lo que sí quedó verificado hoy
+
+Booking corre de punta a punta en modo test: **nivel 0 "completo"**, 1.567
+candidatas → 30 al juez → 28 juzgadas (2 repetidas descartadas) → 1 entra → 1
+nota final, con los 28 veredictos persistidos y marcados como `test`.
+
+#### Y lo que falta construir, aparte de lo de arriba
+
+- **El HTML del clipping.** `armar_clipping()` devuelve la estructura en JSON;
+  nadie arma todavía el mail. Hoy lo hace la v3.
+- **Guardar en la plataforma.** El paso *"primero se guarda, después se manda
+  leyendo lo guardado"* de la Fase 6 no está. Es donde `modo=test` tiene que ir
+  a `test.import_clipping()` (ver la auditoría del modo test más arriba).
+- **16 medios monitoreados que no abren** — ver `[Z.3]`.
+- **El dashboard** de la Fase 7.
+
 ### `[Z.3]` Los medios monitoreados son innegociables — *requisito de Fedra, 08/09*
 
 **Regla del cliente, no nuestra:** las notas de **sitios monitoreados** no se
