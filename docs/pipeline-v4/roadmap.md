@@ -2,7 +2,20 @@
 
 El plan de construcción: fases, orden, dependencias y tickets. El **qué y el cómo** (arquitectura, modelo de datos, decisiones, alternativas) están en [`design-doc.md`](./design-doc.md) — este doc no los repite.
 
-**Estado:** en construcción · **Rama:** `feat/pipeline-v4` (fuente de verdad de la v4) · **Última actualización:** 2026-09-07 (**Fase 4 cerrada** y **el barrido corriendo solo**: `[F4.4]` el registro de descartes nunca había podido correr, ahora escribe los ocho motivos con el valor que los disparó y es idempotente · `[F4.6]` el corte de fecha sale de `p_fecha` y no del reloj, más la compuerta `fecha_futura` · `[F3.8]` los 9 cron encendidos tras tres días sin pool · la v3 confirmada corriendo en la cuenta compartida)
+**Estado:** en construcción · **Rama:** `feat/pipeline-v4` (fuente de verdad de la v4) · **Última actualización:** 2026-09-08
+
+**Qué pasó el 08/09.** Se cerró la Fase 6 (idempotencia del día, error-handler, salud) y se midió por
+primera vez la v4 contra la v3: de las 238 notas que la v3 mandó ese día, la v4 tenía el 65%. Ese número
+ordenó todo el resto del día. Subió a **79%** después de construir el canal de Google Alerts (`[Z.2]`),
+encender el descubridor y `medir-html`, y arreglar cuatro bugs que escondían nueve medios monitoreados.
+
+**Lo que queda como bloqueante y es nuevo:** el armado **no puede correr para BMS, Mars ni MSD** —
+`v4_candidatas_del_dia` tarda 21 s y PostgREST corta antes— y aunque corriera, juzga un lote de 30–80
+sobre miles de candidatas, así que **la comparación de decisiones con la v3 todavía no es válida**
+(`[Z.4]`). Los tres problemas estuvieron escondidos por probar siempre con Booking, el cliente más chico.
+
+También entró un requisito del cliente que cambia cómo se mide todo: **los medios monitoreados son
+innegociables** y hay que dejar de mirarlos junto con los adicionales (`[Z.3]`).
 
 ---
 
@@ -13,7 +26,7 @@ El plan de construcción: fases, orden, dependencias y tickets. El **qué y el c
 3. [Las fases](#3-las-fases)
 4. [Camino crítico](#4-camino-crítico)
 5. [Riesgos y gates](#5-riesgos-y-gates)
-6. [Pendiente al cierre del roadmap](#6-pendiente-al-cierre-del-roadmap)
+6. [Pendiente al cierre del roadmap](#6-pendiente-al-cierre-del-roadmap) — `[Z.4]` lo que falta para comparar con la v3 · `[Z.3]` los monitoreados son innegociables · `[Z.2]` el canal de Google Alerts · `[Z.1]` el schema `test`
 
 ---
 
@@ -598,7 +611,7 @@ Y las compuertas nuevas atraparon lo que tenían que atrapar: **15 notas con fec
 
 **Lo único que quedó afuera y hay que preguntarle a Ketchum:** si el clipping de la mañana tiene que traer la nota publicada anoche a las 23:00. Con el corte elegido no la trae. Es una línea de cambio, pero es decisión del cliente, no nuestra.
 
-### Fase 5 · Los agentes — `arrancada (07/09)`
+### Fase 5 · Los agentes — `✅ cerrada (07/09)`
 
 #### `[F5.0]` los prompts de la v3, migrados a `client_prompts` — ✅ (07/09)
 
@@ -1160,7 +1173,11 @@ Y `ad_value` distingue **`null` de cero**: cero es un valor, `null` es *"no sabe
 
 **Tickets:** `[F7.1]`–`[F7.4]` las cuatro pantallas · `[F7.5]` sonda de alta · `[F7.6]` historial de configuración · `[F7.7]` fixes puntuales.
 
-### Fase 8 · Golden + primer cutover (Booking) — `pendiente` *(con un primer contraste medido el 08/09)`*
+### Fase 8 · Golden + primer cutover (Booking) — `bloqueada` *(por `[Z.4]`; primer contraste medido el 08/09)*
+
+> **No puede arrancar todavía.** El golden compara **decisiones**, y al 08/09 el armado no corre para
+> BMS, Mars ni MSD (timeout del RPC), y donde corre juzga 30–80 candidatas de varios miles. Comparar así
+> no mide a la v4, mide el tamaño del lote. El detalle y el orden para destrabarlo están en `[Z.4]`.
 
 - **Golden:** la v4 decide idéntico a la v3 sobre los mismos datos del mismo día. Cada diferencia se explica antes de avanzar.
 - **Staging obligatorio:** copia de un día real del piloto.
@@ -1168,6 +1185,7 @@ Y `ad_value` distingue **`null` de cero**: cero es un valor, `null` es *"no sabe
 - **Rollback definido antes de arrancar:** dos días fuera de banda, o una queja del cliente = volver (dos clicks).
 
 **Piloto = Booking** (más chico y simple: 210 fuentes vs 640, 18 keywords vs 106, corre en 5 min). El error es el más barato: si la arquitectura falla, se ve en el contexto más limpio.
+**Pero probar solo con Booking fue un error aparte**, y salió caro el 08/09: los tres bloqueantes de `[Z.4]` aparecen únicamente con volumen, así que el cliente más chico los mantuvo invisibles varios días. **Piloto de cutover y cliente de prueba no son la misma decisión:** el cutover arranca por el más chico, la validación se hace contra el más grande.
 **BMS va segundo, no cuarto** — es donde más duele, pero ese dolor lo arreglan las Fases 2–4 (compartidas) y su recolector se construye en la Fase 3: BMS mejora en el schema de prueba desde la Fase 3, sin cortar nada. *(La medición del 03/09 lo confirma con datos: es el de peor cobertura, 62%, con 217 fuentes rotas o sin dirección. Por eso el descubridor arranca por él aunque el cutover arranque por el piloto.)*
 
 #### Primer contraste real contra la v3 — 08/09
@@ -1305,7 +1323,13 @@ trae Google Alerts.
 
 ## 4. Camino crítico
 
-~~`Fase 0`~~ *(omitida por decisión del 04/09 — ver abajo)* → `Fase 1` ✅ → `Fase 2` ✅ (gate · descubridor · catálogo aplicado · `metodo_extraccion`) → `Fase 3` (recolector ✅, dedup ✅, barrido automático ✅; falta sincronizar `test`) → `Fase 4` ✅ (07/09) → **`Fase 5`** ← acá estamos (arrancada: fetch-page ✅, falta el extractor) → `Fase 6` → `Fase 8` (piloto) → `Fase 9`
+~~`Fase 0`~~ *(omitida por decisión del 04/09 — ver abajo)* → `Fase 1` ✅ → `Fase 2` ✅ (gate · descubridor · catálogo aplicado · `metodo_extraccion`) → `Fase 3` (recolector ✅, dedup ✅, barrido automático ✅; falta sincronizar `test`) → `Fase 4` ✅ (07/09) → `Fase 5` ✅ (07/09) → `Fase 6` ✅ (07/09) → **`Fase 8`** ← acá estamos → `Fase 9`
+
+**Pero la Fase 8 no puede arrancar todavía.** El golden compara decisiones, y hoy la v4 no decide para
+tres de los cuatro clientes (`[Z.4]`). El orden real de lo que viene es: **destrabar el timeout del
+armado → que el filtro determinista deje pocas candidatas de verdad → recién ahí el golden**. Adelantar
+el golden sobre el único cliente que corre repetiría el error que ya nos costó el día: medir donde es
+fácil y creer que eso vale para los cuatro.
 
 **Por qué la Fase 2 se cerró antes de arrancar la 3:** el descubridor reescribe `url_feed` y `medios_estrategia`, que es exactamente lo que el recolector de la Fase 3 lee. Construir el recolector contra un catálogo que está por moverse obliga a re-verificar todo después. Se aplicó primero lo encontrado y se separó `metodo_extraccion`, así el recolector se escribe una sola vez contra un modelo que no se va a mover.
 
@@ -1340,7 +1364,13 @@ Desde la Fase 3, el recolector de cada cliente corre en el schema de prueba en p
 - **Carga de n8n: medida, no estimada.** Un recolector × 9 barridos/día × 1.112 fuentes ≈ **9.250 fetches/día**. Un barrido completo son ~19 tandas y **~3,5 min** de punta a punta, así que las nueve ventanas no se solapan ni cerca. Las tandas van en serie (`batchSize=1`) y la memoria de los cuerpos HTTP queda acotada a una tanda. **Lo que hay que vigilar, ahora que el cron está encendido (07/09):** ~180 ejecuciones/día en la lista, y que la duración por barrido no crezca. **La línea de base es 5m09s** — el barrido del 07/09, 23 tandas, 1.288 fuentes. Si empieza a pasar de ~15 min, algo se degradó.
 - **Segundo proxy en producción:** hoy vive en un proyecto de prueba. Decidir dónde vive antes de la Fase 3.
 - **Límite de la ejecución manual de n8n:** las corridas con volumen alto mueren si se disparan con el botón (n8n retiene el set completo en memoria para mostrarlo en pantalla). Por webhook, el mismo trabajo pasa. Aplica a cualquier flujo masivo de la v4, no solo a la medición.
-- ~~**Drift de migraciones del repo**~~ **resuelto el 07/09.** El repo tenía 41 archivos contra 69 migraciones aplicadas. Eran **28 faltantes** (no 22: la primera cuenta comparaba por número de versión y varias estaban en el repo con otro timestamp — hay que comparar por **nombre**) y **9 renumeradas**. Se bajaron desde `supabase_migrations.schema_migrations`, que guarda el SQL exacto de cada una, así que no hubo transcripción a mano. **Ahora son 69 = 69.** Queda la regla: si se aplica algo sin `db push`, bajar esa migración al repo en la misma sesión — es lo que dejó 28 sueltas.
+- ~~**Drift de migraciones del repo**~~ **resuelto el 07/09.** El repo tenía 41 archivos contra 69 migraciones aplicadas. Eran **28 faltantes** (no 22: la primera cuenta comparaba por número de versión y varias estaban en el repo con otro timestamp — hay que comparar por **nombre**) y **9 renumeradas**. Se bajaron desde `supabase_migrations.schema_migrations`, que guarda el SQL exacto de cada una, así que no hubo transcripción a mano. **Quedó 69 = 69**, y la regla se viene cumpliendo: al cierre del 08/09 son **86 = 86**. La regla es: si se aplica algo sin `db push`, bajar esa migración al repo en la misma sesión — es lo que dejó 28 sueltas.
+- **Un RPC que tarda más que el timeout de PostgREST devuelve vacío, y vacío se parece a un resultado.** `v4_candidatas_del_dia` tarda 21 s para BMS; `anon` corta a los 3 s y `authenticated` a los 8. El workflow no ve un error: ve cero candidatas y reporta *"el pool no dio nada"* con 5.359 esperando. **Regla: toda función que el pipeline llame por REST se mide con el volumen del cliente más grande, no del que se usa para probar.** Y conviene que el nodo distinga "vino vacío" de "no vino".
+- **El piloto elegido por bajo riesgo es, por eso mismo, un mal detector.** Booking se eligió como piloto porque es el más chico y simple. Los tres bloqueantes de `[Z.4]` —el timeout, el lote que no escala y los veredictos repetidos del A2— **aparecen solo con volumen**, así que probar siempre con Booking los mantuvo invisibles. Regla: lo que se prueba para dar por buena una etapa se prueba con **el cliente más grande**; el piloto de cutover sigue siendo el más chico, pero son dos decisiones distintas y no hay que confundirlas.
+- **Un diagnóstico que mezcla dos causas con arreglos distintos es peor que no tener diagnóstico**, porque da la sensación de que ya se miró. `ok` con cero artículos escondió cuatro medios monitoreados durante días, y `sin_items` para un sitemap índice escondió 25 fuentes que se arreglaban cambiando una URL. Regla para la Fase 7: al lado de "respondió" siempre va "trajo algo", y la que importa es la segunda.
+- **Dos filas iguales en un INSERT con `ON CONFLICT` matan el lote entero** (`21000 · cannot affect row a second time`), no la fila repetida. Pasó con los veredictos del A2. Todo lote que se arma desde la salida de un agente se deduplica por su clave antes de escribir, **y se cuenta lo descartado**: que un agente repita es una señal sobre el agente.
+- **Bright Data pasó de 0 a ~288 requests por día** al conectarlo el 08/09 (32 fuentes × 9 ventanas, ~26 s cada uno). Se paga por request. Hay que mirar la factura de esta semana y, si duele, bajarle la frecuencia a esas fuentes en vez de apagarlas.
+- **Una nota escrita en un nodo no protege al nodo hermano.** El `409` por escribir `ignore-duplicates` sin `on_conflict` costó 2.260 notas el 04/09, quedó documentado en ese nodo con número y fecha, y se repitió igual el 08/09 al escribir el nodo equivalente del canal de alertas. Lo que evita esto no es más documentación: es que las dos escrituras al pool compartan un solo lugar.
 - **Autor ≠ aprobador:** cada fase que promueve a `public` o activa un workflow necesita revisión de un segundo.
 - **Fuera de alcance:** gacetillas, editor web y exportación, clientes en formato legado.
 
