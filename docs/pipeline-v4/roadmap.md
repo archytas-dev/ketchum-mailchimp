@@ -1348,6 +1348,92 @@ Desde la Fase 3, el recolector de cada cliente corre en el schema de prueba en p
 
 ## 6. Pendiente al cierre del roadmap
 
+### `[Z.3]` Los medios monitoreados son innegociables — *requisito de Fedra, 08/09*
+
+**Regla del cliente, no nuestra:** las notas de **sitios monitoreados** no se
+negocian. Un medio monitoreado que no entra es un reclamo, no una métrica.
+
+Los medios se parten en dos en `medios.tipo` y hay que dejar de mirarlos juntos:
+
+| | Qué es | Exigencia |
+|---|---|---|
+| **`monitoreado`** (origen `cliente`) | los que Ketchum pidió seguir | **el 100% tiene que abrir y traer notas** |
+| **`adicional`** (origen `auto`) | los que descubrió el sistema | suman cobertura; que falte uno no es un reclamo |
+
+Son **220 dominios monitoreados únicos** entre los cuatro clientes (65 BMS,
+88 Booking, 89 Mars, 89 MSD, con solapamiento).
+
+**El promedio general de cobertura no sirve para medir esto.** Un 86% de las
+1.437 fuentes activas puede convivir con veinte monitoreados rotos, y son
+justamente los veinte que generan los reportes de Fedra. De acá en adelante el
+número que se reporta es **monitoreados que abren y traen notas**, y el general
+queda como dato secundario.
+
+**Estado al 08/09, después de correr el descubridor y `medir-html`:**
+
+| | Antes | Ahora |
+|---|---|---|
+| Monitoreados que la v4 puede abrir | 195 / 220 | **201 / 220** |
+| Todas las fuentes activas | 1.184 / 1.437 | **1.237 / 1.437** |
+| Fuentes html con transporte | 74 / 178 | **97 / 178** |
+
+**Quedan 19 monitoreados que no abren.** El detalle de por qué, que es lo que
+define el trabajo:
+
+- **`sin_feed_requiere_html`** — no tienen feed y hay que leerles el HTML. Se
+  resuelven corriendo `medir-html` hasta agotar las 178.
+- **`no_es_feed` que el descubridor dejó en "revisar"** — encontró un sitemap
+  válido pero vacío en el momento de mirar. Necesitan una segunda pasada en otro
+  horario, o revisión a mano.
+- **`sin_items`** — el feed responde bien pero no lista nada. Puede ser un feed
+  de sección equivocada.
+- **`instagram.com`** (monitoreado de Booking) — no es un medio y no se scrapea.
+  **Hay que sacarlo de la lista o resolverlo por otra vía**, pero mientras esté
+  cargado como monitoreado va a figurar siempre como roto.
+
+> #### Nueve medios que decían "ok" y no traían nada
+>
+> Aparte de los que no abren, hay monitoreados **con transporte funcionando y
+> diagnóstico `ok`** que igual no dejaron una sola nota en el pool en 7 días. Son
+> tres fallas distintas escondidas en el mismo síntoma:
+>
+> 1. **Tres con `transporte = brightdata` que devuelven `no_visitado`.** La
+>    medición dijo que Bright Data los abre, pero **el recolector no sabe ejecutar
+>    ese transporte**: los intenta nueve veces por día y siempre falla igual.
+> 2. **Cuatro html que bajan la página bien y extraen cero artículos.** El
+>    transporte anda; el que no anda es el extractor de enlaces para esos sitios.
+> 3. **Dos que reportan 225 artículos por día y no dejan ninguno en el pool.**
+>    `notiagro.blogspot.com` y `radardeviajes.com.ar`: 28 corridas con artículos
+>    desde el 03/09 y **cero filas**, ni por dominio ni por `fuente_id`. Se
+>    pierden entre el fetch y la inserción.
+>
+> Medido para no exagerarlo: **7 fuentes de 1.122** pierden todo lo que traen
+> (1.174 artículos de 327.948, el 0,36%). Es un bug chico en volumen —y dos de
+> las siete son monitoreados, así que en reclamos pesa mucho más que en
+> porcentaje.
+>
+> La lección para el dashboard de la Fase 7: **`diagnostico = 'ok'` no significa
+> que entró una nota.** Hacen falta las dos columnas, y la que importa es la
+> segunda.
+
+#### El descubridor, encendido — 08/09
+
+Activado y corrido en prod sobre los dos grupos. Recuperó **30 fuentes**.
+
+El patrón dominante da un poco de vergüenza y vale anotarlo: **siete de las ocho
+primeras ganadoras tenían cargado `sitemap-news.xml` cuando el sitio lo publica
+como `news_sitemap.xml`.** Guión medio contra guión bajo. Medios enteros que no
+entraban nunca por un caracter.
+
+**Ojo al operarlo:** en el grupo `mal_apuntadas` se estanca solo. Las que no
+resuelve quedan arriba de la lista de pendientes y las vuelve a tomar tanda tras
+tanda — tres corridas seguidas devolvieron "quedan 94" sin avanzar. **Hay que
+barrer con `offset` (0, 30, 60, 90), no repetir la misma llamada.** Con offset
+aparecieron 17 ganadoras más que de otro modo no se hubieran encontrado nunca.
+
+El grupo `sin_url` rinde mucho menos (1 ganadora de 82): esas no tienen feed
+porque no existe, y su camino es `medir-html`, no el descubridor.
+
 ### `[Z.2]` La v4 no tiene el canal de Google Alerts — *abierto el 08/09, a resolver antes del cutover*
 
 **Verificado: la v4 no cubre nada de Google Alerts ni de Google News.** Cero. No
@@ -1379,6 +1465,12 @@ sin recomendación todavía porque falta medir:
 
 **Lo que no se puede hacer es cortar la v3 sin resolver esto**, porque el
 clipping perdería un tercio de su volumen el primer día.
+
+**Decisión del 08/09: hay que construirlo.** No se espera a medir si es
+redundante — el canal se suma. La medición de la opción 2 sigue teniendo sentido
+para saber cuánto aporta de verdad, pero deja de ser un bloqueante: se construye
+igual. Queda pendiente definir si se lee  tal como está o si las
+alertas se re-modelan como una fuente más de .
 
 > Dato del camino: la v3 guarda en `notes.url` el link con el que **encontró** la
 > nota, no el del medio. Un tercio del clipping lleva URLs de Google en la base.
