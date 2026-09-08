@@ -12,6 +12,8 @@ Respaldo de referencia. La **fuente de verdad es la instancia** `ketchum-n8n`
 | `v4 · sub · fetch-source` | `UUIlvhTv3Rjy9YEP` | 1 fuente, 1 transporte → `{diagnostico, items[]}` de un **feed** + escribe `fetch_log` | activo (inerte) | ✅ |
 | `v4 · sub · fetch-escalera` | `TyXVALaeUzfPlgv8` | la escalera directo→cloudflare→aws sobre una fuente. Corta en el primero con items | activo (inerte) | — |
 | `v4 · sub · llm-call` | `8xgMfLdQLuwkpVgr` | llamada al modelo + retry + tope de tokens + registro de costo. Lee el prompt vigente de `client_prompts` | activo (inerte) · **07/09** | — |
+| `v4 · sub · slack-notify` | `Gf7f1x1qa5l6ssPe` | aviso consolidado. **El nodo de Slack nace DESHABILITADO** | activo (inerte) · **07/09** | — |
+| `v4 · sub · send-email` | `4K8k0C1ptXdSiSdB` | envio con dos guardas. **El nodo de Gmail nace DESHABILITADO** | activo (inerte) · **07/09** | — |
 | `v4 · sub · agent-A1 (el completador)` | `E5JLokzkBxeCyLzv` | arregla titulos y copetes rotos; abre la nota solo si quedo incompleta | activo (inerte) · **07/09** | — |
 | `v4 · sub · open-article` | `mnofS4TurFRTVRsh` | abre UNA nota y saca titulo, copete y la fecha que el sitio declare | activo (inerte) · **07/09** | — |
 | `v4 · sub · agent-A2 (el juez)` | `9pwrSH2KdpGhbXjS` | por lote: decide si la nota entra y en que seccion, con confianza. Aplica en codigo las restricciones que el prompt no puede garantizar | activo (inerte) · **07/09** | — |
@@ -28,6 +30,7 @@ Respaldo de referencia. La **fuente de verdad es la instancia** `ketchum-n8n`
 | `v4 · wf · re-verificar estrategia` | `y5UXitrQdQ5UkKL4` | reprueba el transporte de las que empezaron a fallar | activo · **cron 07:15 ART desde el 07/09** |
 | `v4 · wf · descubridor (A0)` | `nvShglwLuHqgF5cp` | busca feeds que no sabíamos que existían | **inactivo** — se dispara a mano |
 | `v4 · wf · medir-html (escalera)` | `wqHvLCVH4mcTWdvl` | sube la escalera sobre las 178 sin feed y guarda el transporte ganador | activo · webhook `v4-medir-html` · **07/09** |
+| `v4 · wf · armado-cliente` | `ORrmePsGxJJxISTo` | el clipping de un cliente de punta a punta: candidatas -> A1 -> A2 -> veredictos -> armar -> auditar -> nivel | activo · webhook `v4-armado`, **sin cron hasta el golden** · **07/09** |
 | `v4 · wf · recolector-html` | `p6MFCVE8Ggx65Npq` | espejo del recolector para las sin feed: extrae las notas del HTML de la home. Lee `v4_recoleccion_html_pendientes` | activo · webhook `v4-recolector-html` · **07/09** |
 | `v4 · wf · barrido-html` | `Zm8OhzNmu0uLs2JA` | driver del anterior: lo drena por tandas de 10 | activo · **9 cron ART, 15 min despues que el de feeds** + webhook `v4-barrido-html` · **07/09** |
 

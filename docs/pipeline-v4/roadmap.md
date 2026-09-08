@@ -904,7 +904,47 @@ Así que el orden es: **primero lo que se arregla solo y gratis, después abrir 
 
 **Tickets:** `[F5.1]` `sub/llm-call` · `[F5.2]` `sub/open-article` · `[F5.3]` `sub/agent-A1` · `[F5.4]` `sub/agent-A2` con la restricción de prioritarios/marca · `[F5.5]` `sub/agent-A3` con chequeos + repesca.
 
-### Fase 6 · Armado, salida y degradación — `pendiente`
+### Fase 6 · Armado, salida y degradación — `casi cerrada (07/09)`
+
+#### El pipeline corre entero — ✅ (07/09)
+
+**`wf/armado-cliente` ata todo en una sola llamada.** Verificado con Booking:
+
+```
+2.855 candidatas → A1 → A2 → 15 veredictos → armar → auditar → nivel 0 "completo"
+avisos: sección Competencia vacía · clipping chico (2 notas) · 2 de 2 sin valorizar
+veredictos guardados: 0  (modo=test, la guarda dura funcionó)
+```
+
+**`[F5.5]` la auditoría y `[F6.2]` el nivel, en SQL.** Los chequeos van en la base por la misma razón que las reglas de la Fase 4: son verificables, se explican solos y no cuestan un token. El agente en n8n se queda solo con lo que necesita salir a la red.
+
+| | Qué hace |
+|---|---|
+| **Duros** | sacan la nota, **no frenan el envío** — sin URL, título vacío, repetida en el clipping, dominio bloqueado |
+| **Blandos** | solo avisan — sección vacía, clipping chico, muchas forzadas, muchas sin valorizar, confianza baja |
+| **Repesca** | lista los descartes con confianza < 0,70 **sin reincorporarlos solos** |
+
+**`decidir_nivel()` nunca devuelve "no salgo".** Es el principio del design doc: el envío puede salir peor, nunca puede no salir. Nivel 3 es "no hubo pool", y aun así sale — **un día sin mail se confunde con un mail que no llegó.**
+
+#### Los dos que le hablan al cliente nacen apagados
+
+`sub/send-email` y `sub/slack-notify` están construidos y **con el nodo de salida deshabilitado a propósito**. Arman el mensaje, validan todo y devuelven **lo que habrían mandado** — se puede probar el asunto, los destinatarios y el HTML sin escribirle a nadie.
+
+`send-email` tiene **dos guardas, no una**: si `modo != prod` lanza **excepción** en vez de seguir de largo —un mail que "no salió" sin avisar se confunde con uno que salió—, y además valida que haya destinatarios y que el HTML no venga sospechosamente corto. Un clipping de 40 bytes es un bug, no un día tranquilo.
+
+Encenderlos es una decisión explícita con revisión de un segundo (mandamiento 9). Mismo criterio que el cron del barrido: **lo que sale hacia afuera se enciende a mano.**
+
+> #### El default que no era default
+>
+> **Pasar `NULL` explícito no usa el default de la función.** `armar_clipping(cliente, null)` no toma `v4_hoy()`: toma `NULL`, y `where fecha = null` no matchea nada. El armado devolvía un clipping vacío **sin ningún error**, y `decidir_nivel` reportaba *"sin candidatas"* con 2.855 en el pool.
+>
+> Apareció en la primera corrida de `wf/armado-cliente`, porque la fecha es opcional en el webhook y el orquestador mandaba el campo vacío — que es lo natural.
+>
+> Es la misma familia que el bug de las tres horas, y **peor**: aquel tenía una ventana horaria, este pasa siempre que el llamador manda el campo vacío. Se resuelve con `coalesce(p_fecha, v4_hoy())` **adentro**, que cubre los dos casos: omitido y `NULL` explícito.
+
+**`wf/armado-cliente` no tiene cron a propósito:** se dispara a mano hasta que el golden de la Fase 8 confirme que decide igual que la v3. Encenderlo antes sería adelantar el cutover sin haberlo probado.
+
+**Falta de la fase:** `wf/salud`, `wf/error-handler` y la idempotencia del día.
 
 #### `[F6.1]` `armar_clipping()` + dónde aterriza el A2 — ✅ (07/09)
 
