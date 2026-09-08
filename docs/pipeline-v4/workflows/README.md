@@ -42,6 +42,7 @@ todo cuando se inserta un paso en el medio.
 | `v4 · recolección · recolector html` | `p6MFCVE8Ggx65Npq` | espejo del recolector para las sin feed: extrae las notas del HTML de la home. Lee `v4_recoleccion_html_pendientes` | activo · webhook `v4-recolector-html` · **07/09** |
 | `v4 · operación · error-handler` | `X48CQZrLOlJXOiwb` | atrapa el fallo de cualquier `wf/*` y lo escribe en `v4_errores`. El nodo que avisa está **deshabilitado** | **activo (tiene que estarlo: inactivo no se dispara)** · **07/09** |
 | `v4 · operación · salud` | `1DH5Sw3bcul166SJ` | parte diario: pool vs. el mismo día de la semana, cobertura, mudas, errores y el corte por cliente | activo · **cron 09:00 ART** + webhook `v4-salud` · **07/09** |
+| `v4 · recolección · alertas google` | `WfKUwnGWabKVMFo9` | lee los feeds de Google Alerts y **desenvuelve el redirect** para guardar el dominio real del medio, no google.com | activo · **9 cron ART a :30** + webhook `v4-alertas` · **08/09** |
 | `v4 · recolección · barrido html` | `Zm8OhzNmu0uLs2JA` | driver del anterior: lo drena por tandas de 10 | activo · **9 cron ART, 15 min despues que el de feeds** + webhook `v4-barrido-html` · **07/09** |
 
 ## Archivadas (Fase 2, ya cumplieron) — 08/09

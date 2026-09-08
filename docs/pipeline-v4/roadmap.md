@@ -1520,7 +1520,7 @@ aparecieron 17 ganadoras más que de otro modo no se hubieran encontrado nunca.
 El grupo `sin_url` rinde mucho menos (1 ganadora de 82): esas no tienen feed
 porque no existe, y su camino es `medir-html`, no el descubridor.
 
-### `[Z.2]` La v4 no tiene el canal de Google Alerts — *abierto el 08/09, a resolver antes del cutover*
+### `[Z.2]` El canal de Google Alerts — *abierto y construido el 08/09*
 
 **Verificado: la v4 no cubre nada de Google Alerts ni de Google News.** Cero. No
 es que esté flojo, es que no existe:
@@ -1557,6 +1557,62 @@ redundante — el canal se suma. La medición de la opción 2 sigue teniendo sen
 para saber cuánto aporta de verdad, pero deja de ser un bloqueante: se construye
 igual. Queda pendiente definir si se lee `google_alerts` tal como está o si las
 alertas se re-modelan como una fuente más de `medios_fuentes`.
+
+#### Construido el 08/09 — `v4 · recolección · alertas google`
+
+Al abrirlo resultó bastante más simple de lo que parecía: **las alertas ya son
+feeds RSS.** `google_alerts.url_rss` apunta a un Atom público de Google, así que
+no hizo falta inventar transporte ni autenticación.
+
+**Lo único que de verdad importa es desenvolver el redirect.** Google Alerts no
+entrega el link del medio: entrega `google.com/url?...&url=<el real>`. Guardarlo
+tal cual habría llenado el pool de notas con dominio `google.com`, y con eso se
+rompe **toda** la lógica que trabaja por dominio: los tiers y el Ad Value, los
+medios bloqueados, la deduplicación y el corte de monitoreados. Se desenvuelve
+antes de guardar. Verificado en la primera corrida: 319 URLs extraídas, **cero**
+con dominio google, 195 dominios distintos.
+
+**Las alertas no se modelaron como medios.** Una alerta es un tema de un cliente,
+no un dominio; meterlas en `medios_fuentes` habría mezclado dos cosas y ensuciado
+el catálogo. La nota guarda su **dominio real** y aparte `alerta_id`, para saber
+de dónde vino sin mentir sobre qué es.
+
+**El efecto, medido contra el mismo clipping de la v3 del 08/09:**
+
+| | Antes de hoy | Ahora |
+|---|---|---|
+| Notas que la v3 trae **por Google** | 41% | **72,6%** |
+| Notas que la v3 trae de **fuente propia** | 76% | **82,4%** |
+| **Total** | **65%** | **79,4%** |
+
+Cron en las mismas nueve ventanas que el barrido, a `:30` para no pisarse con el
+de feeds (`:15`) ni con el de html.
+
+> **`mars` tiene 62 alertas y ninguna activa.** Los otros tres suman 134 activas.
+> No sé si es a propósito —puede que se hayan migrado a otro lado— pero mientras
+> siga así Mars no recibe nada de este canal, y es el cliente de mayor volumen.
+> Hay que preguntarlo antes del cutover.
+
+> #### La misma trampa, anotada y pisada igual
+>
+> El primer POST al pool devolvió `409` y perdió el lote entero: `Prefer:
+> resolution=ignore-duplicates` **sin `?on_conflict=`** resuelve solo contra la
+> primary key, no contra el índice único real `(fecha, url_canonica)`.
+>
+> Lo humillante es que ya había pasado **el 04/09 en el recolector de feeds, con
+> 2.260 notas**, y la explicación estaba escrita —completa, con el número y la
+> fecha— en las notas de ese nodo. La escribí, no la leí, y repetí el error
+> cuatro días después escribiendo el nodo equivalente.
+>
+> En alertas el choque no es un caso borde sino la norma: la misma nota llega por
+> varias alertas del mismo cliente, por alertas de clientes distintos y encima
+> por el feed del propio medio. De 549 notas extraídas entraron 354; las otras
+> 195 eran duplicados legítimos. Sin el `on_conflict` bien puesto no entraba
+> ninguna.
+>
+> **Una nota en un nodo no sirve si el próximo que escribe el nodo hermano no la
+> abre.** Lo que hubiera evitado esto no es más documentación, es que las dos
+> escrituras al pool compartan un solo lugar.
 
 > Dato del camino: la v3 guarda en `notes.url` el link con el que **encontró** la
 > nota, no el del medio. Un tercio del clipping lleva URLs de Google en la base.
