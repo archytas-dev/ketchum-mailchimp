@@ -906,7 +906,35 @@ Así que el orden es: **primero lo que se arregla solo y gratis, después abrir 
 
 ### Fase 6 · Armado, salida y degradación — `pendiente`
 
-- **`armar_clipping()`** (SQL, determinístico): orden de secciones, ad value, resumen.
+#### `[F6.1]` `armar_clipping()` + dónde aterriza el A2 — ✅ (07/09)
+
+**Faltaba la tabla del medio.** El pool estaba en `candidatas_raw`, los descartes en `notas_descartadas`, pero *"las que entran y en qué sección"* no tenía dónde ir: el A2 las devolvía y nadie las guardaba. Ahora está **`candidatas_veredicto`**, con índice único `(client_id, fecha, candidata_id)` — re-correr el A2 el mismo día actualiza, no duplica.
+
+**El armado es SQL y determinístico:** dos corridas del mismo día dan el mismo MD5. Verificado.
+
+**Probado de punta a punta con Booking:** 12 candidatas reales → A2 (entran 2, no entran 10, 1 forzada, 4.660 tokens, USD 0,0135) → veredictos persistidos → clipping armado:
+
+```
+Exclusiva (1) · Competencia (0) · Turismo (1)
+notas: 2 · ad_value: 0 · sin_valorizar: 2 · forzadas: 1
+```
+
+**Dos decisiones de cómo ordena:**
+
+- **Dentro de cada sección, por ad value descendente, con las sin valorizar al final.** Si no sabemos cuánto vale una nota, no la ponemos arriba.
+- **Las secciones vacías se devuelven igual, con cantidad 0.** Quien arma el HTML decide si las esconde; omitirlas acá sería decidir por él.
+
+Y `ad_value` distingue **`null` de cero**: cero es un valor, `null` es *"no sabemos"*. Por eso el armado reporta `sin_valorizar` aparte — en la corrida de prueba, **las 2 notas quedaron sin valorizar** porque sus dominios no están en `tiers`. Es el `[F0.4]` en vivo: el armador lo dice en lugar de mostrar un total que parece real y no lo es.
+
+> #### El bug de las tres horas
+>
+> **`current_date` de Postgres es UTC; el pool guarda la fecha en hora argentina.** El recolector la calcula en ART, así que **todos los días, entre las 21:00 ART y la medianoche, cualquier función que usara ese default miraba el día siguiente y encontraba el pool vacío.** Tres horas diarias en las que el pipeline se veía a sí mismo sin datos.
+>
+> Apareció probando el armador a las 21:0x: `current_date` decía `2026-09-08` y el pool tenía 46.509 notas bajo `2026-09-07`. Medido: **0 notas con UTC, 46.509 con ART.**
+>
+> Se agregó **`v4_hoy()`** —el día en Argentina— y pasó a ser el default. Es la misma clase de error que `[F4.6]`: mezclar el reloj del servidor con el del negocio. La diferencia es que aquel se veía en los números y este solo aparece en una ventana de tres horas — justo cuando nadie está mirando.
+
+- ~~**`armar_clipping()`** (SQL, determinístico): orden de secciones, ad value, resumen.~~ ✅
 - **`decidir_nivel()`:** elige el nivel de salida 0–3 según qué etapas anduvieron. No puede devolver "no salgo".
 - Guardar **primero** en la plataforma, marca de listo, después el mail leyendo lo guardado.
 - **`sub/send-email`** con guarda dura (excepción si `modo != prod`). Misma guarda en el nodo que escribe el historial.
