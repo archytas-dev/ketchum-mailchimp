@@ -3,7 +3,7 @@
 Respaldo de referencia. La **fuente de verdad es la instancia** `ketchum-n8n`
 (`n8n-ketchum.archytas.io`, project `lZwDOgXzFudxU5oC`).
 
-**Ninguno de estos workflows manda mensajes.** Todos los `httpRequest` van a Supabase o a los proxies de transporte. Cero Slack, cero mail. `sub/slack-notify` y `sub/send-email` de la Fase 6 van a nacer deshabilitados y sin conectar.
+**Ninguno de estos workflows manda mensajes.** Todos los `httpRequest` van a Supabase o a los proxies de transporte. Cero Slack, cero mail. `sub/slack-notify` y `sub/send-email` existen pero con **el nodo de salida deshabilitado**, y los dos nodos que los llaman —en `wf/error-handler` y `wf/salud`— **también nacen deshabilitados**. Encenderlos son cuatro decisiones explícitas, no una.
 
 ## Los ladrillos (`sub/`)
 
@@ -30,8 +30,10 @@ Respaldo de referencia. La **fuente de verdad es la instancia** `ketchum-n8n`
 | `v4 · wf · re-verificar estrategia` | `y5UXitrQdQ5UkKL4` | reprueba el transporte de las que empezaron a fallar | activo · **cron 07:15 ART desde el 07/09** |
 | `v4 · wf · descubridor (A0)` | `nvShglwLuHqgF5cp` | busca feeds que no sabíamos que existían | **inactivo** — se dispara a mano |
 | `v4 · wf · medir-html (escalera)` | `wqHvLCVH4mcTWdvl` | sube la escalera sobre las 178 sin feed y guarda el transporte ganador | activo · webhook `v4-medir-html` · **07/09** |
-| `v4 · wf · armado-cliente` | `ORrmePsGxJJxISTo` | el clipping de un cliente de punta a punta: candidatas -> A1 -> A2 -> veredictos -> armar -> auditar -> nivel | activo · webhook `v4-armado`, **sin cron hasta el golden** · **07/09** |
+| `v4 · wf · armado-cliente` | `ORrmePsGxJJxISTo` | el clipping de un cliente de punta a punta: candidatas -> A1 -> A2 -> veredictos -> armar -> auditar -> nivel | activo · webhook `v4-armado`, **sin cron hasta el golden**. Idempotente: abre la corrida en `pipeline_runs` antes de gastar un token · **07/09** |
 | `v4 · wf · recolector-html` | `p6MFCVE8Ggx65Npq` | espejo del recolector para las sin feed: extrae las notas del HTML de la home. Lee `v4_recoleccion_html_pendientes` | activo · webhook `v4-recolector-html` · **07/09** |
+| `v4 · wf · error-handler` | `X48CQZrLOlJXOiwb` | atrapa el fallo de cualquier `wf/*` y lo escribe en `v4_errores`. El nodo que avisa está **deshabilitado** | **activo (tiene que estarlo: inactivo no se dispara)** · **07/09** |
+| `v4 · wf · salud` | `1DH5Sw3bcul166SJ` | parte diario: pool vs. el mismo día de la semana, cobertura, mudas, errores y el corte por cliente | activo · **cron 09:00 ART** + webhook `v4-salud` · **07/09** |
 | `v4 · wf · barrido-html` | `Zm8OhzNmu0uLs2JA` | driver del anterior: lo drena por tandas de 10 | activo · **9 cron ART, 15 min despues que el de feeds** + webhook `v4-barrido-html` · **07/09** |
 
 ## Herramientas de un solo uso (Fase 2, ya cumplieron)

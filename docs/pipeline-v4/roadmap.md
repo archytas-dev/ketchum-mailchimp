@@ -904,7 +904,7 @@ Así que el orden es: **primero lo que se arregla solo y gratis, después abrir 
 
 **Tickets:** `[F5.1]` `sub/llm-call` · `[F5.2]` `sub/open-article` · `[F5.3]` `sub/agent-A1` · `[F5.4]` `sub/agent-A2` con la restricción de prioritarios/marca · `[F5.5]` `sub/agent-A3` con chequeos + repesca.
 
-### Fase 6 · Armado, salida y degradación — `casi cerrada (07/09)`
+### Fase 6 · Armado, salida y degradación — `✅ cerrada (07/09)`
 
 #### El pipeline corre entero — ✅ (07/09)
 
@@ -944,7 +944,97 @@ Encenderlos es una decisión explícita con revisión de un segundo (mandamiento
 
 **`wf/armado-cliente` no tiene cron a propósito:** se dispara a mano hasta que el golden de la Fase 8 confirme que decide igual que la v3. Encenderlo antes sería adelantar el cutover sin haberlo probado.
 
-**Falta de la fase:** `wf/salud`, `wf/error-handler` y la idempotencia del día.
+**Lo que faltaba de la fase —`wf/salud`, `wf/error-handler` y la idempotencia del día— quedó cerrado el 07/09.** Detalle abajo.
+
+#### `[F6.5]` La idempotencia del día — ✅ (07/09)
+
+**`pipeline_runs` existía con la forma correcta y sin el candado.** La clave
+`(client_id, fecha, modo)` estaba en el diseño y **no en la base**: solo había PK
+por `id`, así que nada impedía abrir dos corridas del mismo cliente el mismo día.
+Es exactamente la lección de `notas_descartadas` repetida — **una restricción que
+vive en la cabeza de alguien no es una restricción.** Ahora es índice único.
+
+Dos funciones, y el criterio está en ellas, no en n8n:
+
+| | |
+|---|---|
+| **`v4_abrir_run()`** | Si ya hay una corrida **terminada** (`ok` o `degradado`) devuelve esa y `ya_corrio: true`. Si quedó **colgada** en `corriendo`, reusa la misma fila en vez de abrir otra. |
+| **`v4_cerrar_run()`** | Cierra con el nivel de salida. El estado sale del nivel, no de una opinión: 0 es `ok`, 1–3 es `degradado`. |
+
+`wf/armado-cliente` abre la corrida **antes** de leer candidatas: el corte pasa
+antes de gastar un solo token de LLM. Verificado — el segundo disparo del mismo
+día vuelve instantáneo con `ya_corrio: true` y no toca ni el modelo ni el mail.
+
+**Si el cierre falla, la corrida queda en `corriendo` y la próxima la reusa.** Es
+a propósito: preferimos rehacer un clipping a perder el candado.
+
+> #### Dos palabras para lo mismo
+>
+> El `CHECK` de `modo` aceptaba `prod | ensayo`; **todos los workflows de la v4
+> dicen `test`.** Escribir una corrida de prueba habría fallado con un 23514 en la
+> primera ejecución en serio. Se unificó en `test` y `ensayo` quedó como sinónimo
+> histórico. Una traducción silenciosa entre la base y el código es una trampa
+> esperando: el que la escribió la recuerda, el que la lee seis meses después no.
+
+> #### El pareo, la quinta
+>
+> Meter `v4_abrir_run` entre `Config` y `Leer candidatas` rompió el flujo **sin
+> tirar un error**: el nodo leía `$json.client_id` y su entrada pasó a ser la
+> salida de `abrir_run`, que no lo trae. Pidió candidatas con `client_id: null`,
+> el pool devolvió 0 y el clipping salió **nivel 3 "sin candidatas"** — con 2.857
+> en el pool. Se ve creíble, y esa es la parte peligrosa.
+>
+> Es la **quinta** vez en la v4. La regla ya está escrita más arriba y sigue
+> mordiendo, así que vale la versión corta: **insertar un nodo en el medio de una
+> cadena cambia el `$json` de todo lo que viene abajo.** Si un nodo depende de
+> algo que no es su entrada inmediata, se lee por nombre — `$('Config')` — no por
+> `$json`.
+
+#### `[F6.7]` `wf/error-handler` — ✅ (07/09)
+
+Asignado como Error Workflow a los siete `wf/*` de la v4. **A los `sub/*` no:**
+el error de un subflujo ya sube al que lo llamó, y ponérselo a los dos registra
+el mismo problema dos veces.
+
+**Escribe primero, avisa después.** Todo fallo aterriza en `v4_errores` —
+workflow, nodo, mensaje, link a la ejecución— y recién entonces se arma el aviso.
+La tabla es la verdad; el aviso es una cortesía que puede fallar sin que el error
+se pierda. El nodo que avisa nace **deshabilitado**, como el resto.
+
+> **Un error workflow inactivo no se dispara, y no avisa que no se disparó.**
+> Probado: con el handler en `inactive`, `armado-cliente` falló, la ejecución
+> quedó en rojo y `v4_errores` quedó vacía **sin ningún síntoma**. Activándolo,
+> el mismo fallo se registró. El workflow que atrapa los errores en silencio es
+> el peor lugar posible para un error en silencio.
+
+#### `[F6.6]` `wf/salud` — ✅ (07/09)
+
+Una corrida diaria a las 09:00 ART (y webhook para mirarla a mano). Toda la
+cuenta la hace `v4_salud()` en SQL: si la lógica vive en la base se prueba sin
+n8n.
+
+**El volumen se compara contra el mismo día de la semana, no contra ayer.** Un
+lunes no se parece a un domingo; compararlos genera alarmas falsas, y a las
+alarmas falsas se les deja de dar bola junto con las verdaderas. Toma las últimas
+4 apariciones del mismo día — y **si hay menos de 2 muestras no avisa nada**:
+callarse es mejor que inventar una referencia.
+
+Mira pool, desvío, cobertura de fuentes, mudas, errores del día y **el corte por
+cliente**: sin eso sabés que algo anda mal pero no a quién le faltó el clipping.
+Un solo resumen, no un mensaje por aviso (mandamiento 7).
+
+Primera corrida real:
+
+```
+Salud v4 - 2026-09-07
+pool: 46516 (sin referencia todavia)
+fuentes: 4582/4812 ok, 4 mudas
+clippings: bms=no corrio booking=ok(n0) mars=no corrio msd=no corrio
+avisos: clientes_sin_clipping
+```
+
+El aviso es correcto: `armado-cliente` todavía no tiene cron, así que hoy solo
+corrió Booking a mano.
 
 #### `[F6.1]` `armar_clipping()` + dónde aterriza el A2 — ✅ (07/09)
 
@@ -975,12 +1065,12 @@ Y `ad_value` distingue **`null` de cero**: cero es un valor, `null` es *"no sabe
 > Se agregó **`v4_hoy()`** —el día en Argentina— y pasó a ser el default. Es la misma clase de error que `[F4.6]`: mezclar el reloj del servidor con el del negocio. La diferencia es que aquel se veía en los números y este solo aparece en una ventana de tres horas — justo cuando nadie está mirando.
 
 - ~~**`armar_clipping()`** (SQL, determinístico): orden de secciones, ad value, resumen.~~ ✅
-- **`decidir_nivel()`:** elige el nivel de salida 0–3 según qué etapas anduvieron. No puede devolver "no salgo".
+- ~~**`decidir_nivel()`:** elige el nivel de salida 0–3 según qué etapas anduvieron. No puede devolver "no salgo".~~ ✅
 - Guardar **primero** en la plataforma, marca de listo, después el mail leyendo lo guardado.
 - **`sub/send-email`** con guarda dura (excepción si `modo != prod`). Misma guarda en el nodo que escribe el historial.
 - **`sub/slack-notify`** consolidado.
-- Idempotencia: re-ejecutar el mismo día = mismo clipping + un solo mail.
-- **`wf/salud`:** cobertura, fuentes mudas, volumen esperado **por día de la semana**.
+- ~~Idempotencia: re-ejecutar el mismo día = mismo clipping + un solo mail.~~ ✅
+- ~~**`wf/salud`:** cobertura, fuentes mudas, volumen esperado **por día de la semana**.~~ ✅
 
 **Cierra:** "formato: página caída" (el auditor muestrea links) y el silencio de los días rotos.
 
