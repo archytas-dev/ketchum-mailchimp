@@ -20,7 +20,11 @@ export default defineConfig({
   webServer: {
     command: "npx next dev",
     url: "http://localhost:3000",
-    reuseExistingServer: true,
+    // [W0.19 · 15/09] No se puede reusar un servidor que quizas no tiene KETCHUM_DATA_PLANE.
+    // Paso: la suite del plano v4 corrio contra un dev server levantado en v3 y los 4 tests
+    // fallaron por eso. El modo de falla peligroso es el inverso — que PASEN sin haber probado
+    // nunca el plano v4 — y ese no se nota.
+    reuseExistingServer: !process.env.KETCHUM_DATA_PLANE,
     timeout: 60_000,
   },
 });

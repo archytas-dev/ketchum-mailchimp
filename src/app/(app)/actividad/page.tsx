@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { enPlanoV4 } from "@/lib/data-plane";
 import { getEffectiveRole, isStaffRole } from "@/lib/auth";
 import { ordenarClientesActivos } from "@/lib/clientes";
 import { Radio, KeyRound, Undo2, ClipboardList, Cpu, HeartPulse, CheckCircle2, AlertTriangle, ShieldAlert, ExternalLink } from "lucide-react";
@@ -152,6 +153,7 @@ export default async function ActividadPage({
   searchParams: Promise<{ cliente?: string }>;
 }) {
   const sp = await searchParams;
+  const soloLecturaV4 = enPlanoV4();
   const supabase = await createClient();
   const { effective } = await getEffectiveRole(supabase);
   const isStaff = isStaffRole(effective);
@@ -321,7 +323,7 @@ export default async function ActividadPage({
           <ul className="space-y-2">
             {descartadas.map((d) => (
               <li key={d.id} className="flex items-start gap-2 text-sm">
-                <RecuperarButton descartadaId={d.id} clientId={clientId} />
+                {soloLecturaV4 ? <span className="w-7 shrink-0" /> : <RecuperarButton descartadaId={d.id} clientId={clientId} />}
                 {d.url ? <CopyLinkButton url={d.url} /> : <span className="w-7 shrink-0" />}
                 <div className="flex-1 min-w-0">
                   {d.url ? (

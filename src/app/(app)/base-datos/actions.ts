@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { rechazoEscrituraCompartida } from "@/lib/data-plane";
 import { tierNorm } from "@/lib/tier";
 
 type Ok<T = undefined> = { ok: true } & (T extends undefined ? unknown : { data: T });
@@ -77,6 +78,8 @@ export async function addMedio(
   tipo: "monitoreado" | "adicional",
   input: { dominio: string; nombre: string; tier?: number | null; ad_value?: number | null; alcance?: number | null },
 ): Promise<Result> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const dominio = normalizeDominio(input.dominio);
   const nombre = input.nombre.trim();
   if (!dominio) return { ok: false, error: "Falta el dominio." };
@@ -119,6 +122,8 @@ export async function addMedio(
 }
 
 export async function toggleMedioActivo(id: string, activo: boolean): Promise<Result> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const supabase = await createClient();
   const { error } = await supabase.from("medios").update({ activo }).eq("id", id);
   if (error) return { ok: false, error: error.message };
@@ -130,6 +135,8 @@ export async function updateMedioTier(
   nombreMedio: string,
   input: { tier: number | null; ad_value: number | null; alcance?: number | null },
 ): Promise<Result> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const key = tierNorm(nombreMedio);
   if (!key) return { ok: false, error: "El medio no tiene nombre, no se puede asignar tier." };
   if (input.tier !== null && (input.tier < 1 || input.tier > 4)) {
@@ -196,6 +203,8 @@ export async function addKeyword(
   clientId: string,
   input: { keyword: string; grupo: string },
 ): Promise<Result> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const keyword = input.keyword.trim();
   const grupo = input.grupo.trim();
   if (!keyword) return { ok: false, error: "Falta la palabra clave." };
@@ -212,6 +221,8 @@ export async function addKeyword(
 }
 
 export async function toggleKeywordActiva(id: string, activa: boolean): Promise<Result> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const supabase = await createClient();
   const { error } = await supabase.from("kw_keywords").update({ activa }).eq("id", id);
   if (error) return { ok: false, error: error.message };
@@ -265,6 +276,8 @@ export async function addSeccion(
   nombre: string,
   keywordIds: string[],
 ): Promise<Result> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const nombreTrim = nombre.trim();
   if (!nombreTrim) return { ok: false, error: "Falta el nombre de la sección." };
   if (!keywordIds.length) {
@@ -300,6 +313,8 @@ export async function addSeccion(
 }
 
 export async function toggleSeccionActiva(id: string, activa: boolean): Promise<Result> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const supabase = await createClient();
   const { error } = await supabase.from("secciones").update({ activa }).eq("id", id);
   if (error) return { ok: false, error: error.message };
@@ -325,6 +340,8 @@ export async function addGoogleAlert(
   clientId: string,
   input: { tema: string; url_rss: string },
 ): Promise<Result> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const tema = input.tema.trim();
   const urlRss = input.url_rss.trim();
   if (!tema) return { ok: false, error: "Falta el tema." };
@@ -341,6 +358,8 @@ export async function addGoogleAlert(
 }
 
 export async function toggleGoogleAlertActiva(id: string, activa: boolean): Promise<Result> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const supabase = await createClient();
   const { error } = await supabase.from("google_alerts").update({ activa }).eq("id", id);
   if (error) return { ok: false, error: error.message };
@@ -379,6 +398,8 @@ export async function addSeguimiento(
   clientId: string,
   input: { medio: string; descripcion: string },
 ): Promise<Result> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const medio = input.medio.trim();
   const descripcion = input.descripcion.trim();
   if (!medio) return { ok: false, error: "Falta el medio." };
@@ -400,6 +421,8 @@ export async function updateSeguimientoEstado(
   estado: SeguimientoRow["estado"],
   resolucion?: string,
 ): Promise<Result> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const supabase = await createClient();
   const patch: Record<string, unknown> = { estado, resolucion: resolucion?.trim() || null };
   if (estado === "resuelto" || estado === "descartado") patch.resuelto_at = new Date().toISOString();

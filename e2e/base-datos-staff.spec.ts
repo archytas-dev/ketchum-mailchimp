@@ -10,7 +10,7 @@ test.describe("Base de Datos — vista staff (KET-46)", () => {
     await expect(page.getByRole("tab", { name: "Seguimiento" })).toBeVisible();
 
     await page.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "BMS - Versión Nueva" }).click();
+    await page.getByRole("option", { name: "BMS", exact: true }).click();
     await page.getByRole("tab", { name: "Google Alerts" }).click();
 
     const tema = `E2E Alert ${Date.now()}`;

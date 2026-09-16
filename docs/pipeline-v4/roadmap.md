@@ -2,7 +2,14 @@
 
 El plan de construcción: fases, orden, dependencias y tickets. El **qué y el cómo** (arquitectura, modelo de datos, decisiones, alternativas) están en [`design-doc.md`](./design-doc.md) — este doc no los repite.
 
-**Estado:** en construcción · **Rama:** `feat/pipeline-v4` (fuente de verdad de la v4) · **Última actualización:** 2026-09-08
+**Estado:** en construcción · **Rama:** `feat/pipeline-v4` (fuente de verdad de la v4) · **Última actualización:** 2026-09-11
+
+**Actualización 11/09 · retención operativa.** El pool crudo ya no se acumula indefinidamente:
+`candidatas_raw` y los descartes operativos conservan 48 horas, mientras que `notes`, `clippings` y
+`notas_historico_url` quedan intactos para preservar lo enviado y el control de repetición. Las pruebas
+de las últimas 48 horas también quedan disponibles. El mantenimiento corre en Ketchum a las 23:00 ART,
+por tandas y con índices en las relaciones de borrado. No se guardan imágenes ni HTML completo en estas
+tablas; se almacenan URL, título, snippet y telemetría.
 
 **Qué pasó el 08/09.** Se cerró la Fase 6 (idempotencia del día, error-handler, salud) y se midió por
 primera vez la v4 contra la v3: de las 238 notas que la v3 mandó ese día, la v4 tenía el 65%. Ese número
@@ -1755,3 +1762,85 @@ Era `[F0.6]` y quedó fuera al omitir la Fase 0. **No lo abrió la v4 y no lo ci
 Es un espejo de producción, no un sandbox. El backup congelado tiene el mismo agujero.
 
 **El arreglo son dos migraciones:** activar RLS en las 28 tablas y revocarle a `anon` el borrado. Antes de tocarlo hay que verificar que no se rompe el modo prueba de la v3, que apunta a este schema.
+
+### Addendum 08/09 · estado despues de destrabar Z.4
+
+Se corrigio el timeout operativo del armado: `v4_candidatas_del_dia` ahora hace una preseleccion barata antes de aplicar la evaluacion completa y `decidir_nivel` reutiliza esa muestra acotada en vez de recalcular todo el pool. La migracion quedo aplicada en Ketchum y una prueba real de Mars cerro `ok`, nivel 0, sin timeout.
+
+Tambien se corrigio el batch del A2: `armado-cliente` parte el lote en grupos de 12 y ejecuta cada subworkflow por item. El pool completo ahora se materializa por `pipeline_run` y se recorre con cursor en paginas de 200. MSD, 25 candidatas, devolvio 25 veredictos guardados y cero repetidos. Esto destraba la operacion del juez, pero **todavia no destraba el golden**: falta ejecutar un cliente completo y comparar todas sus decisiones.
+
+El arnes reproducible esta en [`golden-diff.md`](./golden-diff.md) y [`scripts/golden-diff.mjs`](../../scripts/golden-diff.mjs). La comparacion cruza por URL canonica y titulo+dominio, y marca como muestra cualquier corrida con `candidatas_es_muestra=true`.
+
+### Addendum 08/09 · arquitectura anti-OOM
+
+La corrida completa de BMS alcanzo 7.940 candidatas y termino degradada despues
+de 45 minutos: n8n retenia el historial acumulado del loop de paginas. Se cambio
+el limite de ejecucion, no el de datos: cada ejecucion ahora reclama una pagina
+de hasta 200 en `pipeline_run_pages`, ejecuta A1/A2, confirma el cursor en
+Supabase y dispara la siguiente ejecucion por webhook asincrono. No queda un
+retorno a `Leer lote` dentro del mismo grafo.
+
+La migracion es `20260908193000_v4_paginas_independientes_anti_oom.sql`; el
+workflow activo es `ORrmePsGxJJxISTo`. La validacion estructural de n8n paso con
+29 nodos, 31 conexiones y cero errores. La primera prueba reclamo la pagina 1
+correctamente; la ejecucion posterior encontro el proceso n8n afectado por el
+OOM anterior y requirio liberar/reiniciar el worker antes de validar el
+encadenamiento completo.
+
+#### Descubridor A0: sacar HTML de n8n — 08/09
+
+El OOM del descubridor no se resuelve solo bajando la tanda: cada dominio generaba
+unas 18 candidatas y n8n retenia sus cuerpos HTML y la segunda vuelta. Se reemplazo
+`Generar candidatas` → `Probar candidatas` → `Leer 2da vuelta` → `Probar 2da vuelta`
+por `Descubrir dominio (proxy)`: un `GET ?descubrir=1&dominio=...` al Fetch Proxy
+por dominio, con lote de 20. El proxy devuelve solo `{ok, diagnostico, formato,
+url_feed, vuelta, intentos, ms}`; `Elegir ganadora` lo adapta al contrato existente
+y `Guardar url_feed` y `Guardar estrategia` siguen sin cambios.
+
+El flujo activo `v4 · mantenimiento · descubridor (A0)` (`nvShglwLuHqgF5cp`) quedo
+en 14 nodos y valido sin errores. Prueba BMS de una fuente en modo `test`: respuesta
+normal en 4,8 s, sin escrituras. El limite de 30 queda como margen conservador, pero
+el worker ya no recibe HTML ni miles de candidatas por tanda.
+
+### Addendum 09/09 · timeout de `v4_candidatas_del_lote` y el tier de `armar_clipping()`
+
+Al correr los 4 clientes de punta a punta para medir cobertura real, las 4 corridas
+terminaron `degradado` en la primera pagina: `v4_candidatas_del_lote` (reescrita en
+`[Z.3]`/keywords) calculaba `count(*) over ()` en la misma consulta que el cruce de
+keywords, asi que Postgres materializaba toda la cola elegible (hasta 10.000
+candidatas) antes de poder aplicar el `limit` de pagina. Cada pagina de 20 filas
+superaba el `statement_timeout` de 8s y se cancelaba.
+
+Fix en `20260909233000_...` (mismo momento que el de tier, abajo): se separo el
+conteo total del armado de la pagina — el cruce de keywords corre solo sobre las
+<=20 filas ya recortadas, no sobre toda la cola. Medido: de timeout (+8s) a 144ms.
+Las 4 corridas relanzadas (Mars/BMS/Booking/MSD) cierran sin degradarse.
+
+Se completo tambien el fix de tier que habia quedado a mitad de camino:
+`v4_prioriza_monitoreados_y_tiers` ya dejaba bien precalculado
+`medios_suscripcion.tier`, pero `armar_clipping()` seguia con su join viejo contra
+`tiers.dominio` (que guarda nombre de medio, no un dominio real — nunca matcheaba).
+Ahora ancla por `fuente_id` a `medios_suscripcion` y resuelve el nombre a mostrar
+via `medios_catalogo`. Verificado con datos reales de BMS: `ad_value_total` paso de
+$0 a $29.600.000, y "medio" muestra nombres reales en vez de dominios crudos.
+
+**Pendiente, sin tocar:** `v4_test_armar_clipping` (el gemelo de schema `test`, el
+que arma el email de prueba) sigue con el join viejo sin este fix.
+
+### `[Z.5]` Notas sin descripcion — bastante mas que en la v3
+
+Contraste real Booking, mismo dia (09/09): v3 mando 77 notas, 3 sin descripcion
+(4%). La prueba de v4 del mismo dia devolvio 102 notas, 29 sin descripcion (28%),
+7 veces peor.
+
+`open-article` (que abre la nota individual cuando falta copete) corre bien y en
+varios casos consigue titulo pero no encuentra `og:description` ni un parrafo
+largo en el HTML crudo — probablemente sitios que arman el cuerpo con
+JavaScript, que un fetch simple no ve. No es exclusivo de medios adicionales: de
+14 dominios que fallaron, 5 son monitoreados (rionegro.com.ar,
+pulsoturistico.com.ar, ciudadanosviajeros.com.ar, contextoturistico.com,
+magazineturisticodigital.com.ar). El corte a "solo monitoreados" de `[Z.3]` va a
+bajar el numero pero no lo cierra.
+
+Pendiente: mejorar la extraccion de `open-article`/`fetch-page` (algo con
+render real, como lo que usa v3) en vez del regex sobre HTML crudo actual.

@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { rechazoEscrituraCompartida, tabla } from "@/lib/data-plane";
 import { tierNorm } from "@/lib/tier";
 
 // ---------- Tier del medio (pedido de Fedra, 11/08) ----------
@@ -84,6 +85,8 @@ export async function setAlcanceAdValue(
   nombreMedio: string,
   input: { ad_value?: number | null; alcance?: number | null },
 ): Promise<{ ok: boolean; error?: string }> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const key = tierNorm(nombreMedio);
   if (!key) return { ok: false, error: "Escribí primero el medio para poder cargarle alcance/Ad Value." };
   if (input.ad_value != null && input.ad_value < 0) return { ok: false, error: "El Ad Value no puede ser negativo." };
@@ -117,6 +120,8 @@ export async function setTierMedio(
   nombreMedio: string,
   tier: number | null,
 ): Promise<{ ok: boolean; error?: string }> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const key = tierNorm(nombreMedio);
   if (!key) return { ok: false, error: "Escribí primero el medio para poder asignarle un tier." };
   if (tier !== null && (tier < 1 || tier > 4)) return { ok: false, error: "El tier tiene que ser 1, 2, 3 o 4." };
@@ -167,8 +172,7 @@ export async function listPrecarga(
   fecha: string,
 ): Promise<{ ok: boolean; rows?: PrecargaRow[]; error?: string }> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("notes_precarga")
+  const { data, error } = await tabla(supabase, "notes_precarga")
     .select("id, fecha, seccion, medio, titulo, url, snippet, orden, consumed_at, pub_date")
     .eq("client_id", clientId)
     .eq("fecha", fecha)
@@ -183,6 +187,8 @@ export async function addPrecarga(
   fecha: string,
   notes: PrecargaNota[],
 ): Promise<{ ok: boolean; count?: number; error?: string }> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const clean = (notes || [])
     .map((n, i) => ({
       medio: String(n.medio || "").trim(),
@@ -211,6 +217,8 @@ export async function updatePrecarga(
   id: string,
   patch: { medio?: string; titulo?: string; url?: string; snippet?: string; seccion?: string; pubDate?: string },
 ): Promise<{ ok: boolean; error?: string }> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const fields: Record<string, string | null> = {};
   if (patch.medio !== undefined) fields.medio = String(patch.medio).trim();
   if (patch.titulo !== undefined) fields.titulo = String(patch.titulo).trim();
@@ -223,8 +231,7 @@ export async function updatePrecarga(
   if (fields.seccion !== undefined && !fields.seccion) return { ok: false, error: "La sección no puede quedar vacía." };
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("notes_precarga")
+  const { error } = await tabla(supabase, "notes_precarga")
     .update(fields)
     .eq("id", id)
     .is("consumed_at", null);
@@ -236,9 +243,10 @@ export async function updatePrecarga(
 export async function delPrecarga(
   id: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("notes_precarga")
+  const { error } = await tabla(supabase, "notes_precarga")
     .delete()
     .eq("id", id)
     .is("consumed_at", null);

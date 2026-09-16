@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { tabla } from "@/lib/data-plane";
 import { getEffectiveRole, isStaffRole } from "@/lib/auth";
 import { ordenarClientesActivos } from "@/lib/clientes";
 import {
@@ -47,8 +48,7 @@ export default async function PanelPmPage({
     );
   }
 
-  const { data: clippingRows } = await supabase
-    .from("clippings")
+  const { data: clippingRows } = await tabla(supabase, "clippings")
     .select("id, fecha")
     .eq("client_id", clientId)
     .order("fecha", { ascending: false })
@@ -78,8 +78,7 @@ export default async function PanelPmPage({
     { data: runStatsData },
     { data: activityData },
   ] = await Promise.all([
-    supabase
-      .from("notes")
+    tabla(supabase, "notes")
       .select("id, url, titulo, medio, seccion, snippet")
       .eq("clipping_id", clippingId)
       .eq("origen", "n8n")
@@ -90,8 +89,7 @@ export default async function PanelPmPage({
       .select("titulo, url, fase, motivo")
       .eq("client_id", clientId)
       .eq("fecha", clipping.fecha),
-    supabase
-      .from("reportes")
+    tabla(supabase, "reportes")
       .select("id", { count: "exact", head: true })
       .eq("client_id", clientId)
       .eq("estado", "abierto"),
@@ -103,7 +101,7 @@ export default async function PanelPmPage({
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase.from("activity").select("accion").eq("clipping_id", clippingId),
+    tabla(supabase, "activity").select("accion").eq("clipping_id", clippingId),
   ]);
 
   const base = (baseNotesData ?? []) as BaseNote[];
@@ -118,8 +116,7 @@ export default async function PanelPmPage({
   const rows = computeDiff(base, finalNotes, descartadasPorUrl);
   const stats = computeStats(base, finalNotes, rows);
 
-  const { count: agregadasManoCount } = await supabase
-    .from("notes")
+  const { count: agregadasManoCount } = await tabla(supabase, "notes")
     .select("id", { count: "exact", head: true })
     .eq("clipping_id", clippingId)
     .eq("origen", "cliente");

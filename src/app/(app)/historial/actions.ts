@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { tabla } from "@/lib/data-plane";
 import { renderClipping, type Article } from "@/lib/render";
 import { esVersionNueva } from "@/lib/clientes";
 
@@ -32,9 +33,11 @@ export async function fetchHistory(opts: {
   const limit = Math.min(opts.limit ?? 40, 100);
   const offset = opts.offset ?? 0;
 
-  let q = supabase
-    .from("clippings")
-    .select("id, client_id, fecha, estado, clients(nombre)")
+  let q = tabla(supabase, "clippings")
+    // [W0.19] Sin embed `clients(nombre)`: en el plano v4 la tabla vive en `test` y la FK
+    // apunta a `public.clients`. PostgREST NO resuelve embeds cross-schema (PGRST200,
+    // verificado el 15/09). El nombre se resuelve con un lookup aparte, unas lineas abajo.
+    .select("id, client_id, fecha, estado")
     .lte("fecha", todayAR()) // historial = hasta hoy inclusive (hoy también está en Principal)
     .order("fecha", { ascending: false })
     .range(offset, offset + limit); // pido uno de más para saber si hay más
@@ -59,17 +62,26 @@ export async function fetchHistory(opts: {
     client_id: string;
     fecha: string;
     estado: string;
-    clients: { nombre: string } | { nombre: string }[] | null;
   }[];
 
   const hasMore = raw.length > limit;
   const page = raw.slice(0, limit);
 
+  // [W0.19] El nombre del cliente sale de una consulta aparte, no de un embed: PostgREST no
+  // resuelve embeds cross-schema y en el plano v4 esta tabla vive en `test` (PGRST200).
+  const nombrePorId = new Map<string, string>();
+  if (page.length) {
+    const { data: cs } = await supabase
+      .from("clients")
+      .select("id, nombre")
+      .in("id", [...new Set(page.map((r) => r.client_id))]);
+    for (const c of (cs ?? []) as { id: string; nombre: string }[]) nombrePorId.set(c.id, c.nombre);
+  }
+
   // Qué clippings de esta página exportó ESTE usuario (tag "Exportado" es per-user).
   const exportadas = new Set<string>();
   if (user && page.length) {
-    const { data: exps } = await supabase
-      .from("exports")
+    const { data: exps } = await tabla(supabase, "exports")
       .select("clipping_id")
       .eq("user_id", user.id)
       .in(
@@ -80,11 +92,10 @@ export async function fetchHistory(opts: {
   }
 
   const rows: HistRow[] = page.map((r) => {
-    const c = Array.isArray(r.clients) ? r.clients[0] : r.clients;
     return {
       id: r.id,
       client_id: r.client_id,
-      nombre: c?.nombre ?? "—",
+      nombre: nombrePorId.get(r.client_id) ?? "—",
       fecha: r.fecha,
       estado: r.estado,
       exportada: exportadas.has(r.id),
@@ -121,8 +132,7 @@ export async function fetchExport(clippingId: string): Promise<{
 
   // Export propio (per-user).
   const { data: exp } = user
-    ? await supabase
-        .from("exports")
+    ? await tabla(supabase, "exports")
         .select("html")
         .eq("clipping_id", clippingId)
         .eq("user_id", user.id)
@@ -130,8 +140,7 @@ export async function fetchExport(clippingId: string): Promise<{
         .maybeSingle()
     : { data: null };
 
-  const { count: incluidas } = await supabase
-    .from("notes")
+  const { count: incluidas } = await tabla(supabase, "notes")
     .select("id", { count: "exact", head: true })
     .eq("clipping_id", clippingId)
     .eq("incluida", true);
@@ -141,17 +150,19 @@ export async function fetchExport(clippingId: string): Promise<{
   }
 
   // Base: reconstruir desde notas + resumen_ia con el mismo render del cliente.
-  const { data: clip } = await supabase
-    .from("clippings")
-    .select("resumen_ia, clients(slug)")
+  const { data: clip } = await tabla(supabase, "clippings")
+    .select("resumen_ia, client_id")
     .eq("id", clippingId)
     .limit(1)
     .maybeSingle();
-  const clientRel = (clip as { clients?: { slug: string } | { slug: string }[] } | null)?.clients;
-  const slug = (Array.isArray(clientRel) ? clientRel[0]?.slug : clientRel?.slug) ?? "";
+  // [W0.19] Idem: sin embed cross-schema, el slug sale de una consulta aparte.
+  const clientId = (clip as { client_id?: string } | null)?.client_id ?? null;
+  const { data: cliRow } = clientId
+    ? await supabase.from("clients").select("slug").eq("id", clientId).maybeSingle()
+    : { data: null };
+  const slug = (cliRow as { slug: string } | null)?.slug ?? "";
 
-  const { data: notesRaw } = await supabase
-    .from("notes")
+  const { data: notesRaw } = await tabla(supabase, "notes")
     .select("seccion, medio, titulo, snippet, url, pub_date, ad_value, incluida, orden")
     .eq("clipping_id", clippingId)
     .eq("incluida", true)

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { enPlanoV4 } from "@/lib/data-plane";
 import Editor, { type Note } from "./Editor";
 import KetchumLogo from "@/components/KetchumLogo";
 import Footer from "@/components/Footer";
@@ -14,6 +15,9 @@ export default async function ClippingPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // Esta es la pantalla heredada de v3 y escribe directo en public desde el navegador.
+  // La preview v4 no la puede servir hasta migrarla por completo al plano aislado.
+  if (enPlanoV4()) notFound();
   const { id } = await params;
   const supabase = await createClient();
 

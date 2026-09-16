@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { rechazoEscrituraCompartida, tabla } from "@/lib/data-plane";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -11,6 +12,8 @@ type Result = { ok: true } | { ok: false; error: string };
 // mismo patrón que ya usa import_clipping para precarga -- misma trazabilidad para el
 // futuro Panel PM ("agregadas a mano: notes.origen='cliente'").
 export async function agregarDescartadaAClipping(descartadaId: string, clientId: string): Promise<Result> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const supabase = await createClient();
 
   const { data: descartada, error: errDescartada } = await supabase
@@ -20,8 +23,7 @@ export async function agregarDescartadaAClipping(descartadaId: string, clientId:
     .single();
   if (errDescartada || !descartada) return { ok: false, error: "No se encontró la nota descartada." };
 
-  const { data: clip, error: errClip } = await supabase
-    .from("clippings")
+  const { data: clip, error: errClip } = await tabla(supabase, "clippings")
     .select("id")
     .eq("client_id", clientId)
     .order("fecha", { ascending: false })
@@ -30,15 +32,14 @@ export async function agregarDescartadaAClipping(descartadaId: string, clientId:
   if (errClip) return { ok: false, error: errClip.message };
   if (!clip) return { ok: false, error: "Este cliente todavía no tiene ningún clipping generado." };
 
-  const { data: ordenRows } = await supabase
-    .from("notes")
+  const { data: ordenRows } = await tabla(supabase, "notes")
     .select("orden")
     .eq("clipping_id", clip.id)
     .order("orden", { ascending: false })
     .limit(1);
   const nuevoOrden = (ordenRows?.[0]?.orden ?? 0) + 1;
 
-  const { error: errInsert } = await supabase.from("notes").insert({
+  const { error: errInsert } = await tabla(supabase, "notes").insert({
     clipping_id: clip.id,
     seccion: null,
     medio: descartada.medio,

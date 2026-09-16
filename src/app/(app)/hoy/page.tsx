@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { tabla } from "@/lib/data-plane";
 import { ordenarClientesActivos } from "@/lib/clientes";
 import PrincipalClient, { type ClientPayload } from "./PrincipalClient";
 
@@ -43,8 +44,7 @@ export default async function HoyPage() {
     supabase.auth.getUser(),
     supabase.from("clients").select("id, slug, nombre"),
     // Traé lo ÚLTIMO que se envió por cliente: todos los clippings, más nuevo primero.
-    supabase
-      .from("clippings")
+    tabla(supabase, "clippings")
       .select("id, client_id, fecha, resumen_ia")
       .order("fecha", { ascending: false }),
   ]);
@@ -63,8 +63,7 @@ export default async function HoyPage() {
   // Estado de edición POR USUARIO (aislado por cuenta). Fallback: semilla de n8n.
   const editorStateByClip = new Map<string, unknown>();
   if (user && clipIds.length) {
-    const { data: stateRows } = await supabase
-      .from("user_clipping_state")
+    const { data: stateRows } = await tabla(supabase, "user_clipping_state")
       .select("clipping_id, editor_state")
       .eq("user_id", user.id)
       .in("clipping_id", clipIds);
@@ -74,8 +73,7 @@ export default async function HoyPage() {
   }
   const notesByClip = new Map<string, NoteRow[]>();
   if (clipIds.length) {
-    const { data: noteRows } = await supabase
-      .from("notes")
+    const { data: noteRows } = await tabla(supabase, "notes")
       .select("id, clipping_id, seccion, medio, titulo, snippet, url, pub_date, orden, ad_value")
       .in("clipping_id", clipIds)
       .eq("incluida", true)

@@ -36,6 +36,7 @@ todo cuando se inserta un paso en el medio.
 | `v4 · recolección · recolector feeds` | `tzcHSIUdMGXVRFIo` | una tanda de fuentes → `fetch_log` + `candidatas_raw` (dedup en la base) | activo · webhook `v4-recolector` |
 | `v4 · recolección · barrido feeds` | `wEuM4z6hIuLGwQFF` | drena el barrido entero iterando tandas | activo · **9 cron ART desde el 07/09** + webhook `v4-barrido` |
 | `v4 · mantenimiento · re-verificar transporte` | `y5UXitrQdQ5UkKL4` | reprueba el transporte de las que empezaron a fallar | activo · **cron 07:15 ART desde el 07/09** |
+| `v4 · mantenimiento · retención operativa` | `NHvNc17fHvwEovxB` | conserva 48 h de pool y pruebas; limpia descartes y logs viejos sin tocar enviados | activo · **cron 23:00 ART desde el 11/09** |
 | `v4 · mantenimiento · descubridor (A0)` | `nvShglwLuHqgF5cp` | busca feeds que no sabíamos que existían | **inactivo** — se dispara a mano |
 | `v4 · mantenimiento · medir-html` | `wqHvLCVH4mcTWdvl` | sube la escalera sobre las 178 sin feed y guarda el transporte ganador | activo · webhook `v4-medir-html` · **07/09** |
 | `v4 · clipping · armado-cliente` | `ORrmePsGxJJxISTo` | el clipping de un cliente de punta a punta: candidatas -> A1 -> A2 -> veredictos -> armar -> auditar -> nivel | activo · webhook `v4-armado`, **sin cron hasta el golden**. Idempotente: abre la corrida en `pipeline_runs` antes de gastar un token · **07/09** |

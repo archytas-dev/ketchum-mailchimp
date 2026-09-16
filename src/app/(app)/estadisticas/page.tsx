@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { tabla } from "@/lib/data-plane";
 import { ordenarClientesActivos } from "@/lib/clientes";
 import {
   FileText,
@@ -49,7 +50,6 @@ type ClipRow = {
   client_id: string;
   fecha: string;
   estado: string;
-  clients: { nombre: string } | { nombre: string }[] | null;
 };
 type ActRow = { accion: string; created_at: string; clipping_id: string };
 type NoteRow = { clipping_id: string; seccion: string | null; medio: string | null };
@@ -68,7 +68,14 @@ export default async function EstadisticasPage({
   // ya no se muestran acá.
   const clients = ordenarClientesActivos((clientRows ?? []) as { id: string; slug: string; nombre: string }[]);
 
-  let clipQ = supabase.from("clippings").select("id, client_id, fecha, estado, clients(nombre)");
+  // [W0.19] Sin embed `clients(nombre)`: PostgREST no resuelve embeds cross-schema y en el
+  // plano v4 esta tabla vive en `test` (PGRST200, verificado 15/09). El nombre sale del mapa
+  // de abajo, armado con los clientes que esta pagina ya carga.
+  const nombrePorId = new Map(
+    ((clientRows ?? []) as { id: string; nombre: string }[]).map((c) => [c.id, c.nombre] as const),
+  );
+
+  let clipQ = tabla(supabase, "clippings").select("id, client_id, fecha, estado");
   if (clientId) {
     clipQ = clipQ.eq("client_id", clientId);
   } else {
@@ -86,8 +93,7 @@ export default async function EstadisticasPage({
 
   const [actRes, notesRes] = await Promise.all([
     (async () => {
-      let aq = supabase
-        .from("activity")
+      let aq = tabla(supabase, "activity")
         .select("accion, created_at, clipping_id")
         .order("created_at", { ascending: false })
         .limit(300);
@@ -95,13 +101,13 @@ export default async function EstadisticasPage({
       return aq;
     })(),
     clip30.length
-      ? supabase.from("notes").select("clipping_id, seccion, medio").in("clipping_id", clip30).eq("incluida", true)
+      ? tabla(supabase, "notes").select("clipping_id, seccion, medio").in("clipping_id", clip30).eq("incluida", true)
       : Promise.resolve({ data: [] as NoteRow[] }),
   ]);
   const acts = (actRes.data ?? []) as ActRow[];
   const notes = (notesRes.data ?? []) as NoteRow[];
 
-  const nombreOf = (r: ClipRow) => (Array.isArray(r.clients) ? r.clients[0] : r.clients)?.nombre ?? "—";
+  const nombreOf = (r: ClipRow) => nombrePorId.get(r.client_id) ?? "—";
   const clipById = new Map(clips.map((c) => [c.id, c]));
 
   const totalClippings = clips.length;
@@ -156,7 +162,7 @@ export default async function EstadisticasPage({
   // EXPORTADAS: contenido final de los clippings que se exportaron (editor_state), no lo entregado por n8n.
   const exportedIds = clips.filter((c) => c.estado === "exportado" && clip30.includes(c.id)).map((c) => c.id);
   const { data: expStateRows } = exportedIds.length
-    ? await supabase.from("user_clipping_state").select("clipping_id, editor_state").in("clipping_id", exportedIds)
+    ? await tabla(supabase, "user_clipping_state").select("clipping_id, editor_state").in("clipping_id", exportedIds)
     : { data: [] as { clipping_id: string; editor_state: unknown }[] };
   const stateByClip = new Map<string, unknown>();
   for (const r of (expStateRows ?? []) as { clipping_id: string; editor_state: unknown }[]) {

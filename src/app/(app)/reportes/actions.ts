@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { tabla } from "@/lib/data-plane";
 
 type Ok<T = undefined> = { ok: true } & (T extends undefined ? unknown : { data: T });
 type Err = { ok: false; error: string };
@@ -12,8 +13,7 @@ import { TIPOS_REPORTE, type ReporteRow } from "./tipos";
 
 export async function listReportes(clientId: string): Promise<Result<ReporteRow[]>> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("reportes")
+  const { data, error } = await tabla(supabase, "reportes")
     .select("id, client_id, fecha, tipo, descripcion, nota_url, estado, resolucion, created_at, resuelto_at")
     .eq("client_id", clientId)
     .order("created_at", { ascending: false })
@@ -38,14 +38,13 @@ export async function addReporte(
 
   // Si hay un clipping de ese cliente y esa fecha, se enlaza: deja el reporte conectado al
   // envio concreto sin pedirle nada mas a quien reporta.
-  const { data: clipping } = await supabase
-    .from("clippings")
+  const { data: clipping } = await tabla(supabase, "clippings")
     .select("id")
     .eq("client_id", clientId)
     .eq("fecha", input.fecha)
     .maybeSingle();
 
-  const { error } = await supabase.from("reportes").insert({
+  const { error } = await tabla(supabase, "reportes").insert({
     client_id: clientId,
     user_id: userData.user?.id ?? null,
     clipping_id: clipping?.id ?? null,
@@ -69,7 +68,7 @@ export async function updateReporteEstado(
   const patch: Record<string, unknown> = { estado };
   if (resolucion !== undefined) patch.resolucion = resolucion.trim() || null;
   if (estado === "resuelto" || estado === "descartado") patch.resuelto_at = new Date().toISOString();
-  const { error } = await supabase.from("reportes").update(patch).eq("id", id);
+  const { error } = await tabla(supabase, "reportes").update(patch).eq("id", id);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }

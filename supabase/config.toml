@@ -10,7 +10,10 @@ enabled = true
 port = 56321
 # Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
 # endpoints. `public` and `graphql_public` schemas are included by default.
-schemas = ["public", "graphql_public"]
+# [W0.19] `test` se expone tambien en local: produccion ya lo expone (verificado 15/09) y el
+# plano v4 de la preview vive ahi. Quedo asegurado en [W0.16]: anon no tiene USAGE sobre el
+# schema, y las tablas *_v4 tienen RLS con policies por cliente.
+schemas = ["public", "graphql_public", "test"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]
 # The maximum number of rows returns from a view, table, or stored procedure. Limits payload size

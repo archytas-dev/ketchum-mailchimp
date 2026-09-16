@@ -66,54 +66,48 @@ test.describe("Feedback Fede — Base de Datos", () => {
 });
 
 test.describe("Base de Datos — qué cliente se configura", () => {
-  // La version nueva del clipping LEE la config del cliente real (verificado en los 4
-  // workflows v3: get_config_clipping con p_slug 'booking'|'bms'|'mars'|'msd'). Por eso las
-  // dos entradas del par muestran la MISMA config: lo que cambia es si se puede editar.
-  test("aparecen las dos versiones de cada cliente", async ({ page }) => {
+  // [W0.12 · 15/09] Este bloque tenia 3 tests que verificaban el modelo ANTERIOR al rename del
+  // 24/08: dos entradas por cliente (`bms` de solo lectura + `bms-test` = "BMS - Versión
+  // Nueva", editable), con cartelitos "Solo lectura" / "Se puede editar" en pantalla.
+  //
+  // Ese modelo ya no existe. Hoy hay UNA entrada por cliente, editable, y los `*-legado` ni
+  // siquiera aparecen en el desplegable (src/lib/clientes.ts: ordenarClientesActivos).
+  // Las tres cadenas que afirmaban ("Solo lectura", "Se puede editar", "Estás editando la
+  // nueva versión", "se administran por fuera de esta pantalla") fueron borradas de `src/`:
+  // los tests no estaban rojos por un rename, estaban verificando una interfaz eliminada.
+  //
+  // Se reemplazan por lo que sí hay que sostener hoy: que el desplegable ofrece exactamente
+  // los 4 clientes vivos, que no ofrece los legado, y que la pantalla se puede editar.
+  test("el desplegable ofrece los 4 clientes vivos y ninguno legado", async ({ page }) => {
     await loginAsDev(page);
     await page.goto("/base-datos");
     await page.getByRole("combobox").first().click();
-    const opciones = await page.getByRole("option").allInnerTexts();
-    expect(opciones.some((o) => /^booking$/i.test(o.trim()))).toBe(true);
-    expect(opciones.some((o) => /booking - versión nueva/i.test(o))).toBe(true);
+    const opciones = (await page.getByRole("option").allInnerTexts()).map((o) => o.trim());
+
+    for (const esperado of ["BMS", "Booking", "MARS", "MSD Salud Animal"]) {
+      expect(opciones, `falta ${esperado} en el desplegable`).toContain(esperado);
+    }
+    expect(opciones.filter((o) => /hist[oó]rico|legado|versi[oó]n nueva/i.test(o))).toEqual([]);
   });
 
-  test("la versión que se envía hoy se ve pero no se edita", async ({ page }) => {
+  test("la config del cliente se puede editar", async ({ page }) => {
     await loginAsDev(page);
     await page.goto("/base-datos");
     await page.getByRole("combobox").first().click();
     await page.getByRole("option", { name: "BMS", exact: true }).click();
     await expect(page.getByRole("cell", { name: "Clarin" }).first()).toBeVisible({ timeout: 30_000 });
-
-    await expect(page.getByText("Solo lectura")).toBeVisible();
-    await expect(page.getByText(/se administran por fuera de esta pantalla/i)).toBeVisible();
-    // El estado se sigue viendo (con su color) pero no se puede tocar.
-    await expect(page.getByRole("button", { name: "Activo" }).first()).toBeDisabled();
-    await expect(page.getByRole("button", { name: /Sumar nuevo/ })).toBeDisabled();
-  });
-
-  test("la Versión Nueva muestra la misma config y sí se edita", async ({ page }) => {
-    await loginAsDev(page);
-    await page.goto("/base-datos");
-    await page.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "BMS - Versión Nueva" }).click();
-    await expect(page.getByRole("cell", { name: "Clarin" }).first()).toBeVisible({ timeout: 30_000 });
-
-    await expect(page.getByText("Se puede editar")).toBeVisible();
-    await expect(page.getByText(/Estás editando la nueva versión/i)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Activo" }).first()).toBeEnabled();
     await expect(page.getByRole("button", { name: /Sumar nuevo/ })).toBeEnabled();
   });
 });
 
 test.describe("Feedback Fede — Panel PM", () => {
   // En la base local el unico cliente con editor_state guardado (o sea, con diff real que
-  // comparar) es BMS - Versión Nueva. Los clientes reales no bajan a local -- mandamiento #4.
+  // comparar) es BMS. Los clientes reales no bajan a local -- mandamiento #4.
   async function abrirPanelConDatos(page: import("@playwright/test").Page) {
     await page.goto("/panel-pm");
     await expect(page.getByRole("heading", { name: "Panel PM" })).toBeVisible();
     await page.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "BMS - Versión Nueva" }).click();
+    await page.getByRole("option", { name: "BMS", exact: true }).click();
     await expect(page.getByText("Diff del clipping")).toBeVisible({ timeout: 30_000 });
   }
 
@@ -219,15 +213,26 @@ test.describe("Feedback Fedra — Reporte de errores (KET-49)", () => {
   });
 });
 
-test.describe("Las dos versiones en todas las pantallas", () => {
+test.describe("El selector de cliente en todas las pantallas", () => {
+  // [W0.12 · 15/09] Antes este bloque verificaba que cada pantalla ofreciera "la versión actual
+  // y la nueva". Ese par desapareció con el rename del 24/08: hoy hay un cliente por marca y
+  // los `*-legado` no se ofrecen (src/lib/clientes.ts: ordenarClientesActivos). Se invierte la
+  // afirmación, que es la que hay que sostener ahora: ninguna pantalla ofrece un legado.
   for (const ruta of ["/hoy", "/precarga", "/historial", "/estadisticas", "/actividad", "/reportes"]) {
-    test(`${ruta} ofrece la versión actual y la nueva`, async ({ page }) => {
+    test(`${ruta} ofrece BMS y ningún cliente legado`, async ({ page }) => {
       await loginAsDev(page);
       await page.goto(ruta);
       // Segun la pantalla el selector es tabs (ya visibles) o un combobox que hay que abrir.
       const combo = page.getByRole("combobox").first();
       if (await combo.count()) await combo.click();
-      await expect(page.getByText(/versión nueva/i).first()).toBeVisible({ timeout: 30_000 });
+      // Acotado a las OPCIONES del selector: buscar la palabra en toda la pagina daba falsos
+      // positivos (hay textos de datos que la contienen y no son clientes ofrecidos).
+      const opciones = (await page.getByRole("option").allInnerTexts()).map((o) => o.trim());
+      expect(opciones, `${ruta}: no ofrece BMS`).toContain("BMS");
+      expect(
+        opciones.filter((o) => /hist[oó]rico|legado|versi[oó]n nueva/i.test(o)),
+        `${ruta}: ofrece un cliente legado`,
+      ).toEqual([]);
     });
   }
 
@@ -239,31 +244,20 @@ test.describe("Las dos versiones en todas las pantallas", () => {
   });
 });
 
-test.describe("Reporte de errores — versión vieja vs nueva", () => {
-  test("avisa en rojo cuando el reporte es sobre la versión que se envía hoy", async ({ page }) => {
-    await loginAsDev(page);
-    await page.goto("/reportes");
-    await expect(page.getByText(/versión anterior del clipping/i)).toBeVisible({ timeout: 30_000 });
-  });
+// [W0.12 · 15/09] Se eliminó el bloque "Reporte de errores — versión vieja vs nueva" (2 tests).
+// Verificaba un aviso en pantalla ("esta es la versión anterior del clipping") que se quitó de
+// `src/` con el rename del 24/08: ya no hay dos versiones que distinguir. Uno de los dos tests
+// fallaba por eso; el otro pasaba de forma vacía, que es peor.
 
-  test("sobre la Versión Nueva no aparece el aviso", async ({ page }) => {
-    await loginAsDev(page);
-    await page.goto("/reportes");
-    await page.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: /- Versión Nueva/ }).first().click();
-    await expect(page.getByText(/versión anterior del clipping/i)).toHaveCount(0);
-  });
-});
-
-test.describe("Resumen IA — disponible también en Versión Nueva", () => {
+test.describe("Resumen IA — aparece en el cliente configurado", () => {
   // Bug real (11/08): RESUMEN_LABELS/RESUMEN_CFG estaban keyed por slug plano ('bms'), asi que
-  // para 'bms-test' (la Versión Nueva) el boton y la caja de sintesis desaparecian aunque el
+  // para el slug con sufijo el boton y la caja de sintesis desaparecian aunque el
   // resumen ya estuviera guardado en la base. El fix busca por el cliente BASE.
-  test("el botón Resumen IA aparece en BMS - Versión Nueva", async ({ page }) => {
+  test("el botón Resumen IA aparece en BMS", async ({ page }) => {
     await loginAsDev(page);
     await page.goto("/hoy");
     await page.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "BMS - Versión Nueva" }).click();
+    await page.getByRole("option", { name: "BMS", exact: true }).click();
     await expect(page.locator(".kx-resumen")).toBeVisible({ timeout: 30_000 });
     await expect(page.locator(".kx-export-plain")).toBeVisible();
   });
@@ -280,7 +274,10 @@ test.describe("Feedback Fedra — Tier en Precarga", () => {
     await expect(tier).toBeVisible();
 
     await page.getByPlaceholder("Medio").first().fill("Clarin");
-    await page.getByPlaceholder("URL").first().click(); // dispara el blur
+    // [W0.12 · 15/09] Antes se clickeaba getByPlaceholder("URL") para forzar el blur, pero ese
+    // campo vive en el formulario de EDICION de una precarga existente, no en la fila de alta:
+    // el test esperaba 30s por un input que nunca se renderiza. Se bluréa el campo directamente.
+    await page.getByPlaceholder("Medio").first().blur();
     await page.waitForTimeout(1500);
 
     await tier.click();

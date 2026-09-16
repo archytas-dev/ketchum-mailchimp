@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole, isStaffRole } from "@/lib/auth";
 import { ordenarClientes } from "@/lib/clientes";
 import BaseDatosClient, { type ClientOpt } from "./BaseDatosClient";
+import { configEsSoloLectura } from "@/lib/data-plane";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,10 @@ export default async function BaseDatosPage() {
         Medios, palabras clave y secciones de cada clipping.
       </p>
 
-      <BaseDatosClient clients={clients} isStaff={isStaff} />
+      {/* [W0.19] En el plano v4 la config es de SOLO LECTURA: medios, tiers, keywords,
+          secciones y alertas son tablas COMPARTIDAS que la v4 lee directo, asi que editarlas
+          desde una preview seria tocar la operacion real. */}
+      <BaseDatosClient clients={clients} isStaff={isStaff} soloLectura={configEsSoloLectura()} />
     </div>
   );
 }

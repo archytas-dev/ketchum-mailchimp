@@ -65,9 +65,12 @@ export type ClientOpt = { id: string; slug: string; nombre: string };
 export default function BaseDatosClient({
   clients,
   isStaff,
+  soloLectura = false,
 }: {
   clients: ClientOpt[];
   isStaff: boolean;
+  /** [W0.19] true cuando la herramienta corre sobre el plano v4: la config no se edita. */
+  soloLectura?: boolean;
 }) {
   // [24/08] Rename: solo se puede elegir/editar la herramienta real (slug limpio, sin
   // "-legado"). `clients` sigue llegando SIN filtrar desde la página porque configClientId
@@ -82,7 +85,8 @@ export default function BaseDatosClient({
 
   const elegido = clients.find((c) => c.id === clientId);
   const esVersionNueva = !elegido?.slug.endsWith("-legado");
-  const readOnly = !esVersionNueva;
+  // Dos motivos independientes para no poder editar: un cliente legado, o el plano v4.
+  const readOnly = !esVersionNueva || soloLectura;
 
   // La configuracion vive bajo el cliente base (los 4 workflows v3 la piden con
   // get_config_clipping(p_slug: 'booking'|'bms'|'mars'|'msd')).

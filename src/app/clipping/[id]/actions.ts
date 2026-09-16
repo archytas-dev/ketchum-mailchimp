@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { rechazoEscrituraCompartida } from "@/lib/data-plane";
 import { renderClipping, hasRenderer, type Article } from "@/lib/render";
 import { alertarErrorSlack } from "@/lib/alertar-error";
 
@@ -18,6 +19,8 @@ type NoteRow = {
 export async function exportClipping(
   clippingId: string,
 ): Promise<{ ok: boolean; html?: string; error?: string }> {
+  const bloqueo = rechazoEscrituraCompartida();
+  if (bloqueo) return bloqueo;
   const supabase = await createClient();
 
   const {

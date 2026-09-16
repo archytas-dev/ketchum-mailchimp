@@ -1,0 +1,188 @@
+{
+  "_fixture": {
+    "version": 1,
+    "creada": "2026-09-15",
+    "para": "[W0.18] · contrato de import_clipping_v4",
+    "forma": "salida literal de armar_clipping() / v4_test_armar_clipping()",
+    "que_ejercita": [
+      "varias secciones, incluida una vacia (cantidad 0) que no debe generar notas",
+      "orden global 1..N que cruza el limite entre secciones",
+      "fecha_pub 22:40 ART -> sin cast en zona quedaria en el dia siguiente",
+      "fecha_pub 02:00 UTC del 16 = 23:00 ART del 15 -> sin cast quedaria en el 16",
+      "nota forzada con motivo_forzada",
+      "nota con confianza baja",
+      "nota sin ad_value ni tier (sin valorizar)",
+      "nota sin fecha confiable",
+      "dos notas con la misma URL canonica -> dedup",
+      "una nota cuyo titulo coincide con una precargada -> gana la del cliente",
+      "OJO: client_id es el BMS de PRODUCCION (99a7b1e3...). El seed local usa 609abde9... para bms, pero eso es anterior al rename del 24/08 y en produccion ese UUID es bms-legado"
+    ]
+  },
+
+  "client_id": "99a7b1e3-2b24-4364-a055-be338bfff34a",
+  "fecha": "2026-09-15",
+  "modo": "test",
+  "run_id": "11111111-2222-3333-4444-555555555555",
+  "total_notas": 6,
+  "ad_value_total": 4300,
+  "sin_valorizar": 1,
+  "forzadas": 1,
+
+  "secciones": [
+    {
+      "nombre": "Notas Exclusivas",
+      "orden": 1,
+      "es_exclusiva": true,
+      "muestra_ad_value": true,
+      "cantidad": 2,
+      "ad_value": 3000,
+      "sin_valorizar": 0,
+      "notas": [
+        {
+          "candidata_id": "aaaaaaaa-0000-0000-0000-000000000001",
+          "titulo": "BMS presenta resultados de fase 3 en oncologia",
+          "snippet": "La compania informo los resultados del ensayo clinico.",
+          "url": "https://www.clarin.com/salud/bms-fase-3_0_ABC.html?utm_source=rss",
+          "medio": "Clarin",
+          "dominio": "clarin.com",
+          "fecha_pub": "2026-09-15T22:40:00-03:00",
+          "fecha_confiable": true,
+          "tier": 1,
+          "alcance": 850000,
+          "ad_value": 2000,
+          "confianza": 0.94,
+          "forzada": false,
+          "motivo_forzada": null
+        },
+        {
+          "candidata_id": "aaaaaaaa-0000-0000-0000-000000000002",
+          "titulo": "Nueva aprobacion regulatoria para un tratamiento de BMS",
+          "snippet": "ANMAT aprobo la indicacion.",
+          "url": "https://www.lanacion.com.ar/salud/anmat-bms-nid20260915/",
+          "medio": "La Nacion",
+          "dominio": "lanacion.com.ar",
+          "fecha_pub": "2026-09-16T02:00:00+00:00",
+          "fecha_confiable": true,
+          "tier": 1,
+          "alcance": 900000,
+          "ad_value": 1000,
+          "confianza": 0.88,
+          "forzada": false,
+          "motivo_forzada": null
+        }
+      ]
+    },
+    {
+      "nombre": "Noticias del Sector",
+      "orden": 2,
+      "es_exclusiva": false,
+      "muestra_ad_value": true,
+      "cantidad": 3,
+      "ad_value": 1300,
+      "sin_valorizar": 1,
+      "notas": [
+        {
+          "candidata_id": "aaaaaaaa-0000-0000-0000-000000000003",
+          "titulo": "El mercado farmaceutico argentino crecio en el trimestre",
+          "snippet": "Segun la camara del sector.",
+          "url": "https://www.cronista.com/negocios/farma-trimestre/",
+          "medio": "El Cronista",
+          "dominio": "cronista.com",
+          "fecha_pub": "2026-09-15T11:15:00-03:00",
+          "fecha_confiable": true,
+          "tier": 2,
+          "alcance": 300000,
+          "ad_value": 800,
+          "confianza": 0.71,
+          "forzada": false,
+          "motivo_forzada": null
+        },
+        {
+          "candidata_id": "aaaaaaaa-0000-0000-0000-000000000004",
+          "titulo": "Resistencia antimicrobiana: el acceso sigue siendo desigual",
+          "snippet": "Informe de un medio especializado.",
+          "url": "https://consensosalud.com.ar/resistencia-antimicrobiana/",
+          "medio": "Consenso Salud",
+          "dominio": "consensosalud.com.ar",
+          "fecha_pub": "2026-09-15T09:00:00-03:00",
+          "fecha_confiable": false,
+          "tier": 3,
+          "alcance": 40000,
+          "ad_value": 500,
+          "confianza": 0.58,
+          "forzada": true,
+          "motivo_forzada": "fuente monitoreada del cliente"
+        },
+        {
+          "candidata_id": "aaaaaaaa-0000-0000-0000-000000000005",
+          "titulo": "Un laboratorio local anuncia inversion en planta",
+          "snippet": "Sin valorizacion cargada para este medio.",
+          "url": "https://pharmabiz.net/inversion-planta",
+          "medio": "Pharmabiz",
+          "dominio": "pharmabiz.net",
+          "fecha_pub": null,
+          "fecha_confiable": false,
+          "tier": null,
+          "alcance": null,
+          "ad_value": null,
+          "confianza": 0.66,
+          "forzada": false,
+          "motivo_forzada": null
+        }
+      ]
+    },
+    {
+      "nombre": "Competencia",
+      "orden": 3,
+      "es_exclusiva": false,
+      "muestra_ad_value": false,
+      "cantidad": 0,
+      "ad_value": 0,
+      "sin_valorizar": 0,
+      "notas": []
+    },
+    {
+      "nombre": "Duplicados de prueba",
+      "orden": 4,
+      "es_exclusiva": false,
+      "muestra_ad_value": false,
+      "cantidad": 2,
+      "ad_value": 0,
+      "sin_valorizar": 0,
+      "notas": [
+        {
+          "candidata_id": "aaaaaaaa-0000-0000-0000-000000000006",
+          "titulo": "BMS presenta resultados de fase 3 en oncologia (repetida por URL)",
+          "snippet": "Misma URL canonica que la primera nota, con otro tracking.",
+          "url": "https://clarin.com/salud/bms-fase-3_0_ABC.html?utm_campaign=x&utm_medium=y",
+          "medio": "Clarin",
+          "dominio": "clarin.com",
+          "fecha_pub": "2026-09-15T22:41:00-03:00",
+          "fecha_confiable": true,
+          "tier": 1,
+          "alcance": 850000,
+          "ad_value": 2000,
+          "confianza": 0.90,
+          "forzada": false,
+          "motivo_forzada": null
+        },
+        {
+          "candidata_id": "aaaaaaaa-0000-0000-0000-000000000007",
+          "titulo": "Gacetilla que el equipo ya precargo",
+          "snippet": "Debe perder contra la fila precargada por el cliente.",
+          "url": "https://mediospropios.example/gacetilla-bms",
+          "medio": "Medio Propio",
+          "dominio": "mediospropios.example",
+          "fecha_pub": "2026-09-15T10:00:00-03:00",
+          "fecha_confiable": true,
+          "tier": null,
+          "alcance": null,
+          "ad_value": null,
+          "confianza": 0.80,
+          "forzada": false,
+          "motivo_forzada": null
+        }
+      ]
+    }
+  ]
+}
