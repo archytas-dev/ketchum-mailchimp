@@ -175,19 +175,22 @@ export default async function ActividadPage({
     );
   }
 
-  // La preview no puede reutilizar el embudo v3. Solo el usuario de desarrollo
-  // ve la bitácora aislada; Fedra sigue entrando al camino v3 normal.
+  // El plano v4 no puede reutilizar el embudo v3, que lee run_stats. Desde el cutover
+  // del 17/09 el cliente tambien entra acá: ve el mismo "Casi entraron" que en v3.
+  // Lo que queda staff-only es el detalle del juez (?juez=1), que muestra los motivos
+  // crudos del modelo -- ahí sí hay jerga interna que el cliente no tiene por qué leer.
   if (soloLecturaV4) {
-    if (!isStaffRole(real)) {
-      return (
-        <div className="w-full p-6">
-          <h1 className="text-xl font-semibold mb-1">Actividad</h1>
-          <p className="text-sm text-muted-foreground">La actividad v4 está habilitada solamente para la cuenta de prueba interna.</p>
-        </div>
-      );
-    }
     const paginaDescartes = Math.max(1, Number.parseInt(sp.descartes ?? "1", 10) || 1);
-    return <ActividadV4 clients={clients} clientId={clientId} paginaDescartes={paginaDescartes} verJuez={sp.juez === "1"} />;
+    const permiteJuez = isStaffRole(real);
+    return (
+      <ActividadV4
+        clients={clients}
+        clientId={clientId}
+        paginaDescartes={paginaDescartes}
+        verJuez={permiteJuez && sp.juez === "1"}
+        permiteJuez={permiteJuez}
+      />
+    );
   }
 
   // RPC en vez de leer run_stats directo: la tabla es 100% staff-only por RLS (decisión

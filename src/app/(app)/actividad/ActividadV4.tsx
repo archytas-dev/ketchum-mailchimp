@@ -75,7 +75,7 @@ function Metric({ label, value, tone = "text-foreground" }: { label: string; val
   );
 }
 
-export default async function ActividadV4({ clients, clientId, paginaDescartes, verJuez }: { clients: ClientOpt[]; clientId: string; paginaDescartes: number; verJuez: boolean }) {
+export default async function ActividadV4({ clients, clientId, paginaDescartes, verJuez, permiteJuez = false }: { clients: ClientOpt[]; clientId: string; paginaDescartes: number; verJuez: boolean; /** El detalle del juez es interno (jerga del modelo, motivos crudos): solo staff. */ permiteJuez?: boolean }) {
   const supabase = await createClient();
   const [{ data: runData, error: runError }, { data: clipData }] = await Promise.all([
     tabla(supabase, "pipeline_runs")
@@ -265,7 +265,7 @@ export default async function ActividadV4({ clients, clientId, paginaDescartes, 
                 <h2 className="text-sm font-semibold text-foreground">{verJuez ? "Descartadas por el juez v4" : "Casi entraron · último filtro"}</h2>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{verJuez ? "Detalle técnico completo del juez. El + las suma directamente al clipping de /hoy de este cliente, sólo en v4 test." : "Sólo las aprobadas por el juez que no llegaron al clipping por el último filtro, igual que “Casi entraron” en v3."}</p>
-              {!verJuez ? <Link className="mt-3 inline-block text-xs font-medium text-violet-700 hover:underline" href={`/actividad?cliente=${clientId}&juez=1`}>Ver las {totalJuezDescartadas} descartadas por el juez</Link> : <Link className="mt-3 inline-block text-xs font-medium text-violet-700 hover:underline" href={`/actividad?cliente=${clientId}`}>Volver a “Casi entraron”</Link>}
+              {!verJuez ? (permiteJuez ? <Link className="mt-3 inline-block text-xs font-medium text-violet-700 hover:underline" href={`/actividad?cliente=${clientId}&juez=1`}>Ver las {totalJuezDescartadas} descartadas por el juez</Link> : null) : <Link className="mt-3 inline-block text-xs font-medium text-violet-700 hover:underline" href={`/actividad?cliente=${clientId}`}>Volver a “Casi entraron”</Link>}
               {descartadas.length === 0 ? <p className="mt-5 text-sm text-muted-foreground">{verJuez ? "Todavía no hay descartes del juez." : "Ninguna nota aprobada quedó afuera en el último filtro."}</p> : (
                 <ul className="mt-4 divide-y divide-border/70">
                   {descartadas.map((t) => {
