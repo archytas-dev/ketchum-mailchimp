@@ -247,18 +247,6 @@ export function mountEditor(root, opts) {
   // que usa Build HTML Email para el mail. Autocompleta el campo "tier" (texto libre, se
   // muestra solo en la sección de Exclusivas) SOLO si todavía no tiene nada escrito a mano.
   function fmtAdValueTier(n) { return "Ad Value: $" + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "-"; }
-  function fmtNumber(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
-  function fmtTierMeta(a, adValue) {
-    const rawTier = a.tier;
-    const parts = [];
-    if (rawTier !== undefined && rawTier !== null && String(rawTier).trim()) {
-      const numeric = Number(rawTier);
-      parts.push(Number.isInteger(numeric) && numeric >= 1 && numeric <= 4 ? "Tier " + numeric : String(rawTier));
-    }
-    if (a.alcance !== undefined && a.alcance !== null && Number(a.alcance) > 0) parts.push("Alcance: " + fmtNumber(a.alcance));
-    if (adValue !== null && Number(adValue) > 0) parts.push(fmtAdValueTier(adValue));
-    return parts.join(" · ");
-  }
   function toNota(a) {
     const adValue = (a.ad_value !== undefined && a.ad_value !== null) ? a.ad_value : null;
     return {
@@ -267,8 +255,7 @@ export function mountEditor(root, opts) {
       online: (a.online !== undefined && a.online !== null) ? a.online : "(Online)",
       fecha: a.fecha || a.pubDate || "",
       ad_value: adValue,
-      alcance: a.alcance ?? null,
-      tier: fmtTierMeta(a, adValue),
+      tier: a.tier || (adValue ? fmtAdValueTier(adValue) : ""),
       titulo: a.titulo || a.title || "",
       url: a.url || a.url_canonica || "",
       snippet: a.snippet || a.contentSnippet || "",
@@ -363,7 +350,7 @@ export function mountEditor(root, opts) {
   }
   function renderNote(n, showTier) {
     const el = document.createElement("div"); el.className = "kx-note"; el.dataset.id = n.id; el.dataset.gacetilla = n.esGacetilla ? "1" : "";
-    const tierField = (showTier || n.tier) ? '<input class="fld f-tier" placeholder="Tier">' : '';
+    const tierField = showTier ? '<input class="fld f-tier" placeholder="Tier">' : '';
     el.innerHTML =
       '<span class="kx-grip note-handle" title="Arrastrar para reordenar">' + ICON.grip + '</span>'
       + '<div class="kx-note-body">'

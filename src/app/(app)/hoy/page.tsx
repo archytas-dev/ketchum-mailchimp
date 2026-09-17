@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { enPlanoV4, tabla } from "@/lib/data-plane";
+import { tabla } from "@/lib/data-plane";
 import { ordenarClientesActivos } from "@/lib/clientes";
 import PrincipalClient, { type ClientPayload } from "./PrincipalClient";
 
@@ -38,15 +38,12 @@ type NoteRow = {
   url: string | null;
   pub_date: string | null;
   orden: number;
-  tier: number | null;
-  alcance: number | null;
   ad_value: number | null;
 };
 type ClipRow = { id: string; client_id: string; fecha: string; resumen_ia: unknown };
 
 export default async function HoyPage() {
   const supabase = await createClient();
-  const esV4 = enPlanoV4(supabase);
 
   const [{ data: { user } }, { data: clientRows }, { data: clipRows }] = await Promise.all([
     supabase.auth.getUser(),
@@ -83,17 +80,11 @@ export default async function HoyPage() {
   const notesByClip = new Map<string, NoteRow[]>();
   if (clipIds.length) {
     const { data: noteRows } = await tabla(supabase, "notes")
-      // `tier` y `alcance` existen solo en test.notes_v4. La v3/public conserva
-      // su contrato original de `notes`, así que Fedra nunca consulta columnas nuevas.
-      .select(esV4
-        ? "id, clipping_id, seccion, medio, titulo, snippet, url, pub_date, orden, tier, alcance, ad_value"
-        : "id, clipping_id, seccion, medio, titulo, snippet, url, pub_date, orden, ad_value")
+      .select("id, clipping_id, seccion, medio, titulo, snippet, url, pub_date, orden, ad_value")
       .in("clipping_id", clipIds)
       .eq("incluida", true)
       .order("orden", { ascending: true });
-    // `tabla()` cambia de schema por usuario; los tipos generados de Supabase
-    // describen public, por eso el resultado v4 se normaliza recién acá.
-    for (const n of (noteRows ?? []) as unknown as NoteRow[]) {
+    for (const n of (noteRows ?? []) as NoteRow[]) {
       const arr = notesByClip.get(n.clipping_id) ?? [];
       arr.push(n);
       notesByClip.set(n.clipping_id, arr);
@@ -131,8 +122,6 @@ export default async function HoyPage() {
           titulo: n.titulo ?? "",
           url: n.url ?? "",
           snippet: n.snippet ?? "",
-          tier: n.tier ?? null,
-          alcance: n.alcance ?? null,
           ad_value: n.ad_value ?? null,
         })),
       };
