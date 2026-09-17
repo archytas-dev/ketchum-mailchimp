@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { rechazoEscrituraCompartida } from "@/lib/data-plane";
+import { enPlanoV4, rechazoEscrituraCompartida } from "@/lib/data-plane";
 import { tierNorm } from "@/lib/tier";
 
 type Ok<T = undefined> = { ok: true } & (T extends undefined ? unknown : { data: T });
@@ -29,6 +29,62 @@ export async function listMedios(
   tipo: "monitoreado" | "adicional",
 ): Promise<Result<MedioRow[]>> {
   const supabase = await createClient();
+  if (enPlanoV4(supabase)) {
+    const { data: suscripciones, error: suscripcionesError } = await supabase
+      .from("medios_suscripcion")
+      .select("fuente_id, tier, prioritario, origen, bloqueado")
+      .eq("client_id", clientId);
+    if (suscripcionesError) return { ok: false, error: suscripcionesError.message };
+    const propias = (suscripciones ?? []).filter((s) =>
+      tipo === "monitoreado" ? s.prioritario : !s.prioritario,
+    );
+    const fuenteIds = propias.map((s) => s.fuente_id);
+    if (!fuenteIds.length) return { ok: true, data: [] };
+    const { data: fuentes, error: fuentesError } = await supabase
+      .from("medios_fuentes")
+      .select("id, dominio_norm, formato, metodo_extraccion, transporte, activa")
+      .in("id", fuenteIds);
+    if (fuentesError) return { ok: false, error: fuentesError.message };
+    const dominios = [...new Set((fuentes ?? []).map((f) => f.dominio_norm))];
+    const [{ data: catalogo, error: catalogoError }, { data: valores, error: valoresError }] = await Promise.all([
+      supabase.from("medios_catalogo").select("dominio_norm, nombre").in("dominio_norm", dominios),
+      supabase.from("v4_valorizaciones_medio").select("dominio_norm, tier, ad_value, alcance").eq("client_id", clientId),
+    ]);
+    if (catalogoError) return { ok: false, error: catalogoError.message };
+    if (valoresError) return { ok: false, error: valoresError.message };
+    const porFuente = new Map(propias.map((s) => [s.fuente_id, s]));
+    const porDominio = new Map((catalogo ?? []).map((m) => [m.dominio_norm, m]));
+    const porValor = new Map((valores ?? []).map((v) => [v.dominio_norm, v]));
+    const agrupados = new Map<string, MedioRow>();
+    for (const f of fuentes ?? []) {
+      const suscripcion = porFuente.get(f.id)!;
+      const valor = porValor.get(f.dominio_norm);
+      const previo = agrupados.get(f.dominio_norm);
+      const activo = f.activa && !suscripcion.bloqueado;
+      if (previo) {
+        previo.activo = previo.activo || activo;
+        previo.metodo = [previo.metodo, f.formato ?? f.metodo_extraccion ?? f.transporte ?? null].filter(Boolean).join(", ") || null;
+        continue;
+      }
+      agrupados.set(f.dominio_norm, {
+        id: f.id,
+        dominio: f.dominio_norm,
+        nombre: porDominio.get(f.dominio_norm)?.nombre ?? f.dominio_norm,
+        origen: suscripcion.origen ?? "v4",
+        metodo: f.formato ?? f.metodo_extraccion ?? f.transporte ?? null,
+        activo,
+        notas_total: null,
+        primer_uso: null,
+        tier: valor?.tier ?? suscripcion.tier ?? null,
+        ad_value: valor?.ad_value ?? null,
+        alcance: valor?.alcance ?? null,
+      });
+    }
+    return {
+      ok: true,
+      data: [...agrupados.values()].sort((a, b) => (a.nombre ?? a.dominio).localeCompare(b.nombre ?? b.dominio, "es")),
+    };
+  }
   const [{ data: medios, error }, { data: tiers, error: tiersError }] = await Promise.all([
     supabase
       .from("medios")
@@ -79,8 +135,6 @@ export async function addMedio(
   input: { dominio: string; nombre: string; tier?: number | null; ad_value?: number | null; alcance?: number | null },
 ): Promise<Result> {
   const supabase = await createClient();
-  const bloqueo = rechazoEscrituraCompartida(supabase);
-  if (bloqueo) return bloqueo;
   const dominio = normalizeDominio(input.dominio);
   const nombre = input.nombre.trim();
   if (!dominio) return { ok: false, error: "Falta el dominio." };
@@ -91,6 +145,22 @@ export async function addMedio(
       error: `"${dominio}" es un dominio .${tld} — la cobertura es de medios argentinos, no se puede sumar.`,
     };
   }
+
+  if (enPlanoV4(supabase)) {
+    const { error } = await supabase.rpc("v4_agregar_medio", {
+      p_client_id: clientId,
+      p_dominio_norm: dominio,
+      p_nombre: nombre,
+      p_tipo: tipo,
+      p_tier: input.tier ?? null,
+      p_ad_value: input.ad_value ?? null,
+      p_alcance: input.alcance ?? null,
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  }
+  const bloqueo = rechazoEscrituraCompartida(supabase);
+  if (bloqueo) return bloqueo;
 
   // origen='cliente' + activo=true: entra a la lista de scrapeo permanente desde la proxima
   // corrida, sin paso manual adicional (lo pide el ticket explicitamente).
@@ -121,8 +191,17 @@ export async function addMedio(
   return { ok: true };
 }
 
-export async function toggleMedioActivo(id: string, activo: boolean): Promise<Result> {
+export async function toggleMedioActivo(id: string, activo: boolean, clientId?: string): Promise<Result> {
   const supabase = await createClient();
+  if (enPlanoV4(supabase)) {
+    if (!clientId) return { ok: false, error: "Falta el cliente para actualizar el medio v4." };
+    const { error } = await supabase.rpc("v4_set_medio_activo", {
+      p_client_id: clientId,
+      p_fuente_id: id,
+      p_activo: activo,
+    });
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }
   const bloqueo = rechazoEscrituraCompartida(supabase);
   if (bloqueo) return bloqueo;
   const { error } = await supabase.from("medios").update({ activo }).eq("id", id);
@@ -134,8 +213,21 @@ export async function updateMedioTier(
   clientId: string,
   nombreMedio: string,
   input: { tier: number | null; ad_value: number | null; alcance?: number | null },
+  dominioV4?: string,
 ): Promise<Result> {
   const supabase = await createClient();
+  if (enPlanoV4(supabase)) {
+    const dominio = normalizeDominio(dominioV4 || nombreMedio);
+    if (!dominio) return { ok: false, error: "El medio v4 necesita un dominio para guardar la valorización." };
+    const { error } = await supabase.rpc("v4_guardar_valorizacion", {
+      p_client_id: clientId,
+      p_dominio_norm: dominio,
+      p_tier: input.tier,
+      p_ad_value: input.ad_value,
+      p_alcance: input.alcance ?? null,
+    });
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }
   const bloqueo = rechazoEscrituraCompartida(supabase);
   if (bloqueo) return bloqueo;
   const key = tierNorm(nombreMedio);

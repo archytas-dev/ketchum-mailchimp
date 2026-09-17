@@ -85,8 +85,10 @@ export default function BaseDatosClient({
 
   const elegido = clients.find((c) => c.id === clientId);
   const esVersionNueva = !elegido?.slug.endsWith("-legado");
-  // Dos motivos independientes para no poder editar: un cliente legado, o el plano v4.
+  // En v4 medios y valorizaciones ya tienen sus propias tablas/RPC aisladas. Keywords,
+  // secciones y alertas siguen compartidas con v3 y por eso permanecen en solo lectura.
   const readOnly = !esVersionNueva || soloLectura;
+  const mediosReadOnly = !esVersionNueva;
 
   // La configuracion vive bajo el cliente base (los 4 workflows v3 la piden con
   // get_config_clipping(p_slug: 'booking'|'bms'|'mars'|'msd')).
@@ -131,10 +133,10 @@ export default function BaseDatosClient({
         </TabsList>
 
         <TabsContent value="nicho" className="pt-6">
-          <MediosTab clientId={configClientId} tipo="monitoreado" readOnly={readOnly} />
+          <MediosTab clientId={configClientId} tipo="monitoreado" readOnly={mediosReadOnly} modoV4={soloLectura} />
         </TabsContent>
         <TabsContent value="generales" className="pt-6">
-          <MediosTab clientId={configClientId} tipo="adicional" readOnly={readOnly} />
+          <MediosTab clientId={configClientId} tipo="adicional" readOnly={mediosReadOnly} modoV4={soloLectura} />
         </TabsContent>
         <TabsContent value="keywords" className="pt-6">
           <KeywordsTab clientId={configClientId} readOnly={readOnly} />
@@ -229,7 +231,7 @@ function DominioLink({ dominio }: { dominio: string }) {
   );
 }
 
-function MediosTab({ clientId, tipo, readOnly }: { clientId: string; tipo: "monitoreado" | "adicional"; readOnly: boolean }) {
+function MediosTab({ clientId, tipo, readOnly, modoV4 }: { clientId: string; tipo: "monitoreado" | "adicional"; readOnly: boolean; modoV4: boolean }) {
   const cacheKey = `medios:${clientId}:${tipo}`;
   const { rows, setRows, loading, refresh } = useCachedList<MedioRow>(cacheKey, () =>
     listMedios(clientId, tipo),
@@ -253,7 +255,11 @@ function MediosTab({ clientId, tipo, readOnly }: { clientId: string; tipo: "moni
     });
     setSaving(false);
     if (!res.ok) return toast.error(res.error);
-    toast.success("Medio agregado — entra al scrapeo desde la próxima corrida.");
+    toast.success(
+      modoV4
+        ? "Medio agregado. Quedó pendiente de descubrimiento de feed/transporte antes de entrar al scrapeo."
+        : "Medio agregado — entra al scrapeo desde la próxima corrida.",
+    );
     setOpen(false);
     setDominio("");
     setNombre("");
@@ -267,7 +273,7 @@ function MediosTab({ clientId, tipo, readOnly }: { clientId: string; tipo: "moni
   }
 
   async function handleToggle(row: MedioRow) {
-    const res = await toggleMedioActivo(row.id, !row.activo);
+    const res = await toggleMedioActivo(row.id, !row.activo, clientId);
     if (!res.ok) return toast.error(res.error);
     setRows((rs) => rs.map((r) => (r.id === row.id ? { ...r, activo: !r.activo } : r)));
   }
@@ -280,7 +286,7 @@ function MediosTab({ clientId, tipo, readOnly }: { clientId: string; tipo: "moni
       tier: nuevoTier,
       ad_value: nuevoAdValue,
       alcance: nuevoAlcance,
-    });
+    }, row.dominio);
     if (!res.ok) return toast.error(res.error);
     setRows((rs) =>
       rs.map((r) => (r.id === row.id ? { ...r, tier: nuevoTier, ad_value: nuevoAdValue, alcance: nuevoAlcance } : r)),
@@ -303,7 +309,11 @@ function MediosTab({ clientId, tipo, readOnly }: { clientId: string; tipo: "moni
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Sumar medio {tipo === "monitoreado" ? "de nicho" : "general"}</DialogTitle>
-              <DialogDescription>Se agrega activo — entra al scrapeo desde la próxima corrida.</DialogDescription>
+            <DialogDescription>
+              {modoV4
+                ? "Se guarda aislado de la v3. Primero queda pendiente de descubrir feed y transporte; recién entonces entra al scrapeo."
+                : "Se agrega activo — entra al scrapeo desde la próxima corrida."}
+            </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
               <div className="space-y-1">

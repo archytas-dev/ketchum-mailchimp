@@ -12,9 +12,9 @@ import { tierNorm } from "@/lib/tier";
 // cambiarlo ahi mismo, escribiendo en `tiers`. Si se guardara por nota habria dos verdades y
 // el clipping seguiria usando la del medio.
 
-export type TierDeMedio = { tier: number | null; ad_value: number | null; alcance: number | null };
+export type TierDeMedio = { tier: number | null; ad_value: number | null; alcance: number | null; dominio?: string | null };
 
-export type MedioConocido = { nombre: string; tier: number | null };
+export type MedioConocido = { nombre: string; tier: number | null; dominio?: string | null };
 
 // Catálogo de medios ya conocidos por el cliente (tabla `medios`, activos, de nicho o
 // generales) con su tier si lo tienen (tabla `tiers`) — alimenta el autocompletado del campo
@@ -24,6 +24,37 @@ export type MedioConocido = { nombre: string; tier: number | null };
 // Datos), y viceversa.
 export async function listMediosConTier(clientId: string): Promise<{ ok: boolean; data?: MedioConocido[]; error?: string }> {
   const supabase = await createClient();
+  if (enPlanoV4(supabase)) {
+    const { data: suscripciones, error: suscripcionesError } = await supabase
+      .from("medios_suscripcion")
+      .select("fuente_id, tier, bloqueado")
+      .eq("client_id", clientId)
+      .eq("bloqueado", false);
+    if (suscripcionesError) return { ok: false, error: suscripcionesError.message };
+    const fuenteIds = (suscripciones ?? []).map((s) => s.fuente_id);
+    if (!fuenteIds.length) return { ok: true, data: [] };
+    const { data: fuentes, error: fuentesError } = await supabase
+      .from("medios_fuentes")
+      .select("id, dominio_norm")
+      .in("id", fuenteIds);
+    if (fuentesError) return { ok: false, error: fuentesError.message };
+    const dominios = [...new Set((fuentes ?? []).map((f) => f.dominio_norm))];
+    const [{ data: catalogo, error: catalogoError }, { data: valores, error: valoresError }] = await Promise.all([
+      supabase.from("medios_catalogo").select("dominio_norm, nombre").in("dominio_norm", dominios),
+      supabase.from("v4_valorizaciones_medio").select("dominio_norm, tier").eq("client_id", clientId),
+    ]);
+    if (catalogoError) return { ok: false, error: catalogoError.message };
+    if (valoresError) return { ok: false, error: valoresError.message };
+    const tierFuente = new Map((suscripciones ?? []).map((s) => [s.fuente_id, s.tier]));
+    const nombre = new Map((catalogo ?? []).map((m) => [m.dominio_norm, m.nombre]));
+    const valor = new Map((valores ?? []).map((v) => [v.dominio_norm, v.tier]));
+    const data = (fuentes ?? []).map((f) => ({
+      nombre: nombre.get(f.dominio_norm) || f.dominio_norm,
+      dominio: f.dominio_norm,
+      tier: valor.get(f.dominio_norm) ?? tierFuente.get(f.id) ?? null,
+    }));
+    return { ok: true, data: [...new Map(data.map((m) => [m.dominio, m])).values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")) };
+  }
   const [{ data: medios, error: mediosError }, { data: tiers, error: tiersError }] = await Promise.all([
     supabase.from("medios").select("nombre, dominio").eq("client_id", clientId).eq("activo", true),
     supabase.from("tiers").select("dominio, medio, tier").eq("client_id", clientId),
@@ -53,7 +84,33 @@ export async function listMediosConTier(clientId: string): Promise<{ ok: boolean
 export async function lookupTiers(
   clientId: string,
   medios: string[],
+  urls?: string[],
 ): Promise<{ ok: boolean; data?: Record<string, TierDeMedio>; error?: string }> {
+  const supabase = await createClient();
+  if (enPlanoV4(supabase)) {
+    const entradas = await Promise.all(
+      medios.map(async (medio, i) => {
+        const { data, error } = await supabase.rpc("v4_resolver_valorizacion", {
+          p_client_id: clientId,
+          p_url: urls?.[i] ?? null,
+          p_medio: medio,
+        });
+        return { medio, data, error };
+      }),
+    );
+    const out: Record<string, TierDeMedio> = {};
+    for (const item of entradas) {
+      if (item.error) return { ok: false, error: item.error.message };
+      const row = Array.isArray(item.data) ? item.data[0] : item.data;
+      out[item.medio] = {
+        tier: row?.tier ?? null,
+        ad_value: row?.ad_value ?? null,
+        alcance: row?.alcance ?? null,
+        dominio: row?.dominio_norm ?? null,
+      };
+    }
+    return { ok: true, data: out };
+  }
   const claves = new Map<string, string>();
   for (const m of medios) {
     const k = tierNorm(m);
@@ -61,7 +118,6 @@ export async function lookupTiers(
   }
   if (!claves.size) return { ok: true, data: {} };
 
-  const supabase = await createClient();
   const { data, error } = await supabase
     .from("tiers")
     .select("dominio, tier, ad_value, alcance")
@@ -84,8 +140,26 @@ export async function setAlcanceAdValue(
   clientId: string,
   nombreMedio: string,
   input: { ad_value?: number | null; alcance?: number | null },
+  url?: string,
+  dominioConocido?: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = await createClient();
+  if (enPlanoV4(supabase)) {
+    const { data: encontrado, error: resolverError } = await supabase.rpc("v4_resolver_valorizacion", {
+      p_client_id: clientId, p_url: url ?? null, p_medio: dominioConocido || nombreMedio,
+    });
+    if (resolverError) return { ok: false, error: resolverError.message };
+    const actual = Array.isArray(encontrado) ? encontrado[0] : encontrado;
+    if (!actual?.dominio_norm) return { ok: false, error: "No encontramos ese medio en el catálogo v4. Agregalo primero desde Base de Datos." };
+    const { error } = await supabase.rpc("v4_guardar_valorizacion", {
+      p_client_id: clientId,
+      p_dominio_norm: actual.dominio_norm,
+      p_tier: actual.tier ?? null,
+      p_ad_value: input.ad_value !== undefined ? input.ad_value : actual.ad_value ?? null,
+      p_alcance: input.alcance !== undefined ? input.alcance : actual.alcance ?? null,
+    });
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }
   const bloqueo = rechazoEscrituraCompartida(supabase);
   if (bloqueo) return bloqueo;
   const key = tierNorm(nombreMedio);
@@ -119,8 +193,26 @@ export async function setTierMedio(
   clientId: string,
   nombreMedio: string,
   tier: number | null,
+  url?: string,
+  dominioConocido?: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = await createClient();
+  if (enPlanoV4(supabase)) {
+    const { data: encontrado, error: resolverError } = await supabase.rpc("v4_resolver_valorizacion", {
+      p_client_id: clientId, p_url: url ?? null, p_medio: dominioConocido || nombreMedio,
+    });
+    if (resolverError) return { ok: false, error: resolverError.message };
+    const actual = Array.isArray(encontrado) ? encontrado[0] : encontrado;
+    if (!actual?.dominio_norm) return { ok: false, error: "No encontramos ese medio en el catálogo v4. Agregalo primero desde Base de Datos." };
+    const { error } = await supabase.rpc("v4_guardar_valorizacion", {
+      p_client_id: clientId,
+      p_dominio_norm: actual.dominio_norm,
+      p_tier: tier,
+      p_ad_value: actual.ad_value ?? null,
+      p_alcance: actual.alcance ?? null,
+    });
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }
   const bloqueo = rechazoEscrituraCompartida(supabase);
   if (bloqueo) return bloqueo;
   const key = tierNorm(nombreMedio);
@@ -355,13 +447,21 @@ export async function fetchMeta(
     let medio = "";
     if (urlHost) {
       const supabase = await createClient();
-      const { data: nicho } = await supabase
-        .from("medios")
-        .select("dominio, nombre")
-        .eq("client_id", clientId)
-        .eq("tipo", "monitoreado");
-      const match = (nicho ?? []).find((m) => hostMatches(urlHost, normalizeHost(m.dominio || "")));
-      if (match) medio = match.nombre || match.dominio;
+      if (enPlanoV4(supabase)) {
+        const { data } = await supabase.rpc("v4_resolver_valorizacion", {
+          p_client_id: clientId, p_url: u, p_medio: null,
+        });
+        const match = Array.isArray(data) ? data[0] : data;
+        if (match?.nombre) medio = match.nombre;
+      } else {
+        const { data: nicho } = await supabase
+          .from("medios")
+          .select("dominio, nombre")
+          .eq("client_id", clientId)
+          .eq("tipo", "monitoreado");
+        const match = (nicho ?? []).find((m) => hostMatches(urlHost, normalizeHost(m.dominio || "")));
+        if (match) medio = match.nombre || match.dominio;
+      }
     }
     if (!medio) medio = sitioMeta || nombreDesdeHost(urlHost);
 

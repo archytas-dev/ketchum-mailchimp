@@ -126,6 +126,9 @@ export type ClientOpt = { id: string; slug: string; nombre: string };
 
 type Draft = {
   medio: string;
+  // Identidad canónica v4 si el medio vino del catálogo. No se muestra: evita
+  // que una variante de nombre pierda su valoración al guardar o editar.
+  dominio?: string | null;
   titulo: string;
   url: string;
   snippet: string;
@@ -449,17 +452,17 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
   async function individualRefrescarTier() {
     const medio = individual.medio.trim();
     if (!medio) return setIndividualField({ tier: undefined, alcance: undefined, ad_value: undefined });
-    const res = await lookupTiers(configClientId, [medio]);
+    const res = await lookupTiers(configClientId, [medio], [individual.url]);
     if (!res.ok) return;
     const d = res.data?.[medio];
-    setIndividualField({ tier: d?.tier ?? null, alcance: d?.alcance ?? null, ad_value: d?.ad_value ?? null });
+    setIndividualField({ tier: d?.tier ?? null, alcance: d?.alcance ?? null, ad_value: d?.ad_value ?? null, dominio: d?.dominio ?? individual.dominio });
   }
 
   // Cambiar el tier acá escribe en `tiers`, o sea que afecta al medio entero, no solo a esta
   // nota. Es a propósito: es el mismo dato que edita Base de Datos.
   async function individualHandleTier(tier: number | null) {
     const medio = individual.medio.trim();
-    const res = await setTierMedio(configClientId, medio, tier);
+    const res = await setTierMedio(configClientId, medio, tier, individual.url, individual.dominio);
     if (!res.ok) return toast.error(res.error);
     setIndividualField({ tier });
     toast.success(tier ? `${medio} quedó como Tier ${tier} para este cliente.` : `${medio} quedó sin tier asignado.`);
@@ -469,7 +472,7 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
   // campo independiente.
   async function individualHandleAlcanceAdValue(patch: { alcance?: number | null; ad_value?: number | null }) {
     const medio = individual.medio.trim();
-    const res = await setAlcanceAdValue(configClientId, medio, patch);
+    const res = await setAlcanceAdValue(configClientId, medio, patch, individual.url, individual.dominio);
     if (!res.ok) return toast.error(res.error);
     setIndividualField(patch);
     toast.success(`${medio} actualizado para este cliente.`);
@@ -492,10 +495,10 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
     if (!res.ok) toast.error("No se pudo leer", { description: res.error });
     else if (!res.titulo && !res.snippet) toast.warning("La página no expuso título ni descripción");
     if (!medioYaEscrito && res.medio) {
-      const tRes = await lookupTiers(configClientId, [res.medio]);
+      const tRes = await lookupTiers(configClientId, [res.medio], [url]);
       if (tRes.ok) {
         const d = tRes.data?.[res.medio];
-        setIndividualField({ tier: d?.tier ?? null, alcance: d?.alcance ?? null, ad_value: d?.ad_value ?? null });
+        setIndividualField({ tier: d?.tier ?? null, alcance: d?.alcance ?? null, ad_value: d?.ad_value ?? null, dominio: d?.dominio ?? null });
       }
     }
   }
@@ -593,7 +596,8 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
 
     const medios = [...new Set(finalRows.map((n) => n.medio.trim()).filter(Boolean))];
     if (medios.length) {
-      const tiersRes = await lookupTiers(configClientId, medios);
+      const urlsPorMedio = medios.map((medio) => finalRows.find((n) => n.medio.trim() === medio)?.url ?? "");
+      const tiersRes = await lookupTiers(configClientId, medios, urlsPorMedio);
       if (tiersRes.ok && tiersRes.data) {
         const porMedio = tiersRes.data;
         setBulkPreview((prev) =>
@@ -604,6 +608,7 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
                   tier: porMedio[x.medio.trim()]?.tier ?? null,
                   alcance: porMedio[x.medio.trim()]?.alcance ?? null,
                   ad_value: porMedio[x.medio.trim()]?.ad_value ?? null,
+                  dominio: porMedio[x.medio.trim()]?.dominio ?? null,
                 }
               : x,
           ) ?? prev,
@@ -616,14 +621,16 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
   // Cambiar el tier de una fila de la previsualización escribe en `tiers` (afecta al medio
   // entero) igual que en Individual y en Base de Datos.
   async function bulkPreviewHandleTier(i: number, medio: string, tier: number | null) {
-    const res = await setTierMedio(configClientId, medio, tier);
+    const fila = bulkPreview?.[i];
+    const res = await setTierMedio(configClientId, medio, tier, fila?.url, fila?.dominio);
     if (!res.ok) return toast.error(res.error);
     bulkPreviewSetRow(i, { tier });
   }
 
   // Igual que bulkPreviewHandleTier pero para Alcance/Ad Value.
   async function bulkPreviewHandleAlcanceAdValue(i: number, medio: string, patch: { alcance?: number | null; ad_value?: number | null }) {
-    const res = await setAlcanceAdValue(configClientId, medio, patch);
+    const fila = bulkPreview?.[i];
+    const res = await setAlcanceAdValue(configClientId, medio, patch, fila?.url, fila?.dominio);
     if (!res.ok) return toast.error(res.error);
     bulkPreviewSetRow(i, patch);
   }
@@ -891,8 +898,8 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
             <MedioAutocomplete
               value={individual.medio}
               medios={mediosConocidos}
-              onChange={(v) => setIndividualField({ medio: v })}
-              onSelectMedio={(m) => setIndividualField({ medio: m.nombre, tier: m.tier })}
+              onChange={(v) => setIndividualField({ medio: v, dominio: null })}
+              onSelectMedio={(m) => setIndividualField({ medio: m.nombre, tier: m.tier, dominio: m.dominio ?? null })}
               onBlurExtra={individualRefrescarTier}
             />
             <FieldLabel hint={HINT_TIER}>Tier</FieldLabel>
@@ -1058,8 +1065,8 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
                     <MedioAutocomplete
                       value={r.medio}
                       medios={mediosConocidos}
-                      onChange={(v) => bulkPreviewSetRow(i, { medio: v })}
-                      onSelectMedio={(m) => bulkPreviewSetRow(i, { medio: m.nombre, tier: m.tier })}
+                      onChange={(v) => bulkPreviewSetRow(i, { medio: v, dominio: null })}
+                      onSelectMedio={(m) => bulkPreviewSetRow(i, { medio: m.nombre, tier: m.tier, dominio: m.dominio ?? null })}
                     />
                     <TierSelect
                       tier={r.tier}
