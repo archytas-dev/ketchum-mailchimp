@@ -39,6 +39,23 @@ function motivoCobertura(medio: MedioAgrupado) {
   return "No se pudo leer el medio por un problema técnico.";
 }
 
+// Actividad la lee el equipo editorial: el umbral, el score y el nombre de la
+// regla son implementación interna. Traducimos tanto las trazas nuevas como
+// las históricas para no exponer números o jerga del modelo en la interfaz.
+function motivoEditorial(motivo: string | null | undefined): string {
+  const texto = String(motivo ?? "").toLowerCase();
+  if (texto.includes("confianza inferior") || texto.includes("confianza_minima")) {
+    return "No alcanzó el nivel de relevancia requerido para este clipping.";
+  }
+  if (texto.includes("repetida") || texto.includes("deduplicacion")) {
+    return "Hay otra versión de esta misma noticia; se conserva una sola.";
+  }
+  if (texto.includes("superó el último filtro")) {
+    return "La nota superó la revisión final.";
+  }
+  return motivo || "No pasó la revisión final.";
+}
+
 function hora(iso: string | null) {
   if (!iso) return "todavía en curso";
   return new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Argentina/Buenos_Aires" }).format(new Date(iso));
@@ -258,7 +275,7 @@ export default async function ActividadV4({ clients, clientId, paginaDescartes, 
                       {recuperable ? <RecuperarV4Button runId={run.id} candidataId={t.candidata_id} recuperada={recuperadas.has(t.candidata_id)} /> : <span className="inline-flex size-7 shrink-0 items-center justify-center text-slate-300" title="No se recupera: ya hay una versión de esta nota">—</span>}
                       <div className="min-w-0 flex-1"><p className="text-sm font-medium text-foreground">{c?.titulo ?? "Nota sin título"}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">{c?.dominio_norm ?? "medio sin identificar"}</p>
-                      <p className="mt-1 text-sm text-slate-600">{t.motivo}</p>
+                      <p className="mt-1 text-sm text-slate-600">{motivoEditorial(t.motivo)}</p>
                       {c?.url ? <a className="mt-1 inline-block text-xs font-medium text-violet-700 hover:underline" href={c.url} target="_blank" rel="noreferrer">Abrir nota</a> : null}
                       </div></li>;
                   })}
