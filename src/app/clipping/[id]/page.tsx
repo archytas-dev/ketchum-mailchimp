@@ -16,10 +16,11 @@ export default async function ClippingPage({
   params: Promise<{ id: string }>;
 }) {
   // Esta es la pantalla heredada de v3 y escribe directo en public desde el navegador.
-  // La preview v4 no la puede servir hasta migrarla por completo al plano aislado.
-  if (enPlanoV4()) notFound();
   const { id } = await params;
   const supabase = await createClient();
+  // Esta es la pantalla heredada de v3 y escribe directo en public desde el navegador.
+  // El usuario de prueba v4 no puede servirla hasta migrarla por completo al plano aislado.
+  if (enPlanoV4(supabase)) notFound();
 
   const { data: clipping } = await supabase
     .from("clippings")

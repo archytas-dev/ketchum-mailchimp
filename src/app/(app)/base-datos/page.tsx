@@ -34,7 +34,7 @@ export default async function BaseDatosPage() {
       {/* [W0.19] En el plano v4 la config es de SOLO LECTURA: medios, tiers, keywords,
           secciones y alertas son tablas COMPARTIDAS que la v4 lee directo, asi que editarlas
           desde una preview seria tocar la operacion real. */}
-      <BaseDatosClient clients={clients} isStaff={isStaff} soloLectura={configEsSoloLectura()} />
+      <BaseDatosClient clients={clients} isStaff={isStaff} soloLectura={configEsSoloLectura(supabase)} />
     </div>
   );
 }

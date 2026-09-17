@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { rechazoEscrituraCompartida, tabla } from "@/lib/data-plane";
+import { enPlanoV4, rechazoEscrituraCompartida, tabla } from "@/lib/data-plane";
 import { tierNorm } from "@/lib/tier";
 
 // ---------- Tier del medio (pedido de Fedra, 11/08) ----------
@@ -85,14 +85,14 @@ export async function setAlcanceAdValue(
   nombreMedio: string,
   input: { ad_value?: number | null; alcance?: number | null },
 ): Promise<{ ok: boolean; error?: string }> {
-  const bloqueo = rechazoEscrituraCompartida();
+  const supabase = await createClient();
+  const bloqueo = rechazoEscrituraCompartida(supabase);
   if (bloqueo) return bloqueo;
   const key = tierNorm(nombreMedio);
   if (!key) return { ok: false, error: "Escribí primero el medio para poder cargarle alcance/Ad Value." };
   if (input.ad_value != null && input.ad_value < 0) return { ok: false, error: "El Ad Value no puede ser negativo." };
   if (input.alcance != null && input.alcance < 0) return { ok: false, error: "El Alcance no puede ser negativo." };
 
-  const supabase = await createClient();
   const { data: existente, error: findError } = await supabase
     .from("tiers")
     .select("id")
@@ -120,13 +120,13 @@ export async function setTierMedio(
   nombreMedio: string,
   tier: number | null,
 ): Promise<{ ok: boolean; error?: string }> {
-  const bloqueo = rechazoEscrituraCompartida();
+  const supabase = await createClient();
+  const bloqueo = rechazoEscrituraCompartida(supabase);
   if (bloqueo) return bloqueo;
   const key = tierNorm(nombreMedio);
   if (!key) return { ok: false, error: "Escribí primero el medio para poder asignarle un tier." };
   if (tier !== null && (tier < 1 || tier > 4)) return { ok: false, error: "El tier tiene que ser 1, 2, 3 o 4." };
 
-  const supabase = await createClient();
   const { data: existente, error: findError } = await supabase
     .from("tiers")
     .select("id")
@@ -187,8 +187,6 @@ export async function addPrecarga(
   fecha: string,
   notes: PrecargaNota[],
 ): Promise<{ ok: boolean; count?: number; error?: string }> {
-  const bloqueo = rechazoEscrituraCompartida();
-  if (bloqueo) return bloqueo;
   const clean = (notes || [])
     .map((n, i) => ({
       medio: String(n.medio || "").trim(),
@@ -203,7 +201,7 @@ export async function addPrecarga(
   if (!clean.length) return { ok: false, error: "No hay notas válidas (falta título o URL)." };
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("preload_notes", {
+  const { data, error } = await supabase.rpc(enPlanoV4(supabase) ? "v4_test_preload_notes" : "preload_notes", {
     p_client_id: clientId,
     p_fecha: fecha,
     p_notes: clean,
@@ -217,8 +215,6 @@ export async function updatePrecarga(
   id: string,
   patch: { medio?: string; titulo?: string; url?: string; snippet?: string; seccion?: string; pubDate?: string },
 ): Promise<{ ok: boolean; error?: string }> {
-  const bloqueo = rechazoEscrituraCompartida();
-  if (bloqueo) return bloqueo;
   const fields: Record<string, string | null> = {};
   if (patch.medio !== undefined) fields.medio = String(patch.medio).trim();
   if (patch.titulo !== undefined) fields.titulo = String(patch.titulo).trim();
@@ -243,8 +239,6 @@ export async function updatePrecarga(
 export async function delPrecarga(
   id: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const bloqueo = rechazoEscrituraCompartida();
-  if (bloqueo) return bloqueo;
   const supabase = await createClient();
   const { error } = await tabla(supabase, "notes_precarga")
     .delete()

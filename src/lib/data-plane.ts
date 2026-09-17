@@ -1,27 +1,17 @@
 import "server-only";
 
 /**
- * [W0.19] Plano de datos — el ÚNICO punto donde se decide si una pantalla lee la v3
- * (`public.notes`, `public.clippings`, …) o el plano v4 aislado (`test.notes_v4`, …).
+ * Unico punto donde la app decide si una pantalla lee/escribe el plano v3 (public) o el
+ * plano aislado v4 (test). El navegador no recibe esta decision.
  *
- * Runbook: docs/pipeline-v4/roadmap-webapp-v4.md §3.6, Paso 5.
- *
- * LA REGLA QUE ESTE MÓDULO EXISTE PARA SOSTENER
- * Ninguna pantalla elige tabla con un `if` suelto. Si mañana hay que cambiar el destino, se
- * cambia acá y en ningún otro lado. El runbook lo dice como condición de "no seguir":
- * *"queda un `.from('notes')` en una pantalla habilitada para modo test"* → está mal hecho.
- *
- * POR QUÉ `server-only`
- * La decisión no puede viajar al navegador. `KETCHUM_DATA_PLANE` no lleva el prefijo
- * `NEXT_PUBLIC_` justamente para que Next no la inline en el bundle (guía de Next 16,
- * "environment-variables": las variables sin ese prefijo sólo existen en Node). El
- * `import "server-only"` hace que importar este módulo desde un Client Component sea un error
- * de compilación, no un bug silencioso.
+ * La resolucion normal es por usuario autenticado: test@archytas.io usa v4/test y todos
+ * los demas usuarios, incluida Fedra, usan v3/public. La variable KETCHUM_DATA_PLANE queda
+ * solamente como fallback para procesos internos que no pasan por createClient().
  */
 
 export type Plano = "v3" | "test_v4";
 
-/** Nombres lógicos que usan las pantallas. Nunca el nombre físico de la tabla. */
+/** Nombres logicos que usan las pantallas. Nunca el nombre fisico de la tabla. */
 export type TablaLogica =
   | "clippings"
   | "notes"
@@ -30,17 +20,19 @@ export type TablaLogica =
   | "summaries"
   | "user_clipping_state"
   | "notes_precarga"
-  | "reportes";
+  | "reportes"
+  | "pipeline_runs"
+  | "candidate_trace"
+  | "run_medios"
+  | "run_keywords"
+  | "recoveries";
 
 type Destino = { schema: string | null; tabla: string };
 
 /**
- * El mapa. `schema: null` = el schema por defecto de PostgREST (`public`), que es como
- * supabase-js consulta si no se le dice otra cosa.
- *
- * Lo que NO está acá es deliberado: `clients`, `profiles`, `user_client_access`, `medios`,
- * `tiers`, `kw_keywords`, `secciones` y `google_alerts` son compartidas y de sólo lectura en
- * los dos planos (§3.3 del roadmap). No tienen espejo y no deben tenerlo.
+ * El mapa. schema null significa el schema por defecto de PostgREST (public).
+ * clients, profiles, user_client_access, medios, tiers, kw_keywords, secciones y
+ * google_alerts son compartidas y se leen desde ambos planos.
  */
 const MAPA: Record<TablaLogica, Record<Plano, Destino>> = {
   clippings:           { v3: { schema: null, tabla: "clippings" },           test_v4: { schema: "test", tabla: "clippings_v4" } },
@@ -51,27 +43,45 @@ const MAPA: Record<TablaLogica, Record<Plano, Destino>> = {
   user_clipping_state: { v3: { schema: null, tabla: "user_clipping_state" }, test_v4: { schema: "test", tabla: "user_clipping_state_v4" } },
   notes_precarga:      { v3: { schema: null, tabla: "notes_precarga" },      test_v4: { schema: "test", tabla: "notes_precarga_v4" } },
   reportes:            { v3: { schema: null, tabla: "reportes" },            test_v4: { schema: "test", tabla: "reportes_v4" } },
+  pipeline_runs:       { v3: { schema: null, tabla: "pipeline_runs" },       test_v4: { schema: "test", tabla: "v4_pipeline_runs" } },
+  candidate_trace:     { v3: { schema: null, tabla: "v4_candidatas_traza" }, test_v4: { schema: "test", tabla: "v4_candidatas_traza" } },
+  run_medios:          { v3: { schema: null, tabla: "run_stats" },           test_v4: { schema: "test", tabla: "v4_run_medios" } },
+  run_keywords:        { v3: { schema: null, tabla: "run_stats" },           test_v4: { schema: "test", tabla: "v4_run_keywords" } },
+  recoveries:          { v3: { schema: null, tabla: "notas_descartadas" },   test_v4: { schema: "test", tabla: "v4_recuperaciones" } },
 };
 
 type Entorno = "production" | "preview" | "development";
 
+// UUID estable de auth.users. No usamos el email para decidir el plano.
+export const USUARIO_TEST_V4_ID = "b005c199-9e42-42e7-a2e0-ebdea7dacd34";
+
+// El registro vive sólo en memoria del servidor y queda asociado al cliente Supabase de la
+// request. No hay un selector de schema controlable desde el navegador.
+const PLANES_POR_CLIENTE = new WeakMap<object, Plano>();
+
+export function planoParaUsuario(userId?: string | null): Plano {
+  return userId === USUARIO_TEST_V4_ID ? "test_v4" : "v3";
+}
+
+export function registrarPlano(cliente: object, userId?: string | null): void {
+  PLANES_POR_CLIENTE.set(cliente, planoParaUsuario(userId));
+}
+
 function entorno(): Entorno {
-  // VERCEL_ENV lo pone Vercel; en local no existe.
   const v = process.env.VERCEL_ENV;
   if (v === "production" || v === "preview") return v;
   return "development";
 }
 
 /**
- * Resuelve el plano activo, con las dos guardas del runbook.
- *
- * PRODUCCIÓN NUNCA PUEDE SER `test`. Y no lanza excepción cuando alguien la configura mal:
- * fuerza `v3` y grita por consola. Razonamiento: el riesgo que estamos tapando es que
- * producción sirva datos de prueba, y forzar `v3` ya lo tapa. Lanzar tiraría abajo la
- * herramienta que usa el cliente por un typo en una variable — el remedio sería peor que la
- * enfermedad. Lo que no se puede es que quede invisible, de ahí el `console.error`.
+ * Resuelve el plano activo. Una request autenticada siempre usa el plano registrado para
+ * su usuario. El fallback por variable se conserva para tareas internas sin usuario; en
+ * produccion, una variable test se fuerza a v3 para no habilitar v4 accidentalmente.
  */
-export function planoActivo(): Plano {
+export function planoActivo(cliente?: object): Plano {
+  const registrado = cliente ? PLANES_POR_CLIENTE.get(cliente) : undefined;
+  if (registrado) return registrado;
+
   const pedido = (process.env.KETCHUM_DATA_PLANE ?? "").trim().toLowerCase();
   const env = entorno();
 
@@ -79,7 +89,7 @@ export function planoActivo(): Plano {
 
   if (pedido !== "test") {
     console.error(
-      `[data-plane] KETCHUM_DATA_PLANE="${pedido}" no es un valor válido. ` +
+      `[data-plane] KETCHUM_DATA_PLANE="${pedido}" no es valido. ` +
         `Valores admitidos: "v3" | "test". Se usa "v3".`,
     );
     return "v3";
@@ -87,8 +97,8 @@ export function planoActivo(): Plano {
 
   if (env === "production") {
     console.error(
-      "[data-plane] KETCHUM_DATA_PLANE=test en PRODUCCIÓN. Ignorado a propósito: " +
-        "producción sirve siempre el plano v3. Revisar la configuración del proyecto en Vercel.",
+      "[data-plane] KETCHUM_DATA_PLANE=test en produccion. Se usa v3 en el fallback; " +
+        "el usuario de prueba se habilita solamente por su UUID autenticado.",
     );
     return "v3";
   }
@@ -96,56 +106,39 @@ export function planoActivo(): Plano {
   return "test_v4";
 }
 
-/** `true` cuando la herramienta está mirando el plano v4 aislado. */
-export function enPlanoV4(): boolean {
-  return planoActivo() === "test_v4";
+export function enPlanoV4(cliente?: object): boolean {
+  return planoActivo(cliente) === "test_v4";
+}
+
+/** La configuracion compartida queda de solo lectura para el usuario v4. */
+export function configEsSoloLectura(cliente?: object): boolean {
+  return enPlanoV4(cliente);
 }
 
 /**
- * La configuración del cliente (medios, tiers, keywords, secciones, alertas) es **compartida**:
- * la v4 la lee directo de las mismas tablas que edita la herramienta. Editarla desde una
- * preview sería tocar la operación real. Base de Datos queda de sólo lectura mientras el plano
- * no sea v3 — y el runbook pide deshabilitar los controles, no esconderlos.
+ * Guarda del lado servidor para acciones que escribirian configuracion compartida o datos
+ * exclusivos de v3. Deshabilitar un boton no alcanza: una Server Action se puede invocar
+ * sin pasar por la interfaz.
  */
-export function configEsSoloLectura(): boolean {
-  return enPlanoV4();
-}
-
-/**
- * Respuesta única para acciones que todavía escriben configuración o datos exclusivos de v3.
- *
- * Importante: no alcanza con deshabilitar un botón. Las Server Actions se pueden invocar sin
- * pasar por la interfaz, así que cada mutación compartida debe consultar esta guarda antes de
- * abrir una conexión o ejecutar un RPC legado.
- */
-export function rechazoEscrituraCompartida(): { ok: false; error: string } | null {
-  if (!enPlanoV4()) return null;
+export function rechazoEscrituraCompartida(cliente?: object): { ok: false; error: string } | null {
+  if (!enPlanoV4(cliente)) return null;
   return {
     ok: false,
-    error:
-      "Esta acción está bloqueada en la vista de prueba v4: modificaría datos compartidos de la v3.",
+    error: "Esta accion esta bloqueada en la vista de prueba v4: modificaria datos compartidos de la v3.",
   };
 }
 
-/** Nombre físico de una tabla lógica en el plano activo. Para mensajes y tests. */
-export function destino(tabla: TablaLogica): Destino {
-  return MAPA[tabla][planoActivo()];
+export function destino(tabla: TablaLogica, cliente?: object): Destino {
+  return MAPA[tabla][planoActivo(cliente)];
 }
 
-/** Etiqueta legible del plano, para mostrar en pantalla cuando no es el de producción. */
-export function etiquetaPlano(): string | null {
-  return enPlanoV4() ? "Plano de prueba v4 (test)" : null;
+export function etiquetaPlano(cliente?: object): string | null {
+  return enPlanoV4(cliente) ? "Plano de prueba v4 (test)" : null;
 }
 
 /**
- * El acceso. Se le pasa el cliente de Supabase ya creado (server o middleware) y el nombre
- * lógico; devuelve el query builder apuntado al schema y la tabla correctos.
- *
- *   const supabase = await createClient();
- *   const { data } = await tabla(supabase, "notes").select("id, titulo").eq("clipping_id", id);
- *
- * El tipo de `cliente` es genérico a propósito: este módulo no debe importar el tipo del
- * cliente de Supabase ni forzar a las pantallas a un tipo concreto.
+ * Acceso a tablas por nombre logico. El cliente es generico a proposito: este modulo no
+ * tiene que importar el tipo concreto de Supabase ni forzar a las pantallas a usarlo.
  */
 export function tabla<
   C extends {
@@ -153,7 +146,7 @@ export function tabla<
     schema: (s: string) => { from: (t: string) => unknown };
   },
 >(cliente: C, logica: TablaLogica) {
-  const d = destino(logica);
+  const d = destino(logica, cliente);
   return d.schema === null
     ? (cliente.from(d.tabla) as ReturnType<C["from"]>)
     : (cliente.schema(d.schema).from(d.tabla) as ReturnType<C["from"]>);

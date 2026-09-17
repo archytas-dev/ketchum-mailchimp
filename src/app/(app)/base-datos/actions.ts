@@ -78,7 +78,8 @@ export async function addMedio(
   tipo: "monitoreado" | "adicional",
   input: { dominio: string; nombre: string; tier?: number | null; ad_value?: number | null; alcance?: number | null },
 ): Promise<Result> {
-  const bloqueo = rechazoEscrituraCompartida();
+  const supabase = await createClient();
+  const bloqueo = rechazoEscrituraCompartida(supabase);
   if (bloqueo) return bloqueo;
   const dominio = normalizeDominio(input.dominio);
   const nombre = input.nombre.trim();
@@ -91,7 +92,6 @@ export async function addMedio(
     };
   }
 
-  const supabase = await createClient();
   // origen='cliente' + activo=true: entra a la lista de scrapeo permanente desde la proxima
   // corrida, sin paso manual adicional (lo pide el ticket explicitamente).
   const { error } = await supabase.from("medios").insert({
@@ -122,9 +122,9 @@ export async function addMedio(
 }
 
 export async function toggleMedioActivo(id: string, activo: boolean): Promise<Result> {
-  const bloqueo = rechazoEscrituraCompartida();
-  if (bloqueo) return bloqueo;
   const supabase = await createClient();
+  const bloqueo = rechazoEscrituraCompartida(supabase);
+  if (bloqueo) return bloqueo;
   const { error } = await supabase.from("medios").update({ activo }).eq("id", id);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
@@ -135,7 +135,8 @@ export async function updateMedioTier(
   nombreMedio: string,
   input: { tier: number | null; ad_value: number | null; alcance?: number | null },
 ): Promise<Result> {
-  const bloqueo = rechazoEscrituraCompartida();
+  const supabase = await createClient();
+  const bloqueo = rechazoEscrituraCompartida(supabase);
   if (bloqueo) return bloqueo;
   const key = tierNorm(nombreMedio);
   if (!key) return { ok: false, error: "El medio no tiene nombre, no se puede asignar tier." };
@@ -148,8 +149,6 @@ export async function updateMedioTier(
   if (input.alcance !== null && input.alcance !== undefined && input.alcance < 0) {
     return { ok: false, error: "El Alcance no puede ser negativo." };
   }
-  const supabase = await createClient();
-
   // Nada de .upsert() aca: el indice unico de `tiers` es sobre (client_id, lower(dominio)) --
   // un indice de expresion. PostgREST solo sabe mandar nombres de columna en onConflict, asi
   // que Postgres no encuentra indice que matchee y devuelve "there is no unique or exclusion
@@ -203,13 +202,13 @@ export async function addKeyword(
   clientId: string,
   input: { keyword: string; grupo: string },
 ): Promise<Result> {
-  const bloqueo = rechazoEscrituraCompartida();
+  const supabase = await createClient();
+  const bloqueo = rechazoEscrituraCompartida(supabase);
   if (bloqueo) return bloqueo;
   const keyword = input.keyword.trim();
   const grupo = input.grupo.trim();
   if (!keyword) return { ok: false, error: "Falta la palabra clave." };
   if (!grupo) return { ok: false, error: "Elegí a qué sección pertenece." };
-  const supabase = await createClient();
   const { error } = await supabase
     .from("kw_keywords")
     .insert({ client_id: clientId, keyword, grupo, activa: true });
@@ -221,9 +220,9 @@ export async function addKeyword(
 }
 
 export async function toggleKeywordActiva(id: string, activa: boolean): Promise<Result> {
-  const bloqueo = rechazoEscrituraCompartida();
-  if (bloqueo) return bloqueo;
   const supabase = await createClient();
+  const bloqueo = rechazoEscrituraCompartida(supabase);
+  if (bloqueo) return bloqueo;
   const { error } = await supabase.from("kw_keywords").update({ activa }).eq("id", id);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
@@ -276,7 +275,8 @@ export async function addSeccion(
   nombre: string,
   keywordIds: string[],
 ): Promise<Result> {
-  const bloqueo = rechazoEscrituraCompartida();
+  const supabase = await createClient();
+  const bloqueo = rechazoEscrituraCompartida(supabase);
   if (bloqueo) return bloqueo;
   const nombreTrim = nombre.trim();
   if (!nombreTrim) return { ok: false, error: "Falta el nombre de la sección." };
@@ -284,7 +284,6 @@ export async function addSeccion(
     return { ok: false, error: "Elegí al menos una palabra clave para esta sección — sin eso queda siempre vacía." };
   }
 
-  const supabase = await createClient();
   const { data: maxRow } = await supabase
     .from("secciones")
     .select("orden")
@@ -313,9 +312,9 @@ export async function addSeccion(
 }
 
 export async function toggleSeccionActiva(id: string, activa: boolean): Promise<Result> {
-  const bloqueo = rechazoEscrituraCompartida();
-  if (bloqueo) return bloqueo;
   const supabase = await createClient();
+  const bloqueo = rechazoEscrituraCompartida(supabase);
+  if (bloqueo) return bloqueo;
   const { error } = await supabase.from("secciones").update({ activa }).eq("id", id);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
@@ -340,13 +339,13 @@ export async function addGoogleAlert(
   clientId: string,
   input: { tema: string; url_rss: string },
 ): Promise<Result> {
-  const bloqueo = rechazoEscrituraCompartida();
+  const supabase = await createClient();
+  const bloqueo = rechazoEscrituraCompartida(supabase);
   if (bloqueo) return bloqueo;
   const tema = input.tema.trim();
   const urlRss = input.url_rss.trim();
   if (!tema) return { ok: false, error: "Falta el tema." };
   if (!/^https?:\/\//i.test(urlRss)) return { ok: false, error: "La URL del RSS no es válida." };
-  const supabase = await createClient();
   const { error } = await supabase
     .from("google_alerts")
     .insert({ client_id: clientId, tema, url_rss: urlRss, activa: true });
@@ -358,9 +357,9 @@ export async function addGoogleAlert(
 }
 
 export async function toggleGoogleAlertActiva(id: string, activa: boolean): Promise<Result> {
-  const bloqueo = rechazoEscrituraCompartida();
-  if (bloqueo) return bloqueo;
   const supabase = await createClient();
+  const bloqueo = rechazoEscrituraCompartida(supabase);
+  if (bloqueo) return bloqueo;
   const { error } = await supabase.from("google_alerts").update({ activa }).eq("id", id);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
@@ -398,13 +397,13 @@ export async function addSeguimiento(
   clientId: string,
   input: { medio: string; descripcion: string },
 ): Promise<Result> {
-  const bloqueo = rechazoEscrituraCompartida();
+  const supabase = await createClient();
+  const bloqueo = rechazoEscrituraCompartida(supabase);
   if (bloqueo) return bloqueo;
   const medio = input.medio.trim();
   const descripcion = input.descripcion.trim();
   if (!medio) return { ok: false, error: "Falta el medio." };
   if (!descripcion) return { ok: false, error: "Contá qué se esperaba y no salió." };
-  const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   const { error } = await supabase.from("medios_seguimiento").insert({
     client_id: clientId,
@@ -421,9 +420,9 @@ export async function updateSeguimientoEstado(
   estado: SeguimientoRow["estado"],
   resolucion?: string,
 ): Promise<Result> {
-  const bloqueo = rechazoEscrituraCompartida();
-  if (bloqueo) return bloqueo;
   const supabase = await createClient();
+  const bloqueo = rechazoEscrituraCompartida(supabase);
+  if (bloqueo) return bloqueo;
   const patch: Record<string, unknown> = { estado, resolucion: resolucion?.trim() || null };
   if (estado === "resuelto" || estado === "descartado") patch.resuelto_at = new Date().toISOString();
   const { error } = await supabase.from("medios_seguimiento").update(patch).eq("id", id);

@@ -19,9 +19,9 @@ type NoteRow = {
 export async function exportClipping(
   clippingId: string,
 ): Promise<{ ok: boolean; html?: string; error?: string }> {
-  const bloqueo = rechazoEscrituraCompartida();
-  if (bloqueo) return bloqueo;
   const supabase = await createClient();
+  const bloqueo = rechazoEscrituraCompartida(supabase);
+  if (bloqueo) return bloqueo;
 
   const {
     data: { user },

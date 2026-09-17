@@ -7,6 +7,7 @@ import ActividadFilter from "./ActividadFilter";
 import CopyLinkButton from "./CopyLinkButton";
 import RecuperarButton from "./RecuperarButton";
 import StaffOnlySection from "@/components/StaffOnlySection";
+import ActividadV4 from "./ActividadV4";
 
 export const dynamic = "force-dynamic";
 
@@ -150,12 +151,12 @@ function Paso({
 export default async function ActividadPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cliente?: string }>;
+  searchParams: Promise<{ cliente?: string; descartes?: string; juez?: string }>;
 }) {
   const sp = await searchParams;
-  const soloLecturaV4 = enPlanoV4();
   const supabase = await createClient();
-  const { effective } = await getEffectiveRole(supabase);
+  const soloLecturaV4 = enPlanoV4(supabase);
+  const { effective, real } = await getEffectiveRole(supabase);
   const isStaff = isStaffRole(effective);
 
   // [19/08] Cutover: solo la herramienta real (no-legado) -- la telemetría/actividad vieja
@@ -172,6 +173,21 @@ export default async function ActividadPage({
         <p className="text-sm text-muted-foreground">No hay clientes disponibles.</p>
       </div>
     );
+  }
+
+  // La preview no puede reutilizar el embudo v3. Solo el usuario de desarrollo
+  // ve la bitácora aislada; Fedra sigue entrando al camino v3 normal.
+  if (soloLecturaV4) {
+    if (!isStaffRole(real)) {
+      return (
+        <div className="w-full p-6">
+          <h1 className="text-xl font-semibold mb-1">Actividad</h1>
+          <p className="text-sm text-muted-foreground">La actividad v4 está habilitada solamente para la cuenta de prueba interna.</p>
+        </div>
+      );
+    }
+    const paginaDescartes = Math.max(1, Number.parseInt(sp.descartes ?? "1", 10) || 1);
+    return <ActividadV4 clients={clients} clientId={clientId} paginaDescartes={paginaDescartes} verJuez={sp.juez === "1"} />;
   }
 
   // RPC en vez de leer run_stats directo: la tabla es 100% staff-only por RLS (decisión

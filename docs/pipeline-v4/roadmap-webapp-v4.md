@@ -13,7 +13,7 @@ Cómo se adapta la plataforma (`ketchum-mailchimp`) para que corra sobre el pipe
 | 2 · Plano de entrega aislado | `[W0.17]` | ✅ 15/09 | [`auditoria/paso2-w017-plano-test-v4-20260915.md`](./auditoria/paso2-w017-plano-test-v4-20260915.md) |
 | 3 · Contrato e importador | `[W0.18]` | ✅ 15/09 | [`auditoria/paso3-w018-import-clipping-v4-20260915.md`](./auditoria/paso3-w018-import-clipping-v4-20260915.md) |
 | 4 · Nodo n8n al destino test | `[W0.20]` · `[W0.7]` | ✅ 15/09 | [`auditoria/paso4-w020-n8n-destino-test-20260915.md`](./auditoria/paso4-w020-n8n-destino-test-20260915.md) |
-| 5 · Adaptador de plano en Next.js | `[W0.19]` | **casi** — 36 llamadas migradas en 7 pantallas; Base de Datos y Precarga bloquean también del lado servidor; la ruta heredada `/clipping/[id]` devuelve 404 en test. Falta migrar el editor propio y probar dos usuarios | — |
+| 5 · Adaptador de plano en Next.js | `[W0.19]` | **casi** — el plano se resuelve por usuario autenticado: `test@archytas.io` → `test.*_v4`; Fedra y el resto → `public`/v3. Base de Datos y Precarga bloquean también del lado servidor; la ruta heredada `/clipping/[id]` devuelve 404 para v4. Build verde; falta prueba desplegada con ambos usuarios y suite v4 completa | — |
 
 **Lo aplicado hoy en la base** (todo versionado en `supabase/migrations/`, sin commitear):
 `20260824120000` rename 24/08 que faltaba en el repo · `20260915180000` cerrar `test` ·
@@ -145,7 +145,7 @@ La promoción no será “replicar lo que se acuerde”. Se construyen estas gar
 
 1. **Contrato único de importación.** Un fixture versionado del JSON de clipping y un importador `import_clipping_v4` con `p_destino` permitido sólo como `test` o `public_v4`. El payload fija: orden global desde 1, fecha ART, secciones, URL canónica, tier/ad value, confianza, forzada y motivo.
 2. **Una sola definición de esquema.** DDL parametrizado por schema/tabla, generado desde el mismo archivo de migración para `test.*_v4` y después `public.*_v4`; no dos migraciones editadas a mano.
-3. **Adaptador único en la app.** Las pantallas no eligen tablas con `if` dispersos. Un repositorio de plano de datos resuelve lecturas, escrituras y RPCs desde `KETCHUM_DATA_PLANE=test|public_v4`. La variable se valida server-side; la preview sólo acepta `test` y el dominio real no puede usarlo accidentalmente.
+3. **Adaptador único en la app.** Las pantallas no eligen tablas con `if` dispersos. Un repositorio de plano de datos resuelve lecturas, escrituras y RPCs server-side. En la etapa actual, el UUID autenticado de `test@archytas.io` habilita `test.*_v4`; Fedra y cualquier otro usuario quedan en `public`/v3. `KETCHUM_DATA_PLANE` sólo queda como fallback para procesos internos sin sesión y en producción no puede habilitar `test` globalmente.
 4. **Auditor de paridad.** Script/migración de sólo lectura que compara, antes de habilitar `public_v4`: tablas, columnas, defaults, índices, FK, RLS, policies, grants y firmas de RPC. Si difieren, la promoción falla.
 5. **Prueba de efectos.** La misma fixture corre en ambos planos y compara clipping, notas, orden, sección y metadatos. Además toma un snapshot de `public.clippings`/`public.notes` antes y después: cualquier cambio v3 hace fallar la prueba.
 6. **Promoción explícita y reversible.** Crear `public.*_v4` no copia ni borra filas v3; la app se habilita por cliente y por flag. Volver atrás es volver el flag, no restaurar una base.
@@ -265,10 +265,10 @@ Esta sección es deliberadamente prescriptiva. El agente no tiene que “interpr
 **Objetivo:** que el equipo vea y edite sólo el plano test v4. Hasta migrar cada superficie, se bloquea: nunca se muestra una pantalla heredada que pueda escribir v3.
 
 1. Crear un único adaptador/repository de datos; sustituir llamadas directas de las pantallas incluidas, una pantalla por PR/tarea.
-2. Definir `KETCHUM_DATA_PLANE=test` sólo del lado servidor para preview. Validar host + entorno: preview sólo admite `test`; producción no admite `test`.
+2. Resolver el plano sólo del lado servidor, usando el UUID allowlisted de `test@archytas.io`: ese usuario puede ver `test.*_v4` incluso en el despliegue compartido; Fedra y todos los demás deben seguir en `public`/v3. No usar email ni un selector enviado por el navegador. La variable `KETCHUM_DATA_PLANE` no se usa como selector global de usuarios.
 3. Empezar por `/hoy` y `/historial`. `/clipping/[id]` heredado se mantiene en 404 en preview hasta que su editor use `*_v4`; después Precarga, Actividad, Panel PM, Estadísticas y Reportes.
 4. Base de Datos debe mostrarse read-only en preview hasta diseñar su doble escritura. Deshabilitar explícitamente botones de alta/baja/edición, no sólo ocultarlos.
-5. Probar con dos usuarios/clientes que un ID v4 no puede abrirse desde la ruta de otro cliente.
+5. Probar con dos usuarios: iniciar sesión como `test@archytas.io` y verificar que `/hoy`, `/historial`, `/actividad` y `/precarga` lean/escriban sólo `test.*_v4`; iniciar sesión como Fedra y verificar que vea sólo v3/public. Confirmar además que un ID v4 no se abre desde otro cliente y que ningún test modifica `public`.
 
 **No seguir si:** queda un `.from('notes')`, `.from('clippings')` u otra escritura v3 en una pantalla habilitada para modo test; el adaptador debe ser el único punto de decisión.
 

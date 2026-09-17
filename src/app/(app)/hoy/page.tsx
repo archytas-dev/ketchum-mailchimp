@@ -4,6 +4,11 @@ import { ordenarClientesActivos } from "@/lib/clientes";
 import PrincipalClient, { type ClientPayload } from "./PrincipalClient";
 
 export const dynamic = "force-dynamic";
+// Un clipping puede terminar de guardarse mientras la herramienta está abierta. En el
+// plano v4 nunca reutilizamos una respuesta anterior: mostrar la semilla de ayer como
+// "hoy" es peor que esperar la lectura real.
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -46,7 +51,8 @@ export default async function HoyPage() {
     // Traé lo ÚLTIMO que se envió por cliente: todos los clippings, más nuevo primero.
     tabla(supabase, "clippings")
       .select("id, client_id, fecha, resumen_ia")
-      .order("fecha", { ascending: false }),
+      .order("fecha", { ascending: false })
+      .order("created_at", { ascending: false }),
   ]);
 
   // [19/08] Cutover: solo la herramienta real (no-legado). Los clientes legado (v1/v2)

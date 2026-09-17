@@ -6,8 +6,8 @@ import PrecargaClient, { type ClientOpt } from "./PrecargaClient";
 export const dynamic = "force-dynamic";
 
 export default async function PrecargaPage() {
-  const soloLectura = enPlanoV4();
   const supabase = await createClient();
+  const planoV4 = enPlanoV4(supabase);
   const { data: clientRows } = await supabase.from("clients").select("id, slug, nombre");
   // [19/08] Cutover: notes_precarga (lo que se guarda) va con el client_id real -- los 4
   // nodos "Leer Precarga Pendiente" de n8n ya se corrigieron para leer de ahí. Pero
@@ -26,16 +26,15 @@ export default async function PrecargaPage() {
         Cargá notas para una fecha futura. Cuando el clipping de ese día corra, entran junto a lo que
         encuentre, sin duplicar (si coincide una, se conserva la precargada).
       </p>
-      {soloLectura ? (
+      {planoV4 ? (
         <div className="max-w-2xl rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          <p className="font-medium">Vista de prueba v4: Precarga está en modo lectura.</p>
+          <p className="font-medium">Vista de prueba v4: esta precarga queda aislada.</p>
           <p className="mt-1 text-amber-900">
-            Todavía usa datos compartidos de la v3. La habilitamos cuando tenga su circuito v4 propio.
+            Las notas que cargues entran sólo al clipping v4 cuando se guarde. No modifican la precarga ni los envíos de la v3.
           </p>
         </div>
-      ) : (
-        <PrecargaClient clients={clients} />
-      )}
+      ) : null}
+      <PrecargaClient clients={clients} />
     </div>
   );
 }

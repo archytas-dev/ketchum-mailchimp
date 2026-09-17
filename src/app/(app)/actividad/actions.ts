@@ -5,6 +5,16 @@ import { rechazoEscrituraCompartida, tabla } from "@/lib/data-plane";
 
 type Result = { ok: true } | { ok: false; error: string };
 
+export async function recuperarDescartadaV4(runId: string, candidataId: string): Promise<Result> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("v4_test_recuperar_candidata", {
+    p_run_id: runId,
+    p_candidata_id: candidataId,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
 // "Casi entraron" -> agregar directo al clipping de HOY, no vía Precarga. Precarga solo se
 // mezcla cuando n8n llama import_clipping(p_fecha=X) -- si el pipeline de hoy ya corrió,
 // una precarga con fecha=hoy queda huérfana para siempre (mañana el RPC busca fecha=mañana,
@@ -12,9 +22,9 @@ type Result = { ok: true } | { ok: false; error: string };
 // mismo patrón que ya usa import_clipping para precarga -- misma trazabilidad para el
 // futuro Panel PM ("agregadas a mano: notes.origen='cliente'").
 export async function agregarDescartadaAClipping(descartadaId: string, clientId: string): Promise<Result> {
-  const bloqueo = rechazoEscrituraCompartida();
-  if (bloqueo) return bloqueo;
   const supabase = await createClient();
+  const bloqueo = rechazoEscrituraCompartida(supabase);
+  if (bloqueo) return bloqueo;
 
   const { data: descartada, error: errDescartada } = await supabase
     .from("notas_descartadas")
