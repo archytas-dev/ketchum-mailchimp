@@ -163,6 +163,43 @@ La promoción no será “replicar lo que se acuerde”. Se construyen estas gar
 | `[W0.21]` | Auditor de paridad `test` → `public_v4` y pruebas de efectos/cero mutaciones sobre v3. Debe correr en CI y antes de toda promoción. | M | `[W0.18]`, `[W0.19]` |
 | `[W0.22]` | Crear `public.*_v4` desde la misma definición, activar un cliente por flag y ensayar rollback. **No es cutover a v3.** | M | `[W0.21]` |
 
+### 3.5.1 Puerta local obligatoria antes de push a `main`
+
+No se sube la promoción `public_v4` a `main` por inspección visual. Deben
+quedar registrados estos resultados locales, en este orden:
+
+1. **Reset reproducible.** Levantar una base local vacía y aplicar toda la
+   cadena de migraciones desde cero. Si una migración histórica requiere un
+   prerequisito no versionado, se corrige en el repo antes de promover.
+2. **Paridad de estructura.** Comparar `test.*_v4` y `public.*_v4`, incluidos
+   columnas, tipos, defaults, índices, FKs, RLS, policies, grants y RPCs. Los
+   desvíos deliberados deben estar documentados; cualquier otro bloquea.
+3. **Fixture pública completa.** Importar la fixture canónica en `public_v4`
+   y comprobar clipping/notas/orden, fecha ART, tier, alcance, ad value,
+   precarga, edición, exportación, resumen, reporte y Estadísticas.
+4. **Foto de Actividad.** Con un `run_id` real, comprobar que
+   `v4_public_guardar_clipping_run()` guarda entrega y proyección de cobertura,
+   keywords, trazas y recuperaciones antes del mail. La UI `public_v4` no puede
+   consultar tablas `test` ni las trazas legacy homónimas.
+5. **Cero mutaciones v3.** Hash/conteos antes y después de cada fixture para
+   `public.clippings`, `notes`, `notes_precarga`, `activity`, `exports`,
+   `summaries`, `user_clipping_state` y `reportes`: cualquier diferencia falla.
+6. **Permisos y selector.** Probar `anon`, usuario sin cliente, usuario interno
+   y Fedra. `anon` no lee/escribe v4; Fedra sigue en v3; sólo una cuenta con
+   `app_metadata.ketchum_data_plane=public_v4` accede al nuevo plano.
+7. **App completa.** Ejecutar typecheck, build y la suite E2E de `/hoy`,
+   Historial, Actividad, Estadísticas, Precarga, Base de Datos y Reportes.
+   No se acepta una prueba verde con listas vacías.
+8. **Auditoría de la reconstrucción local.** Antes de promover, comparar la
+   migración local reconstruida de valorizaciones con las columnas y funciones
+   del proyecto remoto en modo sólo lectura. Si difiere, se detiene y se
+   versiona la corrección antes del despliegue.
+
+Sólo después de los ocho puntos se permite crear la cuenta `testv4@archytas.io`
+en remoto, con acceso interno y sin cambiar la cuenta ni los destinatarios de
+Fedra. Aplicar las migraciones remotas, activar n8n o enviar un mail sigue
+siendo una fase posterior con aprobación explícita.
+
 ### 3.6 Runbook para construir con un agente limitado
 
 Esta sección es deliberadamente prescriptiva. El agente no tiene que “interpretar” cuándo es seguro avanzar: cada paso declara qué puede cambiar, qué debe verificar y qué lo obliga a parar. Hasta que una persona apruebe `[W0.22]`, **v3 vive intacta en `public` y es la única que atiende la operación real**.

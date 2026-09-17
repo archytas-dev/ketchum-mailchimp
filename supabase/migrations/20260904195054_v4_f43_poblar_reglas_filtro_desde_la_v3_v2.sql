@@ -35,16 +35,16 @@ insert into public.reglas_filtro (client_id, tipo, valor, compuerta, peso, motiv
  'Título de menos de 25 caracteres y sin copete: suele ser un link de menú o una home institucional ("Ministerio de Salud"), no una nota'),
 
 -- ── BOOKING ─────────────────────────────────────────────────────────────────
-('65170cb4-0646-4602-b5b5-f1b93e6762d4', 'patron_url', '//(www\.)?booking\.com/', 'no_entra_nunca', 0,
+((select id from public.clients where slug = 'booking'), 'patron_url', '//(www\.)?booking\.com/', 'no_entra_nunca', 0,
  'La nota apunta al sitio del propio cliente: es su web, no cobertura de prensa'),
 
-('65170cb4-0646-4602-b5b5-f1b93e6762d4', 'dominio', '^(booking|booking\.com|news booking)$', 'no_entra_nunca', 0,
+((select id from public.clients where slug = 'booking'), 'dominio', '^(booking|booking\.com|news booking)$', 'no_entra_nunca', 0,
  'El medio publicador ES el cliente (su comunicado entrando por el agregador), no un tercero cubriéndolo'),
 
-('65170cb4-0646-4602-b5b5-f1b93e6762d4', 'patron_titulo', '\ybooking\y', 'entra_si_o_si', 0,
+((select id from public.clients where slug = 'booking'), 'patron_titulo', '\ybooking\y', 'entra_si_o_si', 0,
  'Menciona la marca del cliente: entra sí o sí. Ni el filtro de keywords ni la dedup cross-medio la pueden sacar — cada medio que la publica es un placement distinto'),
 
-('65170cb4-0646-4602-b5b5-f1b93e6762d4', 'patron_titulo',
+((select id from public.clients where slug = 'booking'), 'patron_titulo',
  '(español(es|a|as)?|en españa|desde españa|mercado español|mexicanos?|en m[eé]xico|mercado mexicano|los europeos|mercado europeo|brit[aá]nicos?|alemanes|franceses|italianos|los chinos|los japoneses)',
  'no_entra_nunca', 0,
  'Nota sobre el cliente en otro mercado. Solo descarta si además NO dice "argentin": esa excepción la aplica normalizar_y_compuertas(), no se puede expresar en un regex solo');

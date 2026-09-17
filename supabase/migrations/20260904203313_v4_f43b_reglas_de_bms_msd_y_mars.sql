@@ -46,77 +46,77 @@ insert into public.reglas_filtro (client_id, tipo, valor, compuerta, peso, motiv
  'La URL apunta a una home o a un feed de comentarios, no a una nota'),
 
 -- ── BMS ─────────────────────────────────────────────────────────────────────
-('99a7b1e3-2b24-4364-a055-be338bfff34a', 'patron_titulo',
+((select id from public.clients where slug = 'bms'), 'patron_titulo',
  '(\yAlejandro\s+Roemmers\y|Roemmers.*\y(poema|poes[ií]a|escritor|literatura|recital|libro)\y|\y(poema|poes[ií]a|recital|literatura)\y.*Roemmers)',
  'no_entra_nunca', 0,
  'El escritor Alejandro Roemmers, no el laboratorio. Es el caso testigo de por qué las reglas tienen que ser datos: en JavaScript nadie sabe por qué está'),
 
-('99a7b1e3-2b24-4364-a055-be338bfff34a', 'patron_titulo',
+((select id from public.clients where slug = 'bms'), 'patron_titulo',
  'ANMAT.*(producto?s?\s+capilar|alisad[o]?\s+capilar|insecticida|espiral(es)?\s+(para\s+)?mosquitos?|anti[\s-]mufa|desodorante\s+de?\s+ambiente|domisanitario|producto\s+de\s+limpieza|esmalt|gel\s+semi|cosm[eé]tic)',
  'no_entra_nunca', 0,
  'ANMAT también regula cosméticos y domisanitarios: esas prohibiciones no son noticia farmacéutica'),
 
-('99a7b1e3-2b24-4364-a055-be338bfff34a', 'patron_titulo',
+((select id from public.clients where slug = 'bms'), 'patron_titulo',
  '(\yex\s*jugador.*\y(nba|nfl|nhl)\y|jugador\s+de\s+la\s+nba|vida\s+en\s+hollywood|Mart[ií]n\s+Fierro|^\s*Clima\s+en\s+|pron[oó]stico\s+del\s+(clima|tiempo))',
  'no_entra_nunca', 0,
  'Deportes, espectáculos y clima: entraban por coincidencia de palabra clave'),
 
-('99a7b1e3-2b24-4364-a055-be338bfff34a', 'patron_titulo',
+((select id from public.clients where slug = 'bms'), 'patron_titulo',
  '(A[NnÑñ][Oo]\s+DE\s+LA\s+GRANDEZA\s+ARGENTINA|^\s*Disposici[oó]n\s+autorizante\s+N|CERTIFICADO\s+DE\s+AUTORIZACI[OÓ]N\s*$|^\s*DI-\d{4}-\d+-APN)',
  'no_entra_nunca', 0,
  'Texto crudo de un PDF de disposición de ANMAT, no una nota'),
 
-('99a7b1e3-2b24-4364-a055-be338bfff34a', 'patron_titulo',
+((select id from public.clients where slug = 'bms'), 'patron_titulo',
  '(campa[ñn]a\s+para\s+sumar\s+donantes|jornadas?\s+para\s+promover\s+la\s+donaci|realizar[aá]n?\s+jornadas?\s+de\s+vacunaci[oó]n\s+(en\s+barrio|en\s+el\s+barrio|en\s+la\s+plaza|local|municipal|gratuit)|Municipalidad\s+(contin[uú]a|sigue).*(vacunaci[oó]n|control\s+m[eé]dico))',
  'no_entra_nunca', 0,
  'Agenda institucional o municipal sin novedad terapéutica'),
 
-('99a7b1e3-2b24-4364-a055-be338bfff34a', 'patron_titulo',
+((select id from public.clients where slug = 'bms'), 'patron_titulo',
  '(bristol[-\s]?myers|\ybms\y|opdivo|sotyktu|yervoy|breyanzi|sprycel|reblozyl|orencia|onureg|camzyos|opdualag|nivolumab|ipilimumab|deucravacitinib|dasatinib|luspatercept|abatacept|mavacamten|relatlimab)',
  'entra_si_o_si', 0,
  'Marca o molécula del cliente: entra sí o sí, y queda exenta de los filtros geográficos'),
 
 -- ── MSD ─────────────────────────────────────────────────────────────────────
-('9aaa5eb6-d9ed-42f7-9ff1-7aa02363e026', 'patron_titulo', '(\ymsd\y|allflex|bravecto)',
+((select id from public.clients where slug = 'msd'), 'patron_titulo', '(\ymsd\y|allflex|bravecto)',
  'entra_si_o_si', 0,
  'Marca o producto del cliente: nunca se descarta una mención directa a MSD'),
 
-('9aaa5eb6-d9ed-42f7-9ff1-7aa02363e026', 'patron_titulo',
+((select id from public.clients where slug = 'msd'), 'patron_titulo',
  '\y(imputan|imputaron|denunciaron|denuncian|detuvieron|arrestaron|condenaron)\y.*(\yanimal(es)?\y|\yperro|\ygato|\ycanes\y)',
  'no_entra_nunca', 0,
  'Policial o judicial sobre animales, sin eje de salud pública'),
 
-('9aaa5eb6-d9ed-42f7-9ff1-7aa02363e026', 'patron_titulo', '\yrescataron a\y.*(\yperro|\ygato\y)',
+((select id from public.clients where slug = 'msd'), 'patron_titulo', '\yrescataron a\y.*(\yperro|\ygato\y)',
  'no_entra_nunca', 0,
  'Interés humano: rescate de mascota, sin novedad sanitaria'),
 
-('9aaa5eb6-d9ed-42f7-9ff1-7aa02363e026', 'patron_titulo',
+((select id from public.clients where slug = 'msd'), 'patron_titulo',
  '^(videos?|fotos?|podcast)\y|\yfm\s*\d{2,3}([.,]\d)?\y|radio\s*&?\s*stream',
  'no_entra_nunca', 0,
  'Contenido evergreen sin fecha real: página de videos, podcast o stream de radio'),
 
-('9aaa5eb6-d9ed-42f7-9ff1-7aa02363e026', 'patron_titulo',
+((select id from public.clients where slug = 'msd'), 'patron_titulo',
  '\y(volkswagen|ford|toyota|chevrolet|renault|fiat|peugeot|amarok|hilux|pickup)\y',
  'no_entra_nunca', 0,
  'Automotriz. MSD es sanidad animal: solo descarta si además no hay eje sanitario, y esa condición la aplica normalizar_y_compuertas()'),
 
 -- ── MARS ────────────────────────────────────────────────────────────────────
-('145311f2-79a0-430b-b528-c9683d1e196f', 'patron_titulo',
+((select id from public.clients where slug = 'mars'), 'patron_titulo',
  '(\ybruno\s+mars\y|\yvmas\y|video\s+music\s+awards|\yhbo\s*max\y|\ynetflix\y|casa\s+de\s+los\s+famosos|\yfar[aá]ndula\y|nominados?\s+a\s+(los\s+)?(vmas|grammy|oscar)|serie\s+de\s+(hbo|netflix|streaming)|colonia\s+(habitada\s+)?en\s+marte|planeta\s+marte)',
  'no_entra_nunca', 0,
  'Desambiguación de marca: Bruno Mars, los VMAs y el planeta Marte no son el cliente. Es la regla más específica de los cuatro clippings'),
 
-('145311f2-79a0-430b-b528-c9683d1e196f', 'patron_url',
+((select id from public.clients where slug = 'mars'), 'patron_url',
  '(momentodecampo|vetmarketportal|soloavesyporcinos|elproductorporcino|interempresas|globalfarma)',
  'no_entra_nunca', 0,
  'Página de listado multi-fecha, no una nota individual. Se aplica incluso a sitios curados por el cliente: vetmarketportal está cargado como monitoreado de Mars y necesita el bloqueo igual'),
 
-('145311f2-79a0-430b-b528-c9683d1e196f', 'patron_titulo',
+((select id from public.clients where slug = 'mars'), 'patron_titulo',
  '(\ysenasa\y|\ysturzenegger\y|retencion(es)?\y|arancel(es)?\y|exportaci[oó]n(es)? de (carne|granos|soja|trigo|maiz)|\yzafra\y|\ycosecha\y|\ysiembra\y|\yfeedlot\y|\yfrigorifico\y)',
  'no_entra_nunca', 0,
  'Agro comercial o regulatorio. Solo descarta si NO hay rubro del cliente (alimento, mascota, petfood, confitería): la excepción la aplica normalizar_y_compuertas(). Los sitios de agro se comparten con otros clippings'),
 
-('145311f2-79a0-430b-b528-c9683d1e196f', 'patron_titulo',
+((select id from public.clients where slug = 'mars'), 'patron_titulo',
  '(\ymars\y|pedigree|whiskas|petfood|balanceado)',
  'entra_si_o_si', 0,
  'Marca del cliente. OJO: choca a propósito con la regla de farándula, que se evalúa igual porque "Bruno Mars" también contiene "mars" — el orden de las compuertas lo resuelve');

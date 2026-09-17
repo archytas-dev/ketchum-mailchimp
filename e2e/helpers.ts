@@ -11,7 +11,9 @@ async function login(page: Page, email: string, password: string) {
   await page.goto("/login");
   await page.locator('input[name="email"]').fill(email);
   await page.locator('input[name="password"]').fill(password);
-  await page.getByRole("button", { name: "Entrar" }).click();
+  // El copy actual del login es "Ingresar". Se acepta el texto anterior para
+  // que un ajuste meramente editorial no convierta la suite en un falso rojo.
+  await page.getByRole("button", { name: /entrar|ingresar/i }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"));
 }
 

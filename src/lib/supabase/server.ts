@@ -28,9 +28,9 @@ export async function createClient() {
 
   // El plano se resuelve por usuario autenticado, nunca por una variable global ni por
   // un valor enviado desde el navegador. Fedra queda en v3/public; el usuario de prueba,
-  // en v4/test.
+  // en v4/test. `app_metadata` solo puede asignarse de forma administrativa.
   const { data: { user } } = await supabase.auth.getUser();
-  registrarPlano(supabase, user?.id);
+  registrarPlano(supabase, user);
 
   return supabase;
 }

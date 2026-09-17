@@ -1,0 +1,23 @@
+const fs = require('fs');
+const config = JSON.parse(fs.readFileSync('C:\\Users\\Usuario\\.claude.json', 'utf8'));
+const env = config.mcpServers?.['ketchum-n8n']?.env;
+const base = env.N8N_API_URL.replace(/\/$/, '');
+const headers = { 'X-N8N-API-KEY': env.N8N_API_KEY, 'Content-Type': 'application/json' };
+const workflowId = 'ORrmePsGxJJxISTo';
+(async () => {
+  const get = await fetch(`${base}/api/v1/workflows/${workflowId}`, { headers });
+  const wf = await get.json();
+  const leer = wf.nodes.find((n) => n.name === 'Leer lote');
+  const tomar = wf.nodes.find((n) => n.name === 'Tomar pagina');
+  if (!leer || !tomar) throw new Error('No encontre Leer lote y/o Tomar pagina');
+  const leerBefore = String(leer.parameters?.jsonBody || '');
+  const tomarBefore = String(tomar.parameters?.jsonBody || '');
+  if (!leerBefore.includes('p_limite: 10')) throw new Error('Leer lote no esta en 10; no cambio a ciegas.');
+  if (!tomarBefore.includes('p_limite: 20')) throw new Error('Tomar pagina no tiene el valor esperado; no cambio a ciegas.');
+  tomar.parameters.jsonBody = tomarBefore.replace('p_limite: 20', 'p_limite: 10');
+  const put = await fetch(`${base}/api/v1/workflows/${workflowId}`, { method: 'PUT', headers, body: JSON.stringify({ name: wf.name, nodes: wf.nodes, connections: wf.connections, settings: wf.settings || {} }) });
+  if (!put.ok) throw new Error(`PUT fallo: ${put.status} ${await put.text()}`);
+  const pub = await fetch(`${base}/api/v1/workflows/${workflowId}/publish`, { method: 'POST', headers, body: '{}' });
+  if (!pub.ok) throw new Error(`publish fallo: ${pub.status} ${await pub.text()}`);
+  console.log(JSON.stringify({ ok: true, leer_lote: 10, tomar_pagina: 10 }, null, 2));
+})().catch((e) => { console.error(e.stack || e.message); process.exit(1); });

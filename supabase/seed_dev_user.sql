@@ -34,7 +34,9 @@ begin
       '00000000-0000-0000-0000-000000000000', v_user_id, 'authenticated', 'authenticated',
       v_email, crypt(v_pass, gen_salt('bf')),
       now(), now(), now(),
-      '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+      -- La cuenta sintética ejercita el mismo selector seguro que usará
+      -- testv4: app_metadata lo fija el administrador, no el navegador.
+      '{"provider":"email","providers":["email"],"ketchum_data_plane":"public_v4"}'::jsonb, '{}'::jsonb,
       '', '', '', '', '', '', ''
     );
 
@@ -47,6 +49,11 @@ begin
       'email', now(), now(), now()
     );
   end if;
+
+  update auth.users
+     set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
+       || jsonb_build_object('ketchum_data_plane', 'public_v4')
+   where id = v_user_id;
 
   -- Rol dev: ve los 8 clientes (incluidos los *-test) y las dimensiones staff-only
   -- como Google Alerts. Ver el mapa de permisos en fase0_roles_and_rls.

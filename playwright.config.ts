@@ -12,19 +12,21 @@ export default defineConfig({
   retries: 0,
   reporter: "list",
   use: {
-    baseURL: "http://localhost:3000",
+    // Puerto exclusivo: 3000 puede pertenecer a otra app local.
+    baseURL: "http://localhost:3017",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "npx next dev",
-    url: "http://localhost:3000",
+    command: "npx next dev -p 3017",
+    url: "http://localhost:3017",
     // [W0.19 · 15/09] No se puede reusar un servidor que quizas no tiene KETCHUM_DATA_PLANE.
     // Paso: la suite del plano v4 corrio contra un dev server levantado en v3 y los 4 tests
     // fallaron por eso. El modo de falla peligroso es el inverso — que PASEN sin haber probado
     // nunca el plano v4 — y ese no se nota.
-    reuseExistingServer: !process.env.KETCHUM_DATA_PLANE,
+    // La suite gobierna su propio Next; nunca reutiliza una app ajena o vieja.
+    reuseExistingServer: false,
     timeout: 60_000,
   },
 });

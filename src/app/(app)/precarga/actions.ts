@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { enPlanoV4, rechazoEscrituraCompartida, tabla } from "@/lib/data-plane";
+import { enPlanoV4, precargaSoloLecturaPublicV4, rechazoEscrituraCompartida, tabla } from "@/lib/data-plane";
 import { tierNorm } from "@/lib/tier";
 
 // ---------- Tier del medio (pedido de Fedra, 11/08) ----------
@@ -293,6 +293,9 @@ export async function addPrecarga(
   if (!clean.length) return { ok: false, error: "No hay notas válidas (falta título o URL)." };
 
   const supabase = await createClient();
+  if (precargaSoloLecturaPublicV4(supabase)) {
+    return { ok: false, error: "Precarga está en modo lectura en este plano de prueba: el alta de notas todavía no está conectada a public_v4." };
+  }
   const { data, error } = await supabase.rpc(enPlanoV4(supabase) ? "v4_test_preload_notes" : "preload_notes", {
     p_client_id: clientId,
     p_fecha: fecha,
@@ -319,6 +322,9 @@ export async function updatePrecarga(
   if (fields.seccion !== undefined && !fields.seccion) return { ok: false, error: "La sección no puede quedar vacía." };
 
   const supabase = await createClient();
+  if (precargaSoloLecturaPublicV4(supabase)) {
+    return { ok: false, error: "Precarga está en modo lectura en este plano de prueba." };
+  }
   const { error } = await tabla(supabase, "notes_precarga")
     .update(fields)
     .eq("id", id)
@@ -332,6 +338,9 @@ export async function delPrecarga(
   id: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = await createClient();
+  if (precargaSoloLecturaPublicV4(supabase)) {
+    return { ok: false, error: "Precarga está en modo lectura en este plano de prueba." };
+  }
   const { error } = await tabla(supabase, "notes_precarga")
     .delete()
     .eq("id", id)

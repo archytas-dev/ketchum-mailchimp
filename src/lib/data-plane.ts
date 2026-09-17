@@ -9,7 +9,7 @@ import "server-only";
  * solamente como fallback para procesos internos que no pasan por createClient().
  */
 
-export type Plano = "v3" | "test_v4";
+export type Plano = "v3" | "test_v4" | "public_v4";
 
 /** Nombres logicos que usan las pantallas. Nunca el nombre fisico de la tabla. */
 export type TablaLogica =
@@ -34,7 +34,7 @@ type Destino = { schema: string | null; tabla: string };
  * clients, profiles, user_client_access, medios, tiers, kw_keywords, secciones y
  * google_alerts son compartidas y se leen desde ambos planos.
  */
-const MAPA: Record<TablaLogica, Record<Plano, Destino>> = {
+const MAPA_BASE: Record<TablaLogica, Record<Exclude<Plano, "public_v4">, Destino>> = {
   clippings:           { v3: { schema: null, tabla: "clippings" },           test_v4: { schema: "test", tabla: "clippings_v4" } },
   notes:               { v3: { schema: null, tabla: "notes" },               test_v4: { schema: "test", tabla: "notes_v4" } },
   activity:            { v3: { schema: null, tabla: "activity" },            test_v4: { schema: "test", tabla: "activity_v4" } },
@@ -50,6 +50,23 @@ const MAPA: Record<TablaLogica, Record<Plano, Destino>> = {
   recoveries:          { v3: { schema: null, tabla: "notas_descartadas" },   test_v4: { schema: "test", tabla: "v4_recuperaciones" } },
 };
 
+// `public_v4` mantiene el contrato de nombres de v4, pero en el schema public.
+// No hay un camino que reutilice por accidente las tablas legacy sin sufijo.
+const MAPA = Object.fromEntries(
+  Object.entries(MAPA_BASE).map(([logica, destinos]) => [
+    logica,
+    { ...destinos, public_v4: { schema: null, tabla: destinos.test_v4.tabla } },
+  ]),
+) as Record<TablaLogica, Record<Plano, Destino>>;
+
+// La actividad publica es una foto aislada tomada al guardar el clipping. No
+// reutiliza la traza legacy homonima ni el schema interno test.
+MAPA.pipeline_runs.public_v4 = { schema: null, tabla: "v4_pipeline_runs_public" };
+MAPA.candidate_trace.public_v4 = { schema: null, tabla: "v4_candidatas_traza_public" };
+MAPA.run_medios.public_v4 = { schema: null, tabla: "v4_run_medios_public" };
+MAPA.run_keywords.public_v4 = { schema: null, tabla: "v4_run_keywords_public" };
+MAPA.recoveries.public_v4 = { schema: null, tabla: "v4_recuperaciones_public" };
+
 type Entorno = "production" | "preview" | "development";
 
 // UUID estable de auth.users. No usamos el email para decidir el plano.
@@ -59,12 +76,20 @@ export const USUARIO_TEST_V4_ID = "b005c199-9e42-42e7-a2e0-ebdea7dacd34";
 // request. No hay un selector de schema controlable desde el navegador.
 const PLANES_POR_CLIENTE = new WeakMap<object, Plano>();
 
-export function planoParaUsuario(userId?: string | null): Plano {
-  return userId === USUARIO_TEST_V4_ID ? "test_v4" : "v3";
+type UsuarioPlano = {
+  id?: string | null;
+  // app_metadata lo asigna un administrador; user_metadata queda excluido porque
+  // el propio usuario puede modificarlo desde el navegador.
+  app_metadata?: Record<string, unknown> | null;
+};
+
+export function planoParaUsuario(user?: UsuarioPlano | null): Plano {
+  if (user?.id === USUARIO_TEST_V4_ID) return "test_v4";
+  return user?.app_metadata?.ketchum_data_plane === "public_v4" ? "public_v4" : "v3";
 }
 
-export function registrarPlano(cliente: object, userId?: string | null): void {
-  PLANES_POR_CLIENTE.set(cliente, planoParaUsuario(userId));
+export function registrarPlano(cliente: object, user?: UsuarioPlano | null): void {
+  PLANES_POR_CLIENTE.set(cliente, planoParaUsuario(user));
 }
 
 function entorno(): Entorno {
@@ -107,7 +132,7 @@ export function planoActivo(cliente?: object): Plano {
 }
 
 export function enPlanoV4(cliente?: object): boolean {
-  return planoActivo(cliente) === "test_v4";
+  return planoActivo(cliente) !== "v3";
 }
 
 /** La configuracion compartida queda de solo lectura para el usuario v4. */
@@ -128,12 +153,26 @@ export function rechazoEscrituraCompartida(cliente?: object): { ok: false; error
   };
 }
 
+/**
+ * El alta de Precarga (`addPrecarga`) llama a una RPC que hoy solo sabe escribir en el schema
+ * `test` (`v4_test_preload_notes`). En `public_v4` eso escribiria notas en `test.notes_precarga_v4`
+ * en vez de `public.notes_precarga_v4` -- un cruce silencioso entre planos. Hasta que exista una
+ * RPC propia de `public_v4`, Precarga queda de solo lectura ahi. `test_v4` no se toca: su RPC
+ * ya escribe donde corresponde.
+ */
+export function precargaSoloLecturaPublicV4(cliente?: object): boolean {
+  return planoActivo(cliente) === "public_v4";
+}
+
 export function destino(tabla: TablaLogica, cliente?: object): Destino {
   return MAPA[tabla][planoActivo(cliente)];
 }
 
 export function etiquetaPlano(cliente?: object): string | null {
-  return enPlanoV4(cliente) ? "Plano de prueba v4 (test)" : null;
+  const plano = planoActivo(cliente);
+  if (plano === "test_v4") return "Plano de prueba v4 (test)";
+  if (plano === "public_v4") return "Plano operativo v4";
+  return null;
 }
 
 /**

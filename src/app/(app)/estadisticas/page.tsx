@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { tabla } from "@/lib/data-plane";
+import { tabla, planoActivo } from "@/lib/data-plane";
+import AvisoMigracionV4 from "@/components/AvisoMigracionV4";
 import { ordenarClientesActivos } from "@/lib/clientes";
 import {
   FileText,
@@ -198,6 +199,7 @@ export default async function EstadisticasPage({
     // Ancho completo, mismo criterio que Base de Datos: con max-w quedaba angosto mientras
     // sobraba viewport a los costados.
     <div className="w-full px-4 sm:px-6 py-6 space-y-6">
+      {planoActivo(supabase) === "public_v4" ? <AvisoMigracionV4 superficie="estadisticas" /> : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-foreground">Estadísticas</h1>
         <EstadisticasFilter clients={clients} value={clientId ?? "all"} />

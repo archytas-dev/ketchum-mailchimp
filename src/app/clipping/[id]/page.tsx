@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { enPlanoV4 } from "@/lib/data-plane";
+import { tabla } from "@/lib/data-plane";
 import Editor, { type Note } from "./Editor";
 import KetchumLogo from "@/components/KetchumLogo";
 import Footer from "@/components/Footer";
@@ -15,40 +15,38 @@ export default async function ClippingPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  // Esta es la pantalla heredada de v3 y escribe directo en public desde el navegador.
   const { id } = await params;
   const supabase = await createClient();
-  // Esta es la pantalla heredada de v3 y escribe directo en public desde el navegador.
-  // El usuario de prueba v4 no puede servirla hasta migrarla por completo al plano aislado.
-  if (enPlanoV4(supabase)) notFound();
 
-  const { data: clipping } = await supabase
-    .from("clippings")
-    .select("id, fecha, estado, clients(nombre, slug)")
+  // Sin embed clients(...): en v4 la entrega vive en otro schema y PostgREST no
+  // resuelve relaciones cross-schema. El cliente se busca abajo desde public.
+  const { data: clipping } = await tabla(supabase, "clippings")
+    .select("id, client_id, fecha, estado")
     .eq("id", id)
     .single();
 
   if (!clipping) notFound();
 
-  const { data: notes } = await supabase
-    .from("notes")
+  const { data: client } = await supabase
+    .from("clients")
+    .select("nombre, slug")
+    .eq("id", clipping.client_id)
+    .maybeSingle();
+
+  const { data: notes } = await tabla(supabase, "notes")
     .select(
       "id, seccion, medio, titulo, snippet, url, pub_date, orden, incluida, origen, pintada",
     )
     .eq("clipping_id", id)
     .order("orden", { ascending: true });
 
-  const client = Array.isArray(clipping.clients)
-    ? clipping.clients[0]
-    : clipping.clients;
   const slug = client?.slug ?? "";
   const isPast = clipping.fecha < todayAR();
 
   // Clipping pasado = solo lectura (visual de lo que se envió).
   let exportHtml: string | null = null;
   if (isPast) {
-    const { data: exp } = await supabase
-      .from("exports")
+    const { data: exp } = await tabla(supabase, "exports")
       .select("html")
       .eq("clipping_id", id)
       .limit(1)

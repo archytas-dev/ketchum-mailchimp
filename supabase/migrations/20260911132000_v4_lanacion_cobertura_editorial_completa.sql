@@ -3,6 +3,12 @@
 -- Agencias como HTML. Esto reemplaza la falsa fuente RSS que apuntaba a
 -- /sociedad/ y evita depender sólo de los 60 ítems de portada.
 
+-- El remoto tenia este padre de catalogo como alta previa. En una base nueva
+-- debe existir antes de insertar las subsecciones que lo referencian.
+insert into public.medios_catalogo (dominio_norm, nombre, estado)
+values ('lanacion.com.ar', 'La Nacion Sociedad — Jina', 'activo')
+on conflict (dominio_norm) do nothing;
+
 update public.medios_fuentes
 set activa = false,
     updated_at = now()

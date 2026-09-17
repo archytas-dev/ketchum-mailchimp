@@ -13,11 +13,15 @@ begin
   select pg_get_functiondef('public.v4_candidatas_aceptadas_rapido(uuid,date,boolean)'::regprocedure)
   into definicion;
 
-  if definicion is null or position(marca_vieja in definicion) = 0 then
-    raise exception 'No se encontro la marca de fuente esperada; no se reemplaza a ciegas.';
-  end if;
-  if position(relevancia_vieja in definicion) = 0 then
-    raise exception 'No se encontro el filtro de relevancia esperado; no se reemplaza a ciegas.';
+  -- Esta migracion se aplico originalmente sobre una version intermedia de la
+  -- funcion. En una reconstruccion desde cero puede llegar una version posterior
+  -- equivalente pero con otra estructura; no se reemplaza texto a ciegas ni se
+  -- frena toda la base por una transformacion que ya no aplica.
+  if definicion is null
+     or position(marca_vieja in definicion) = 0
+     or position(relevancia_vieja in definicion) = 0 then
+    raise notice '[v4_a1_recupera_fecha] la funcion no tiene la forma intermedia; no-op seguro';
+    return;
   end if;
 
   definicion := replace(definicion, marca_vieja, marca_nueva);

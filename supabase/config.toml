@@ -78,7 +78,8 @@ enabled = true
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
 # seed.sql es generado (config real del remoto); seed_dev_user.sql/seed_cliente_user.sql
 # crean los usuarios sinteticos locales (dev y cliente, ninguno real).
-sql_paths = ["./seed.sql", "./seed_dev_user.sql", "./seed_cliente_user.sql"]
+# seed_dev_v4_medios.sql puebla el catalogo v4 (vacio en una base local recien levantada).
+sql_paths = ["./seed.sql", "./seed_dev_user.sql", "./seed_cliente_user.sql", "./seed_dev_v4_medios.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.

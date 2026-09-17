@@ -1,0 +1,24 @@
+const fs = require('fs');
+const config = JSON.parse(fs.readFileSync('C:\\Users\\Usuario\\.claude.json', 'utf8'));
+const env = config.mcpServers?.['ketchum-n8n']?.env;
+const base = env.N8N_API_URL.replace(/\/$/, '');
+(async () => {
+  const res = await fetch(`${base}/api/v1/executions?workflowId=ORrmePsGxJJxISTo&limit=5`, { headers: { 'X-N8N-API-KEY': env.N8N_API_KEY } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const list = (await res.json()).data || [];
+  const latest = list[0];
+  const detail = await fetch(`${base}/api/v1/executions/${latest.id}?includeData=true`, { headers: { 'X-N8N-API-KEY': env.N8N_API_KEY } });
+  if (!detail.ok) throw new Error(`detalle HTTP ${detail.status}`);
+  const execution = await detail.json();
+  const result = execution.data?.resultData || {};
+  const data = result.runData || {};
+  const take = data['Tomar pagina'] || [];
+  const json = take.at(-1)?.data?.main?.[0]?.[0]?.json || null;
+  const build = data['Armar clipping para email de prueba'] || data['Armar clipping BMS para email de prueba'] || [];
+  const buildJson = build.at(-1)?.data?.main?.[0]?.[0]?.json || null;
+  const prepared = data['Preparar email v3 de prueba'] || data['Preparar email BMS de prueba'] || [];
+  const preparedJson = prepared.at(-1)?.data?.main?.[0]?.[0]?.json || null;
+  const send = data['Enviar email v3 de prueba'] || data['Enviar email BMS de prueba'] || [];
+  const sendJson = send.at(-1)?.data?.main?.[0]?.[0]?.json || null;
+  console.log(JSON.stringify({ id: latest.id, status: latest.status, pagina: json?.pagina ?? null, candidatas: json?.candidatas ?? null, total: json?.total ?? null, restantes: json?.restantes ?? null, lastNode: result.lastNodeExecuted || null, error: result.error?.message || null, cerrada: !!data.Cierre, cerrarCorrida: !!data['Cerrar corrida'], clipping: buildJson ? { total_notas: buildJson.total_notas, secciones: buildJson.secciones?.length } : null, preparado: preparedJson ? { cliente: preparedJson.cliente, asunto: preparedJson.asunto, total_notas: preparedJson.total_notas, html_bytes: String(preparedJson.html || '').length } : null, envio: sendJson }, null, 2));
+})().catch((error) => { console.error(error.message); process.exit(1); });

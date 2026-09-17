@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { exportClipping } from "./actions";
+import { exportClipping, guardarCambiosNotas } from "./actions";
 import { renderClipping, hasRenderer, type Article } from "@/lib/render";
 
 export type Note = {
@@ -47,7 +46,6 @@ export default function Editor({
   isPast: boolean;
   exportHtml: string | null;
 }) {
-  const supabase = createClient();
   const [notes, setNotes] = useState<Note[]>(initial);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -72,22 +70,16 @@ export default function Editor({
     );
   }, [notes, slug, isPast, exportHtml, canRender]);
 
-  async function currentUserId() {
-    const { data } = await supabase.auth.getUser();
-    return data.user?.id ?? null;
-  }
-
   async function removeNote(id: string) {
     if (isPast) return;
+    const previous = notes;
     setHistory((h) => [...h, notes]);
     setNotes((ns) => ns.map((x) => (x.id === id ? { ...x, incluida: false } : x)));
-    await supabase.from("notes").update({ incluida: false }).eq("id", id);
-    await supabase.from("activity").insert({
-      clipping_id: clippingId,
-      user_id: await currentUserId(),
-      accion: "quita",
-      note_id: id,
-    });
+    const res = await guardarCambiosNotas(clippingId, [{ id, incluida: false }], "quita");
+    if (!res.ok) {
+      setNotes(previous);
+      setError(res.error ?? "No se pudo guardar el cambio");
+    }
   }
 
   async function moveNote(id: string, dir: -1 | 1) {
@@ -102,6 +94,7 @@ export default function Editor({
     const j = i + dir;
     if (j < 0 || j >= mates.length) return;
     const other = mates[j];
+    const previous = notes;
     setHistory((h) => [...h, notes]);
     setNotes((ns) =>
       ns.map((n) => {
@@ -110,14 +103,15 @@ export default function Editor({
         return n;
       }),
     );
-    await supabase.from("notes").update({ orden: other.orden }).eq("id", cur.id);
-    await supabase.from("notes").update({ orden: cur.orden }).eq("id", other.id);
-    await supabase.from("activity").insert({
-      clipping_id: clippingId,
-      user_id: await currentUserId(),
-      accion: "reordena",
-      note_id: id,
-    });
+    const res = await guardarCambiosNotas(
+      clippingId,
+      [{ id: cur.id, orden: other.orden }, { id: other.id, orden: cur.orden }],
+      "reordena",
+    );
+    if (!res.ok) {
+      setNotes(previous);
+      setError(res.error ?? "No se pudo guardar el orden");
+    }
   }
 
   async function togglePaint(id: string) {
@@ -125,14 +119,17 @@ export default function Editor({
     const cur = notes.find((n) => n.id === id);
     if (!cur) return;
     const next = !cur.pintada;
+    const previous = notes;
     setNotes((ns) => ns.map((x) => (x.id === id ? { ...x, pintada: next } : x)));
-    await supabase.from("notes").update({ pintada: next }).eq("id", id);
-    await supabase.from("activity").insert({
-      clipping_id: clippingId,
-      user_id: await currentUserId(),
-      accion: next ? "pinta" : "despinta",
-      note_id: id,
-    });
+    const res = await guardarCambiosNotas(
+      clippingId,
+      [{ id, pintada: next }],
+      next ? "pinta" : "despinta",
+    );
+    if (!res.ok) {
+      setNotes(previous);
+      setError(res.error ?? "No se pudo guardar el marcado");
+    }
   }
 
   async function undo() {
@@ -144,17 +141,17 @@ export default function Editor({
       return c && (c.incluida !== p.incluida || c.orden !== p.orden);
     });
     setNotes(prev);
-    for (const p of changed) {
-      await supabase
-        .from("notes")
-        .update({ incluida: p.incluida, orden: p.orden })
-        .eq("id", p.id);
+    if (!changed.length) return;
+    const res = await guardarCambiosNotas(
+      clippingId,
+      changed.map((p) => ({ id: p.id, incluida: p.incluida, orden: p.orden })),
+      "regresa",
+    );
+    if (!res.ok) {
+      setNotes(notes);
+      setHistory((h) => [...h, prev]);
+      setError(res.error ?? "No se pudo volver atrás");
     }
-    await supabase.from("activity").insert({
-      clipping_id: clippingId,
-      user_id: await currentUserId(),
-      accion: "regresa",
-    });
   }
 
   handlers.current.remove = removeNote;

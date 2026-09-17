@@ -1,5 +1,12 @@
 -- CIAP tiene una lista HTML estable de noticias. La fuente existia pero estaba
 -- inactiva y sin estrategia, por lo que MSD nunca la intentaba.
+-- En el remoto el catalogo padre era una alta previa; se declara para que la
+-- FK de medios_estrategia se pueda reconstruir desde cero.
+insert into public.medios_catalogo (dominio_norm, nombre, pais, estado, updated_at)
+values ('ciap.org.ar', 'CIAP', 'Argentina', 'activo', now())
+on conflict (dominio_norm) do update
+set estado = 'activo', updated_at = now();
+
 update public.medios_fuentes
 set activa = true,
     formato = 'html',

@@ -1,0 +1,33 @@
+const fs = require('fs');
+const config = JSON.parse(fs.readFileSync('C:\\Users\\Usuario\\.claude.json', 'utf8'));
+const env = config.mcpServers?.['ketchum-n8n']?.env;
+const base = env.N8N_API_URL.replace(/\/$/, '');
+const headers = { 'X-N8N-API-KEY': env.N8N_API_KEY, 'Content-Type': 'application/json' };
+const id = 'ORrmePsGxJJxISTo';
+const target = 'https://banlcbewinpjtudzdzhm.supabase.co/rest/v1/rpc/armar_clipping';
+const nodeName = 'Armar clipping BMS para email de prueba';
+(async () => {
+  const getWorkflow = async () => {
+    const res = await fetch(`${base}/api/v1/workflows/${id}`, { headers });
+    if (!res.ok) throw new Error(`GET HTTP ${res.status}`);
+    return res.json();
+  };
+  const workflow = await getWorkflow();
+  const node = workflow.nodes.find((item) => item.name === nodeName);
+  if (!node) throw new Error('No encontré el nodo de armado de email.');
+  node.parameters.url = target;
+  const put = await fetch(`${base}/api/v1/workflows/${id}`, { method: 'PUT', headers, body: JSON.stringify({ name: workflow.name, nodes: workflow.nodes, connections: workflow.connections, settings: workflow.settings || {} }) });
+  const putText = await put.text();
+  if (!put.ok) throw new Error(`PUT HTTP ${put.status}: ${putText.slice(0, 500)}`);
+  const saved = JSON.parse(putText);
+  const savedUrl = saved.nodes.find((item) => item.name === nodeName)?.parameters?.url;
+  if (savedUrl !== target) throw new Error(`El servidor devolvió URL inesperada: ${savedUrl}`);
+  const publish = await fetch(`${base}/api/v1/workflows/${id}/publish`, { method: 'POST', headers, body: '{}' });
+  const publishText = await publish.text();
+  if (!publish.ok) throw new Error(`PUBLISH HTTP ${publish.status}: ${publishText.slice(0, 500)}`);
+  const verified = await getWorkflow();
+  const verifiedUrl = verified.nodes.find((item) => item.name === nodeName)?.parameters?.url;
+  const activeUrl = verified.activeVersion?.nodes?.find((item) => item.name === nodeName)?.parameters?.url;
+  if (verifiedUrl !== target || activeUrl !== target) throw new Error(`No quedó publicado: draft=${verifiedUrl}, active=${activeUrl}`);
+  console.log(JSON.stringify({ savedUrl, verifiedUrl, activeUrl, published: true }, null, 2));
+})().catch((error) => { console.error(error.stack || error.message); process.exit(1); });

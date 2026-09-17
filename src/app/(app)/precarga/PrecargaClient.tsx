@@ -362,7 +362,14 @@ function AlcanceAdValueInputs({
   );
 }
 
-export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
+export default function PrecargaClient({
+  clients,
+  soloLectura = false,
+}: {
+  clients: ClientOpt[];
+  /** [public_v4] true cuando el alta todavía no está conectada a este plano: solo se puede ver. */
+  soloLectura?: boolean;
+}) {
   // [24/08] Rename: solo se puede elegir la herramienta real (slug limpio, sin "-legado").
   // `clients` sigue llegando SIN filtrar desde la página porque configClientId necesita
   // poder resolver el par -- medios/tiers (el catálogo de autocompletado) vive bajo el
@@ -857,12 +864,16 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
                       </a>
                     ) : null}
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => startEdit(e)} title="Editar">
-                    <Pencil size={15} />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => setDelTarget(e)} title="Eliminar">
-                    <Trash2 size={15} />
-                  </Button>
+                  {!soloLectura && (
+                    <>
+                      <Button variant="ghost" size="icon" onClick={() => startEdit(e)} title="Editar">
+                        <Pencil size={15} />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => setDelTarget(e)} title="Eliminar">
+                        <Trash2 size={15} />
+                      </Button>
+                    </>
+                  )}
                 </li>
               ),
             )}
@@ -885,7 +896,8 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
         )}
       </section>
 
-      {/* Precarga individual */}
+      {/* Precarga individual — el circuito de alta no se habilita en modo solo lectura. */}
+      {!soloLectura && (
       <section className="border rounded-lg p-4 space-y-3">
         <div>
           <h2 className="font-medium">Precarga individual</h2>
@@ -986,8 +998,10 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
           </Button>
         </div>
       </section>
+      )}
 
-      {/* Precarga grupal */}
+      {/* Precarga grupal — mismo circuito de alta, misma condición. */}
+      {!soloLectura && (
       <section className="border rounded-lg p-4 space-y-3">
         <div>
           <h2 className="font-medium">Precarga grupal</h2>
@@ -1163,6 +1177,7 @@ export default function PrecargaClient({ clients }: { clients: ClientOpt[] }) {
           </>
         )}
       </section>
+      )}
 
       <AlertDialog open={!!delTarget} onOpenChange={(o) => !o && setDelTarget(null)}>
         <AlertDialogContent>
