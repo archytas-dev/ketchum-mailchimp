@@ -1,24 +1,19 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { escrituraV4SoloTest, rechazoEscrituraCompartida, tabla } from "@/lib/data-plane";
+import { planoActivo, rechazoEscrituraCompartida, tabla } from "@/lib/data-plane";
 
 type Result = { ok: true } | { ok: false; error: string };
 
 export async function recuperarDescartadaV4(runId: string, candidataId: string): Promise<Result> {
   const supabase = await createClient();
-  // La RPC escribe `test.v4_recuperaciones`; en public_v4 la pantalla lee
-  // `public.v4_recuperaciones_public`, asi que la recuperacion se perderia sin aviso.
-  // Ocultar el boton no alcanza: una Server Action se puede invocar sin pasar por la interfaz.
-  if (escrituraV4SoloTest(supabase)) {
-    return {
-      ok: false,
-      error: "Recuperar notas todavía no está disponible en este plano: la acción aún no está conectada a public_v4.",
-    };
-  }
-  const { error } = await supabase.rpc("v4_test_recuperar_candidata", {
+  // El destino decide contra qué tablas trabaja: en test son las del schema `test`, y en
+  // public_v4 las proyecciones públicas, que además tienen otro nombre. Si esto se equivoca,
+  // la nota entra al clipping del plano que no es y la pantalla nunca la muestra.
+  const { error } = await supabase.rpc("v4_recuperar_candidata", {
     p_run_id: runId,
     p_candidata_id: candidataId,
+    p_destino: planoActivo(supabase) === "public_v4" ? "public_v4" : "test",
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true };

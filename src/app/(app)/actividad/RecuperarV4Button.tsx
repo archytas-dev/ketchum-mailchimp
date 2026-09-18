@@ -9,8 +9,8 @@ export default function RecuperarV4Button({ runId, candidataId, recuperada }: { 
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(recuperada);
-  if (done) return <span className="inline-flex size-7 items-center justify-center text-emerald-600" title="Agregada al clipping v4"><Check size={15} /></span>;
-  return <button type="button" title="Agregar al clipping v4" disabled={busy} onClick={async () => {
+  if (done) return <span className="inline-flex size-7 items-center justify-center text-emerald-600" title="Ya se agregó al clipping de hoy"><Check size={15} /></span>;
+  return <button type="button" title="Sumar esta nota al clipping de hoy" disabled={busy} onClick={async () => {
     setBusy(true);
     const res = await recuperarDescartadaV4(runId, candidataId);
     if (res.ok) { setDone(true); router.refresh(); } else { setBusy(false); alert(res.error); }

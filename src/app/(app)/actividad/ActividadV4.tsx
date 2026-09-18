@@ -281,11 +281,9 @@ export default async function ActividadV4({ clients, clientId, paginaDescartes, 
                     const c = esPublico
                       ? { titulo: t.titulo ?? null, url: t.url ?? null, dominio_norm: t.dominio_norm ?? null }
                       : candidateById.get(t.candidata_id);
-                    // En public_v4 la RPC de recuperar todavía escribe el schema `test`,
-                    // así que la acción no se ofrece (el server action también la rechaza).
-                    const recuperable = !esPublico && (verJuez || t.detalle?.recuperable === true);
+                    const recuperable = verJuez || t.detalle?.recuperable === true;
                     return <li key={t.candidata_id} className="flex gap-2 py-3 first:pt-0">
-                      {recuperable ? <RecuperarV4Button runId={run.id} candidataId={t.candidata_id} recuperada={recuperadas.has(t.candidata_id)} /> : <span className="inline-flex size-7 shrink-0 items-center justify-center text-slate-300" title={esPublico ? undefined : "No se recupera: ya hay una versión de esta nota"}>—</span>}
+                      {recuperable ? <RecuperarV4Button runId={run.id} candidataId={t.candidata_id} recuperada={recuperadas.has(t.candidata_id)} /> : <span className="inline-flex size-7 shrink-0 items-center justify-center text-slate-300" title="Esta nota no se puede sumar: el clipping ya incluye otra versión de la misma noticia">—</span>}
                       <div className="min-w-0 flex-1"><p className="text-sm font-medium text-foreground">{c?.titulo ?? "Nota sin título"}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">{c?.dominio_norm ?? "medio sin identificar"}</p>
                       <p className="mt-1 text-sm text-slate-600">{motivoEditorial(t.motivo)}</p>
