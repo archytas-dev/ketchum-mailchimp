@@ -154,14 +154,19 @@ export function rechazoEscrituraCompartida(cliente?: object): { ok: false; error
 }
 
 /**
- * El alta de Precarga (`addPrecarga`) llama a una RPC que hoy solo sabe escribir en el schema
- * `test` (`v4_test_preload_notes`). En `public_v4` eso escribiria notas en `test.notes_precarga_v4`
- * en vez de `public.notes_precarga_v4` -- un cruce silencioso entre planos. Hasta que exista una
- * RPC propia de `public_v4`, Precarga queda de solo lectura ahi. `test_v4` no se toca: su RPC
- * ya escribe donde corresponde.
+ * Varias escrituras de v4 llaman a RPCs `v4_test_*` que solo saben escribir el schema `test`
+ * (`v4_test_preload_notes` en Precarga, `v4_test_recuperar_candidata` en "Casi entraron").
+ * En `public_v4` eso guardaria en `test.*` en vez de `public.*`: un cruce silencioso entre
+ * planos, que encima no se nota porque la pantalla lee de la tabla publica y nunca ve lo que
+ * acaba de escribir. Hasta que existan RPCs propias de `public_v4`, esas acciones quedan
+ * bloqueadas ahi. `test_v4` no se toca: sus RPCs ya escriben donde corresponde.
  */
-export function precargaSoloLecturaPublicV4(cliente?: object): boolean {
+export function escrituraV4SoloTest(cliente?: object): boolean {
   return planoActivo(cliente) === "public_v4";
+}
+
+export function precargaSoloLecturaPublicV4(cliente?: object): boolean {
+  return escrituraV4SoloTest(cliente);
 }
 
 export function destino(tabla: TablaLogica, cliente?: object): Destino {
@@ -171,7 +176,8 @@ export function destino(tabla: TablaLogica, cliente?: object): Destino {
 export function etiquetaPlano(cliente?: object): string | null {
   const plano = planoActivo(cliente);
   if (plano === "test_v4") return "Plano de prueba v4 (test)";
-  if (plano === "public_v4") return "Plano operativo v4";
+  // public_v4 no lleva cartel: es el plano operativo real y lo usa el cliente. La version
+  // del pipeline es asunto interno, no algo que Fedra tenga que ver en pantalla.
   return null;
 }
 
