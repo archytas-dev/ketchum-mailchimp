@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { tabla } from "@/lib/data-plane";
+import { planoActivo, tabla } from "@/lib/data-plane";
 import ActividadFilter from "./ActividadFilter";
 import RecuperarV4Button from "./RecuperarV4Button";
 import Link from "next/link";
@@ -11,7 +11,14 @@ type Run = {
   termino_at: string | null; pool_total: number | null; next_pagina: number | null;
   nivel_salida: number | null;
 };
-type Trace = { candidata_id: string; etapa: string; resultado: string; motivo: string; detalle: { recuperable?: boolean } | null; updated_at: string };
+// En el plano public_v4 la traza guarda la nota desnormalizada: la proyección pública es
+// una foto autocontenida. candidatas_raw es staff-only, así que un cliente no puede
+// resolver el título desde ahí -- si faltan estas columnas ve "Nota sin título".
+type Trace = {
+  candidata_id: string; etapa: string; resultado: string; motivo: string;
+  detalle: { recuperable?: boolean } | null; updated_at: string;
+  titulo?: string | null; url?: string | null; dominio_norm?: string | null;
+};
 type Candidate = { id: string; titulo: string | null; url: string | null; dominio_norm: string | null };
 type Edit = { accion: string; created_at: string };
 type Medio = { fuente_id: string; dominio_norm: string; ok: boolean; outcome: string; http_status: number | null; diagnostico: string | null; articulos: number | null; ms: number | null };
@@ -77,6 +84,11 @@ function Metric({ label, value, tone = "text-foreground" }: { label: string; val
 
 export default async function ActividadV4({ clients, clientId, paginaDescartes, verJuez, permiteJuez = false }: { clients: ClientOpt[]; clientId: string; paginaDescartes: number; verJuez: boolean; /** El detalle del juez es interno (jerga del modelo, motivos crudos): solo staff. */ permiteJuez?: boolean }) {
   const supabase = await createClient();
+  // Sólo la proyección pública lleva la nota desnormalizada; los otros planos siguen
+  // resolviéndola contra candidatas_raw, que ahí la lee staff.
+  const esPublico = planoActivo(supabase) === "public_v4";
+  const columnasTraza = "candidata_id, etapa, resultado, motivo, detalle, updated_at"
+    + (esPublico ? ", titulo, url, dominio_norm" : "");
   const [{ data: runData, error: runError }, { data: clipData }] = await Promise.all([
     tabla(supabase, "pipeline_runs")
       .select("id, fecha, estado, trigger, arranco_at, termino_at, pool_total, next_pagina, nivel_salida")
@@ -124,7 +136,7 @@ export default async function ActividadV4({ clients, clientId, paginaDescartes, 
       : Promise.resolve({ count: 0 }),
     run
       ? tabla(supabase, "candidate_trace")
-          .select("candidata_id, etapa, resultado, motivo, detalle, updated_at")
+          .select(columnasTraza)
           .eq("run_id", run.id)
           .eq("etapa", verJuez ? "juez" : "auditor")
           .eq("resultado", "descarta")
@@ -190,7 +202,7 @@ export default async function ActividadV4({ clients, clientId, paginaDescartes, 
   const mediosFallidos = mediosAgrupados.filter((m) => !m.ok);
   const keywordsConMatch = keywords.filter((k) => k.matches > 0);
   const ids = [...new Set(descartadas.map((t) => t.candidata_id))];
-  const { data: candidateData } = ids.length
+  const { data: candidateData } = ids.length && !esPublico
     ? await supabase.from("candidatas_raw").select("id, titulo, url, dominio_norm").in("id", ids)
     : { data: [] as Candidate[] };
   const candidateById = new Map(((candidateData ?? []) as Candidate[]).map((c) => [c.id, c]));
@@ -201,19 +213,16 @@ export default async function ActividadV4({ clients, clientId, paginaDescartes, 
     <div className="w-full p-6 space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold text-foreground">Actividad</h1>
-            <span className="rounded-full border border-violet-300 bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-800">v4 · prueba</span>
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">Decisiones y avance reales de la corrida v4. No mezcla datos de v3.</p>
+          <h1 className="text-xl font-semibold text-foreground">Actividad</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Cómo se armó el clipping de hoy: qué medios se revisaron y qué notas quedaron afuera.</p>
         </div>
         <ActividadFilter clients={clients} value={clientId} />
       </div>
 
-      {runError ? <p className="text-sm text-red-600">No se pudo leer la corrida v4: {runError.message}</p> : null}
+      {runError ? <p className="text-sm text-red-600">No se pudo leer la corrida: {runError.message}</p> : null}
       {!run ? (
         <div className="rounded-xl border border-dashed border-border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
-          {nombre}: todavía no hay una corrida v4 registrada.
+          {nombre}: todavía no hay una corrida registrada.
         </div>
       ) : (
         <>
@@ -234,7 +243,7 @@ export default async function ActividadV4({ clients, clientId, paginaDescartes, 
           </section>
 
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <Metric label="Pool v4" value={run.pool_total ?? 0} />
+            <Metric label="Notas encontradas" value={run.pool_total ?? 0} />
             <Metric label="Juzgadas" value={juzgadas} tone="text-violet-700" />
             <Metric label="Entraron" value={entran} tone="text-emerald-700" />
             <Metric label="Juez descartó" value={totalJuezDescartadas} tone="text-amber-700" />
@@ -244,7 +253,7 @@ export default async function ActividadV4({ clients, clientId, paginaDescartes, 
           <section className="grid gap-5 xl:grid-cols-2">
             <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
               <div className="flex items-center justify-between gap-3">
-                <div><h2 className="text-sm font-semibold text-foreground">Cobertura de medios</h2><p className="mt-1 text-xs text-muted-foreground">Medios y secciones que se intentaron en esta corrida v4.</p></div>
+                <div><h2 className="text-sm font-semibold text-foreground">Cobertura de medios</h2><p className="mt-1 text-xs text-muted-foreground">Medios y secciones que se intentaron en esta corrida.</p></div>
                 <span className="text-sm text-muted-foreground"><b className="text-emerald-700">{mediosOk.length}</b> / {mediosAgrupados.length} con notas</span>
               </div>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -253,7 +262,7 @@ export default async function ActividadV4({ clients, clientId, paginaDescartes, 
               </div>
             </div>
             <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-foreground">Palabras clave</h2><p className="mt-1 text-xs text-muted-foreground">Matches sobre el pool exacto de esta corrida v4.</p></div><span className="text-sm text-muted-foreground"><b className="text-emerald-700">{keywordsConMatch.length}</b> de {keywords.length}</span></div>
+              <div className="flex items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-foreground">Palabras clave</h2><p className="mt-1 text-xs text-muted-foreground">Coincidencias sobre las notas de esta corrida.</p></div><span className="text-sm text-muted-foreground"><b className="text-emerald-700">{keywordsConMatch.length}</b> de {keywords.length}</span></div>
               <ul className="mt-4 max-h-64 space-y-1 overflow-auto pr-1">{keywords.map((k) => <li key={k.keyword} className="flex items-center gap-2 text-sm"><span className={"size-2 rounded-full " + (k.matches > 0 ? "bg-emerald-500" : "bg-slate-300")} /><span className="min-w-0 flex-1 truncate text-slate-700">{k.keyword}</span><span className="shrink-0 text-xs text-slate-400">{k.grupo ? `${k.grupo} · ` : ""}{k.matches}</span></li>)}</ul>
             </div>
           </section>
@@ -269,7 +278,9 @@ export default async function ActividadV4({ clients, clientId, paginaDescartes, 
               {descartadas.length === 0 ? <p className="mt-5 text-sm text-muted-foreground">{verJuez ? "Todavía no hay descartes del juez." : "Ninguna nota aprobada quedó afuera en el último filtro."}</p> : (
                 <ul className="mt-4 divide-y divide-border/70">
                   {descartadas.map((t) => {
-                    const c = candidateById.get(t.candidata_id);
+                    const c = esPublico
+                      ? { titulo: t.titulo ?? null, url: t.url ?? null, dominio_norm: t.dominio_norm ?? null }
+                      : candidateById.get(t.candidata_id);
                     const recuperable = verJuez || t.detalle?.recuperable === true;
                     return <li key={t.candidata_id} className="flex gap-2 py-3 first:pt-0">
                       {recuperable ? <RecuperarV4Button runId={run.id} candidataId={t.candidata_id} recuperada={recuperadas.has(t.candidata_id)} /> : <span className="inline-flex size-7 shrink-0 items-center justify-center text-slate-300" title="No se recupera: ya hay una versión de esta nota">—</span>}
@@ -293,16 +304,19 @@ export default async function ActividadV4({ clients, clientId, paginaDescartes, 
             <div className="space-y-5">
               <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
                 <div className="flex items-center gap-2"><Layers3 size={17} className="text-violet-700" /><h2 className="text-sm font-semibold">Clipping guardado</h2></div>
-                <p className="mt-3 text-sm text-foreground">{clip ? `${fecha(clip.fecha)} · ${clip.estado}` : "Todavía no se guardó un clipping v4."}</p>
+                <p className="mt-3 text-sm text-foreground">{clip ? `${fecha(clip.fecha)} · ${clip.estado}` : "Todavía no se guardó el clipping."}</p>
               </div>
               <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-                <div className="flex items-center gap-2"><FilePenLine size={17} className="text-slate-600" /><h2 className="text-sm font-semibold">Ediciones en v4</h2></div>
+                <div className="flex items-center gap-2"><FilePenLine size={17} className="text-slate-600" /><h2 className="text-sm font-semibold">Ediciones</h2></div>
                 {edits.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Todavía no hubo ediciones en este clipping.</p> : <ul className="mt-3 space-y-2">{edits.map((e, i) => <li key={`${e.created_at}-${i}`} className="flex items-center gap-2 text-sm text-slate-700"><Clock3 size={13} className="text-muted-foreground" />{e.accion} · {hora(e.created_at)}</li>)}</ul>}
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
-                <div className="flex items-center gap-2 font-semibold text-slate-700"><PlayCircle size={14} /> Alcance de esta vista</div>
-                <p className="mt-1">Cobertura, keywords, juez y recuperaciones son datos propios de v4 test. No se leyó ni se escribió el clipping de producción.</p>
-              </div>
+              {/* Nota de alcance: jerga interna (planos, v4/v3). Sólo staff. */}
+              {permiteJuez ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+                  <div className="flex items-center gap-2 font-semibold text-slate-700"><PlayCircle size={14} /> Alcance de esta vista</div>
+                  <p className="mt-1">Cobertura, keywords, juez y recuperaciones son datos propios de v4 test. No se leyó ni se escribió el clipping de producción.</p>
+                </div>
+              ) : null}
             </div>
           </section>
         </>
