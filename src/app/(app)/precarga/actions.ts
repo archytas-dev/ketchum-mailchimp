@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { enPlanoV4, precargaSoloLecturaPublicV4, rechazoEscrituraCompartida, tabla } from "@/lib/data-plane";
+import { enPlanoV4, planoActivo, rechazoEscrituraCompartida, tabla } from "@/lib/data-plane";
 import { tierNorm } from "@/lib/tier";
 
 // ---------- Tier del medio (pedido de Fedra, 11/08) ----------
@@ -293,14 +293,24 @@ export async function addPrecarga(
   if (!clean.length) return { ok: false, error: "No hay notas válidas (falta título o URL)." };
 
   const supabase = await createClient();
-  if (precargaSoloLecturaPublicV4(supabase)) {
-    return { ok: false, error: "Precarga está en modo lectura en este plano de prueba: el alta de notas todavía no está conectada a public_v4." };
-  }
-  const { data, error } = await supabase.rpc(enPlanoV4(supabase) ? "v4_test_preload_notes" : "preload_notes", {
-    p_client_id: clientId,
-    p_fecha: fecha,
-    p_notes: clean,
-  });
+  const plano = planoActivo(supabase);
+  // v3 tiene su propia RPC. Los dos planos v4 comparten v4_preload_notes y se diferencian
+  // por destino, que decide en qué schema queda la precarga. Tiene que coincidir con el
+  // schema donde import_clipping_v4 la busca al armar el clipping de esa fecha, porque si
+  // no la nota se guarda bien pero la corrida nunca la levanta.
+  const { data, error } =
+    plano === "v3"
+      ? await supabase.rpc("preload_notes", {
+          p_client_id: clientId,
+          p_fecha: fecha,
+          p_notes: clean,
+        })
+      : await supabase.rpc("v4_preload_notes", {
+          p_client_id: clientId,
+          p_fecha: fecha,
+          p_notes: clean,
+          p_destino: plano === "public_v4" ? "public_v4" : "test",
+        });
   if (error) return { ok: false, error: error.message };
   return { ok: true, count: typeof data === "number" ? data : clean.length };
 }
@@ -322,9 +332,6 @@ export async function updatePrecarga(
   if (fields.seccion !== undefined && !fields.seccion) return { ok: false, error: "La sección no puede quedar vacía." };
 
   const supabase = await createClient();
-  if (precargaSoloLecturaPublicV4(supabase)) {
-    return { ok: false, error: "Precarga está en modo lectura en este plano de prueba." };
-  }
   const { error } = await tabla(supabase, "notes_precarga")
     .update(fields)
     .eq("id", id)
@@ -338,9 +345,6 @@ export async function delPrecarga(
   id: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = await createClient();
-  if (precargaSoloLecturaPublicV4(supabase)) {
-    return { ok: false, error: "Precarga está en modo lectura en este plano de prueba." };
-  }
   const { error } = await tabla(supabase, "notes_precarga")
     .delete()
     .eq("id", id)

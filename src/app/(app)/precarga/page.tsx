@@ -1,15 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { ordenarClientes } from "@/lib/clientes";
-import { enPlanoV4, planoActivo, precargaSoloLecturaPublicV4 } from "@/lib/data-plane";
+import { planoActivo } from "@/lib/data-plane";
 import PrecargaClient, { type ClientOpt } from "./PrecargaClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function PrecargaPage() {
   const supabase = await createClient();
-  const planoV4 = enPlanoV4(supabase);
-  const esPublicV4 = planoActivo(supabase) === "public_v4";
-  const soloLectura = precargaSoloLecturaPublicV4(supabase);
+  // Sólo el plano de prueba interno lleva aviso. public_v4 es el plano operativo del
+  // cliente: la precarga ahí es real y va al mismo schema donde la busca la corrida.
+  const esTestV4 = planoActivo(supabase) === "test_v4";
   const { data: clientRows } = await supabase.from("clients").select("id, slug, nombre");
   // [19/08] Cutover: notes_precarga (lo que se guarda) va con el client_id real -- los 4
   // nodos "Leer Precarga Pendiente" de n8n ya se corrigieron para leer de ahí. Pero
@@ -28,16 +28,7 @@ export default async function PrecargaPage() {
         Cargá notas para una fecha futura. Cuando el clipping de ese día corra, entran junto a lo que
         encuentre, sin duplicar (si coincide una, se conserva la precargada).
       </p>
-      {esPublicV4 ? (
-        <div className="max-w-2xl rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          <p className="font-medium">Vista de prueba v4: Precarga está en modo lectura.</p>
-          <p className="mt-1 text-amber-900">
-            El alta de notas todavía no está conectada a este plano — la RPC que carga notas hoy
-            solo sabe escribir en el schema de test. Podés ver lo ya precargado, pero no agregar,
-            editar ni borrar desde acá.
-          </p>
-        </div>
-      ) : planoV4 ? (
+      {esTestV4 ? (
         <div className="max-w-2xl rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           <p className="font-medium">Vista de prueba v4: esta precarga queda aislada.</p>
           <p className="mt-1 text-amber-900">
@@ -45,7 +36,7 @@ export default async function PrecargaPage() {
           </p>
         </div>
       ) : null}
-      <PrecargaClient clients={clients} soloLectura={soloLectura} />
+      <PrecargaClient clients={clients} soloLectura={false} />
     </div>
   );
 }

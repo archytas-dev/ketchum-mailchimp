@@ -154,19 +154,18 @@ export function rechazoEscrituraCompartida(cliente?: object): { ok: false; error
 }
 
 /**
- * Varias escrituras de v4 llaman a RPCs `v4_test_*` que solo saben escribir el schema `test`
- * (`v4_test_preload_notes` en Precarga, `v4_test_recuperar_candidata` en "Casi entraron").
- * En `public_v4` eso guardaria en `test.*` en vez de `public.*`: un cruce silencioso entre
- * planos, que encima no se nota porque la pantalla lee de la tabla publica y nunca ve lo que
- * acaba de escribir. Hasta que existan RPCs propias de `public_v4`, esas acciones quedan
- * bloqueadas ahi. `test_v4` no se toca: sus RPCs ya escriben donde corresponde.
+ * Algunas escrituras de v4 llaman a RPCs `v4_test_*` que solo saben escribir el schema
+ * `test` (hoy: `v4_test_recuperar_candidata`, en "Casi entraron"). En `public_v4` eso
+ * guardaria en `test.*` en vez de `public.*`: un cruce silencioso entre planos, que encima
+ * no se nota porque la pantalla lee de la tabla publica y nunca ve lo que acaba de escribir.
+ * Hasta que exista una RPC propia, esas acciones quedan bloqueadas ahi. `test_v4` no se
+ * toca: sus RPCs ya escriben donde corresponde.
+ *
+ * Precarga salio de esta lista: `v4_preload_notes` recibe destino y escribe el schema que
+ * corresponde, igual que `import_clipping_v4` al consumirla.
  */
 export function escrituraV4SoloTest(cliente?: object): boolean {
   return planoActivo(cliente) === "public_v4";
-}
-
-export function precargaSoloLecturaPublicV4(cliente?: object): boolean {
-  return escrituraV4SoloTest(cliente);
 }
 
 export function destino(tabla: TablaLogica, cliente?: object): Destino {
