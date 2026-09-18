@@ -60,7 +60,13 @@ export async function listMedios(
       const suscripcion = porFuente.get(f.id)!;
       const valor = porValor.get(f.dominio_norm);
       const previo = agrupados.get(f.dominio_norm);
-      const activo = f.activa && !suscripcion.bloqueado;
+      // Criterio de v3: "activo" = el medio se quiere monitorear, o sea suscripción no
+      // bloqueada. NO se mira f.activa: ese flag es por FUENTE (dominio + sección) y sólo
+      // dice que esa URL de feed puntual no resolvió transporte -- el dominio se sigue
+      // recolectando por otra vía, así que mostrarlo inactivo es falso.
+      // Medido el 17/09: de los 63 dominios de nicho que Booking mostraba inactivos, 57
+      // respondieron ese día y trajeron 963 notas.
+      const activo = !suscripcion.bloqueado;
       if (previo) {
         previo.activo = previo.activo || activo;
         previo.metodo = [previo.metodo, f.formato ?? f.metodo_extraccion ?? f.transporte ?? null].filter(Boolean).join(", ") || null;
