@@ -1,5 +1,5 @@
-// Dispara una prueba completa y aislada del armado v4. El workflow y el
-// subworkflow de envio fuerzan el unico destinatario permitido: Adrian.
+// Dispara una prueba completa y aislada del armado v4. El workflow escribe en
+// test y el subworkflow de envio limita la prueba a Adrian y Camila.
 const clients = {
   mars: '145311f2-79a0-430b-b528-c9683d1e196f',
   booking: '65170cb4-0646-4602-b5b5-f1b93e6762d4',
@@ -20,9 +20,9 @@ if (!clientId) throw new Error(`Uso: node scripts/start-ketchum-clipping-test.cj
   const response = await fetch('https://n8n-ketchum.archytas.io/webhook/v4-armado', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ client_id: clientId, modo: 'test', rehacer, limite, run_id: runId }),
+    body: JSON.stringify({ client_id: clientId, modo: 'test', entrega: 'test', rehacer, limite, run_id: runId }),
   });
   const text = await response.text();
   if (!response.ok) throw new Error(`Webhook HTTP ${response.status}: ${text.slice(0, 800)}`);
-  console.log(JSON.stringify({ started: slug, client_id: clientId, modo: 'test', rehacer, limite, run_id: runId, recipient: 'adrian@archytas.io', response: text.slice(0, 500) }, null, 2));
+  console.log(JSON.stringify({ started: slug, client_id: clientId, modo: 'test', entrega: 'test', rehacer, limite, run_id: runId, recipients: ['adrian@archytas.io', 'camila@archytas.io'], response: text.slice(0, 500) }, null, 2));
 })().catch((error) => { console.error(error.stack || error.message); process.exit(1); });
