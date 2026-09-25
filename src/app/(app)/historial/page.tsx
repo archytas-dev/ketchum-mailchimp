@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { planoActivo } from "@/lib/data-plane";
 import { ordenarClientesActivos } from "@/lib/clientes";
 import HistorialView, { type ClientTab } from "./HistorialView";
 import { fetchHistory } from "./actions";
@@ -20,7 +19,6 @@ export default async function HistorialPage() {
       clients={clients}
       initialRows={initial.rows}
       initialHasMore={initial.hasMore}
-      avisoMigracion={planoActivo(supabase) === "public_v4"}
     />
   );
 }

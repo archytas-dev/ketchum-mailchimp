@@ -9,7 +9,6 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { fetchHistory, fetchExport, type HistRow } from "./actions";
-import AvisoMigracionV4 from "@/components/AvisoMigracionV4";
 
 export type ClientTab = { id: string; slug: string; nombre: string };
 
@@ -27,13 +26,10 @@ export default function HistorialView({
   clients,
   initialRows,
   initialHasMore,
-  avisoMigracion = false,
 }: {
   clients: ClientTab[];
   initialRows: HistRow[];
   initialHasMore: boolean;
-  /** El plano v4 arranca con las tablas de entrega vacías: hay que decir por qué. */
-  avisoMigracion?: boolean;
 }) {
   const [rows, setRows] = useState<HistRow[]>(initialRows);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -146,12 +142,6 @@ export default function HistorialView({
   return (
     <div className="px-4 sm:px-6 py-6 h-screen flex flex-col">
       <h1 className="text-xl font-semibold text-foreground mb-4 shrink-0">Historial</h1>
-
-      {avisoMigracion ? (
-        <div className="mb-4 shrink-0">
-          <AvisoMigracionV4 superficie="historial" />
-        </div>
-      ) : null}
 
       <div className="grid gap-5 lg:grid-cols-[340px_1fr] flex-1 min-h-0">
         {/* Panel izquierdo: filtros + lista */}
